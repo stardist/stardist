@@ -22,4 +22,4 @@ This package requires Python 3 and can be installed with `pip`:
 
 ## Usage
 
-We provide several Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/examples) that illustrate how this package can be used.
+We provide several Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/tree/master/examples) that illustrate how this package can be used.
