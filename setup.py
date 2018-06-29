@@ -1,28 +1,38 @@
 from __future__ import absolute_import, print_function
 from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_ext
 from numpy.distutils.misc_util import get_numpy_include_dirs
 from os import path
 
 
-def openmp_available():
-    import os, subprocess, shutil
-    from distutils.sysconfig import get_config_var
-    from tempfile import mkdtemp
-    try:
-        curdir = os.getcwd()
-        tmpdir = mkdtemp()
-        os.chdir(tmpdir)
-        compiler = os.environ.get('CXX',get_config_var('CXX')).split()[0]
-        filename = 'test.cpp'
-        with open(filename,'w') as f:
-            f.write("#include <omp.h>\nint main() { return omp_get_num_threads(); }")
-        with open(os.devnull,'w') as void:
-            return 0 == subprocess.call([compiler, '-fopenmp', filename], stdout=void, stderr=void)
-    except:
-        return False
-    finally:
-        os.chdir(curdir)
-        shutil.rmtree(tmpdir)
+class build_ext_openmp(build_ext):
+    # https://www.openmp.org/resources/openmp-compilers-tools/
+    # python setup.py build_ext --help-compiler
+    openmp_compile_args = {
+        'msvc':  ['/openmp'],
+        'intel': ['-qopenmp'],
+        '*':     ['-fopenmp']
+    }
+    openmp_link_args = openmp_compile_args # ?
+
+    def build_extension(self, ext):
+        compiler = self.compiler.compiler_type.lower()
+        if compiler.startswith('intel'):
+            compiler = 'intel'
+        if compiler not in self.openmp_compile_args:
+            compiler = '*'
+
+        _extra_compile_args = list(ext.extra_compile_args)
+        _extra_link_args    = list(ext.extra_link_args)
+        try:
+            ext.extra_compile_args += self.openmp_compile_args[compiler]
+            ext.extra_link_args    += self.openmp_link_args[compiler]
+            super(build_ext_openmp, self).build_extension(ext)
+        except:
+            print('compiling with OpenMP support failed, re-trying without')
+            ext.extra_compile_args = _extra_compile_args
+            ext.extra_link_args    = _extra_link_args
+            super(build_ext_openmp, self).build_extension(ext)
 
 
 _dir = path.abspath(path.dirname(__file__))
@@ -32,9 +42,6 @@ with open(path.join(_dir,'stardist','version.py')) as f:
 
 with open(path.join(_dir,'README.md')) as f:
     long_description = f.read()
-
-extra_args  = [] # ['-std=c++11']
-extra_args += ['-fopenmp'] if openmp_available() else []
 
 
 setup(
@@ -48,14 +55,14 @@ setup(
     author_email='uschmidt@mpi-cbg.de, mweigert@mpi-cbg.de',
     license='BSD 3-Clause License',
     packages=find_packages(),
+    python_requires='>=3.5',
 
+    cmdclass={'build_ext': build_ext_openmp},
     ext_modules=[
         Extension(
             'stardist.lib.stardist',
             sources=['stardist/lib/stardist.cpp','stardist/lib/clipper.cpp'],
             include_dirs=get_numpy_include_dirs(),
-            extra_compile_args=extra_args,
-            extra_link_args=extra_args,
         )
     ],
 
@@ -73,5 +80,4 @@ setup(
         "csbdeep",
         "scikit-image",
     ],
-
 )
