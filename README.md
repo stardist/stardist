@@ -21,7 +21,7 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
 - Since this package relies on a C++ extension, you could run into compilation problems (see [Troubleshooting](#troubleshooting) below). We currently do not provide pre-compiled binaries.
-- StarDist uses the deep learning library [Keras](keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we only tested [TensorFlow](http://www.tensorflow.org/)).
+- StarDist uses the deep learning library [Keras](https://keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we only tested [TensorFlow](http://www.tensorflow.org/)).
 
 
 ## Usage
