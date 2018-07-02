@@ -1,5 +1,8 @@
 # StarDist
 
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
+
+
 The code in this repository implements object detection with star-convex polygons as described in the paper:
 
 Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
@@ -8,7 +11,6 @@ International Conference on Medical Image Computing and Computer-Assisted Interv
 
 Please cite the paper if you are using this code in your research.
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
 
 
 ## Installation
