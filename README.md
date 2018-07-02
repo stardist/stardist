@@ -8,7 +8,7 @@ International Conference on Medical Image Computing and Computer-Assisted Interv
 
 Please cite the paper if you are using this code in your research.
 
-![](images/overview.png)
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
 
 
 ## Installation
@@ -27,6 +27,8 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 ## Usage
 
 We provide several Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/tree/master/examples) that illustrate how this package can be used.
+
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
 
 ## Troubleshooting
