@@ -132,7 +132,7 @@ class Config(argparse.Namespace):
         Number of convolution kernels (feature channels) for first U-Net layer.
         Doubled after each down-sampling layer.
     net_conv_after_unet : int
-        Number of extra convolution layers after U-Net (0 to disable).
+        Number of filters of the extra convolution layer after U-Net (0 to disable).
     train_shape_completion : bool
         Train model to predict complete shapes for partially visible objects at image boundary.
     train_completion_crop : int
