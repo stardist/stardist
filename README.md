@@ -13,6 +13,21 @@ Please cite the paper if you are using this code in your research.
 
 
 
+``` 
+@inproceedings{schmidt2018,
+  author    = {Uwe Schmidt and Martin Weigert and Coleman Broaddus and Gene Myers},
+  title     = {Cell Detection with Star-Convex Polygons},
+  booktitle = {Medical Image Computing and Computer Assisted Intervention - {MICCAI} 
+  2018 - 21st International Conference, Granada, Spain, September 16-20, 2018, Proceedings, Part {II}},
+  pages     = {265--273},
+  year      = {2018},
+  doi       = {10.1007/978-3-030-00934-2\_30},
+}
+```
+
+
+
+
 ## Installation
 
 This package requires Python 3.5 (or newer) and can be installed with `pip`:
