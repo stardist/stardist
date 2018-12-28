@@ -100,7 +100,9 @@ class StarDistData(Sequence):
             dist      = np.stack([star_dist(lbl,self.n_rays) for lbl in Y])
             dist_mask = prob
 
-        X = np.expand_dims(np.stack(X),-1)
+        X = np.stack(X)
+        if X.ndim == 3: # input image has no channel axis
+            X = np.expand_dims(X,-1)
         prob = np.expand_dims(prob,-1)
         dist_mask = np.expand_dims(dist_mask,-1)
 
@@ -174,8 +176,10 @@ class Config(argparse.Namespace):
         self.net_conv_after_unet    = 128
         if backend_channels_last():
             self.net_input_shape    = (None, None, self.n_channel_in)
+            self.net_mask_shape     = (None, None, 1)
         else:
             self.net_input_shape    = (self.n_channel_in, None, None)
+            self.net_mask_shape     = (1, None, None)
 
         self.train_shape_completion = False
         self.train_completion_crop  = 32
@@ -292,7 +296,7 @@ class StarDist(object):
 
     def _build(self):
         input_img  = Input(self.config.net_input_shape,name='input')
-        input_mask = Input(self.config.net_input_shape,name='dist_mask')
+        input_mask = Input(self.config.net_mask_shape,name='dist_mask')
 
         unet_kwargs = {k[5:]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
         unet        = unet_block(**unet_kwargs)(input_img)
