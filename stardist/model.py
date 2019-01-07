@@ -450,13 +450,11 @@ class StarDist(object):
 
         img.ndim in (2,3) or _raise(ValueError())
 
-        
         x = img
         if x.ndim == 2:
-            x = np.expand_dims(x,channel)
-            
-        channel = img.ndim-1 if backend_channels_last() else 0
-        
+            x = np.expand_dims(x,(-1 if backend_channels_last() else 0))
+
+        channel = x.ndim-1 if backend_channels_last() else 0
         self.config.n_channel_in == x.shape[channel] or _raise(ValueError())
 
         # resize: make divisible by power of 2 to allow downsampling steps in unet
@@ -475,7 +473,7 @@ class StarDist(object):
         prob = resizer.after(prob,exclude=channel)
         dist = resizer.after(dist,exclude=channel)
 
-        prob = np.take(prob,0,channel)
+        prob = np.take(prob,0,axis=channel)
         dist = np.moveaxis(dist,channel,-1)
 
         return prob, dist
