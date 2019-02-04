@@ -7,6 +7,8 @@ import argparse
 import warnings
 import datetime
 
+from distutils.version import LooseVersion
+import keras
 import keras.backend as K
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, TensorBoard
 from keras.layers import Input, Conv2D
@@ -192,7 +194,9 @@ class Config(argparse.Namespace):
         self.train_batch_size       = 4
         self.train_tensorboard      = True
         self.train_checkpoint       = 'weights_best.h5'
-        self.train_reduce_lr        = {'factor': 0.5, 'patience': 10}
+        # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
+        min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
+        self.train_reduce_lr        = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
 
         for k in kwargs:
             setattr(self, k, kwargs[k])
@@ -345,7 +349,8 @@ class StarDist(object):
 
         self.callbacks = []
         if self.config.train_checkpoint is not None:
-            self.callbacks.append(ModelCheckpoint(str(self.logdir / self.config.train_checkpoint), save_best_only=True, save_weights_only=True))
+            self.callbacks.append(ModelCheckpoint(str(self.logdir / self.config.train_checkpoint), save_best_only=True,  save_weights_only=True))
+            self.callbacks.append(ModelCheckpoint(str(self.logdir / 'weights_now.h5'),             save_best_only=False, save_weights_only=True))
 
         if self.config.train_tensorboard:
             self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
@@ -422,7 +427,13 @@ class StarDist(object):
         self.keras_model.save_weights(str(self.logdir / 'weights_last.h5'))
 
         if self.config.train_checkpoint is not None:
-            self.load_weights(self.config.train_checkpoint)
+            print()
+            self._find_and_load_weights(self.config.train_checkpoint)
+            try:
+                # remove temporary weights
+                (self.logdir / 'weights_now.h5').unlink()
+            except FileNotFoundError:
+                pass
 
         return history
 
@@ -455,11 +466,12 @@ class StarDist(object):
             x = np.expand_dims(x,(-1 if backend_channels_last() else 0))
 
         channel = x.ndim-1 if backend_channels_last() else 0
+        axes    = 'YXC'    if backend_channels_last() else 'CYX'
         self.config.n_channel_in == x.shape[channel] or _raise(ValueError())
 
         # resize: make divisible by power of 2 to allow downsampling steps in unet
-        div_n = 2 ** self.config.unet_n_depth
-        x = resizer.before(x,div_n,exclude=channel)
+        axes_div_by = tuple(2**self.config.unet_n_depth if a!='C' else 1 for a in axes)
+        x = resizer.before(x, axes, axes_div_by)
 
         if backend_channels_last():
             sh = x.shape[:-1] + (1,)
@@ -470,8 +482,8 @@ class StarDist(object):
         prob, dist = self.keras_model.predict([np.expand_dims(x,0),dummy],**predict_kwargs)
         prob, dist = prob[0], dist[0]
 
-        prob = resizer.after(prob,exclude=channel)
-        dist = resizer.after(dist,exclude=channel)
+        prob = resizer.after(prob, axes)
+        dist = resizer.after(dist, axes)
 
         prob = np.take(prob,0,axis=channel)
         dist = np.moveaxis(dist,channel,-1)
