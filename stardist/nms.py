@@ -2,30 +2,8 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 import numpy as np
 
 
-def non_maximum_suppression_inds(polygons, scores, thresh=0.5, use_bbox=True):
-    """
-    Applies non maximum supression to given (ray-shaped) polygons, scores and IoU threshold
 
-    polygons.shape = (n_polygons, 2, n_rays)
-    score.shape = (n_polygons,)
-
-    returns indices of selected polygons
-    """
-
-    from .lib.stardist import c_non_max_suppression_inds
-    assert len(polygons) == len(scores)
-
-    # sort scores descendingly
-    ind = np.argsort(scores)[::-1]
-    survivors = np.zeros(len(ind), np.bool)
-    polygons = polygons[ind]
-    scores = scores[ind]
-
-    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), scores.astype(np.float32), np.float32(thresh), np.bool(use_bbox))
-    return survivors
-
-
-def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False):
+def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
     """2D coordinates of the polys that survive from a given prediction (prob, coord)
 
     prob.shape = (Ny,Nx)
@@ -33,6 +11,7 @@ def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, v
 
     b: don't use pixel closer than b pixels to the image boundary
     """
+    from .lib.stardist import c_non_max_suppression_inds
 
     assert prob.ndim == 2
     assert coord.ndim == 4
@@ -46,7 +25,20 @@ def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, v
     polygons = coord[mask]
     scores   = prob[mask]
 
-    survivors = non_maximum_suppression_inds(polygons, scores, thresh=nms_thresh)
+    # sort scores descendingly
+    ind = np.argsort(scores)[::-1]
+    survivors = np.zeros(len(ind), np.bool)
+    polygons = polygons[ind]
+    scores = scores[ind]
+
+    if max_bbox_search:
+        # map pixel indices to ids of sorted polygons (-1 => polygon at that pixel not a candidate)
+        mapping = -np.ones(mask.shape,np.int32)
+        mapping.flat[ np.flatnonzero(mask)[ind] ] = range(len(ind))
+    else:
+        mapping = np.empty((0,0),np.int32)
+
+    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), mapping, np.float32(nms_thresh), np.bool(max_bbox_search))
 
     if verbose:
         print("keeping %s/%s polygons" % (np.count_nonzero(survivors), len(polygons)))

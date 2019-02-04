@@ -17,6 +17,7 @@ inline int round_to_int(float r) {
 }
 
 
+
 static PyObject* c_star_dist (PyObject *self, PyObject *args) {
 
     PyArrayObject *src = NULL;
@@ -92,22 +93,51 @@ inline float area_from_path(ClipperLib::Path p) {
 }
 
 
+
+inline bool bbox_intersect(const int bbox_a_x1, const int bbox_a_x2,
+                           const int bbox_a_y1, const int bbox_a_y2,
+                           const int bbox_b_x1, const int bbox_b_x2,
+                           const int bbox_b_y1, const int bbox_b_y2) {
+    // return !( bbox_b_x1 >  bbox_a_x2 || bbox_a_x1 >  bbox_b_x2 || bbox_b_y1 >  bbox_a_y2 || bbox_a_y1 >  bbox_b_y2 );
+    return  ( bbox_b_x1 <= bbox_a_x2 && bbox_a_x1 <= bbox_b_x2 && bbox_b_y1 <= bbox_a_y2 && bbox_a_y1 <= bbox_b_y2 );
+}
+
+
+
+inline float poly_intersection_area(const ClipperLib::Path poly_a_path, const ClipperLib::Path poly_b_path) {
+    ClipperLib::Clipper c;
+    ClipperLib::Paths res;
+    c.Clear();
+
+    c.AddPath(poly_a_path,ClipperLib::ptClip, true);
+    c.AddPath(poly_b_path,ClipperLib::ptSubject, true);
+    c.Execute(ClipperLib::ctIntersection, res, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
+
+    float area_inter = 0;
+    for (unsigned int r=0; r<res.size(); r++)
+        area_inter += area_from_path(res[r]);
+    return area_inter;
+}
+
+
+
 // polys.shape = (n_polys, 2, n_rays)
 // expects that polys are sorted with associated descending scores
 // returns boolean vector of polys indices that are kept
 
 static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
-    PyArrayObject *polys=NULL, *scores=NULL;
-    PyArrayObject *result=NULL;
+    PyArrayObject *polys=NULL, *mapping=NULL, *result=NULL;
     float threshold;
-    bool use_bbox;
+    bool max_bbox_search;
 
-    if (!PyArg_ParseTuple(args, "O!O!fp", &PyArray_Type, &polys, &PyArray_Type, &scores, &threshold, &use_bbox))
+    if (!PyArg_ParseTuple(args, "O!O!fp", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search))
         return NULL;
 
-    npy_intp *dims = PyArray_DIMS(polys);
+    npy_intp *img_dims = PyArray_DIMS(mapping);
+    const int width = img_dims[0], height = img_dims[1];
 
+    npy_intp *dims = PyArray_DIMS(polys);
     const int n_polys = dims[0];
     const int n_rays = dims[2];
 
@@ -115,6 +145,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     int * bbox_x2 = new int[n_polys];
     int * bbox_y1 = new int[n_polys];
     int * bbox_y2 = new int[n_polys];
+
+    int max_bbox_size_x = 0;
+    int max_bbox_size_y = 0;
 
     float * areas = new float[n_polys];
     bool * suppressed = new bool[n_polys];
@@ -147,48 +180,78 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
             }
             clip<<ClipperLib::IntPoint(x,y);
         }
+        if (max_bbox_search) {
+            const int bbox_size_x = bbox_x2[i] - bbox_x1[i];
+            const int bbox_size_y = bbox_y2[i] - bbox_y1[i];
+            if (bbox_size_x > max_bbox_size_x) {
+                #pragma omp critical (max_x)
+                max_bbox_size_x = bbox_size_x;
+            }
+            if (bbox_size_y > max_bbox_size_y) {
+                #pragma omp critical (max_y)
+                max_bbox_size_y = bbox_size_y;
+            }
+        }
         poly_paths[i] = clip;
         areas[i] = area_from_path(clip);
     }
 
-    // suppress (double loop)
-    for (int i=0; i<n_polys-1; i++) {
+    // printf("max_bbox_size_x = %d, max_bbox_size_y = %d\n", max_bbox_size_x, max_bbox_size_y);
 
-        if (suppressed[i])
-           continue;
+    if (max_bbox_search) {
 
-        #pragma omp parallel for schedule(dynamic)
-        for (int j=i+1; j<n_polys; j++) {
+        // suppress (double loop)
+        for (int i=0; i<n_polys-1; i++) {
+            if (suppressed[i]) continue;
 
-            if (suppressed[j])
-                continue;
+            const int xs = std::max(bbox_x1[i]-max_bbox_size_x,0);
+            const int xe = std::min(bbox_x2[i]+max_bbox_size_x,width);
+            const int ys = std::max(bbox_y1[i]-max_bbox_size_y,0);
+            const int ye = std::min(bbox_y2[i]+max_bbox_size_y,height);
 
-            // first check if bounding boxes are intersecting
-            if (use_bbox) {
-                bool bbox_inter = !( bbox_x1[j] > bbox_x2[i] || bbox_x2[j] < bbox_x1[i] ||
-                                     bbox_y1[j] > bbox_y2[i] || bbox_y2[j] < bbox_y1[i]);
-                if (!bbox_inter)
+            // printf("%5d [%03d:%03d,%03d:%03d]",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
+            // printf(" - search area [%03d:%03d,%03d:%03d]\n",xs,xe,ys,ye);
+
+            #pragma omp parallel for collapse(2) schedule(dynamic)
+            for (int ii=xs; ii<xe; ii++) for (int jj=ys; jj<ye; jj++) {
+                // j is the id of the score-sorted polygon at coordinate (ii,jj)
+                const int j = *(int *)PyArray_GETPTR2(mapping,ii,jj);
+                // if (j<0) continue;  // polygon not even a candidate (check redundant because of next line)
+                if (j<=i) continue; // polygon has higher score (i.e. lower id) than "suppressor polygon" i
+                if (suppressed[j]) continue;
+                // skip if bounding boxes are not even intersecting
+                if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
                     continue;
+
+                const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
+                const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
+                if (overlap > threshold)
+                    suppressed[j] = true;
             }
-
-            ClipperLib::Clipper c;
-            ClipperLib::Paths res;
-            c.Clear();
-
-            c.AddPath(poly_paths[i],ClipperLib::ptClip, true);
-            c.AddPath(poly_paths[j],ClipperLib::ptSubject, true);
-            c.Execute(ClipperLib::ctIntersection, res, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
-
-            float area_inter = 0;
-            for (unsigned int r=0; r<res.size(); r++)
-                area_inter += area_from_path(res[r]);
-
-            // criterion to suppress
-            float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
-
-            if (overlap > threshold)
-                suppressed[j] = true;
         }
+
+    } else {
+
+        // suppress (double loop)
+        for (int i=0; i<n_polys-1; i++) {
+            if (suppressed[i]) continue;
+
+            // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
+
+            #pragma omp parallel for schedule(dynamic)
+            for (int j=i+1; j<n_polys; j++) {
+                if (suppressed[j]) continue;
+                // skip if bounding boxes are not even intersecting
+                if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
+                    continue;
+
+                const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
+                const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
+                if (overlap > threshold)
+                    suppressed[j] = true;
+            }
+        }
+
     }
 
     npy_intp dims_result[1];

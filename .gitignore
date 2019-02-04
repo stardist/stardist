@@ -8,6 +8,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+htmlcov/
+.coverage
 
 *.npz
 *.tif*
@@ -16,5 +18,5 @@ dist/
 *.zip
 *.png
 *.so
-*.tfevents*
+*.tfevents.*
 config.json
