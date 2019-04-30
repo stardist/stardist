@@ -38,7 +38,7 @@ def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, v
     else:
         mapping = np.empty((0,0),np.int32)
 
-    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), mapping, np.float32(nms_thresh), np.bool(max_bbox_search))
+    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), mapping, np.float32(nms_thresh), np.int32(max_bbox_search))
 
     if verbose:
         print("keeping %s/%s polygons" % (np.count_nonzero(survivors), len(polygons)))

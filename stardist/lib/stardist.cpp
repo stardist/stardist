@@ -129,9 +129,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
     PyArrayObject *polys=NULL, *mapping=NULL, *result=NULL;
     float threshold;
-    bool max_bbox_search;
+    int max_bbox_search;
 
-    if (!PyArg_ParseTuple(args, "O!O!fp", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search))
+    if (!PyArg_ParseTuple(args, "O!O!fi", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search))
         return NULL;
 
     npy_intp *img_dims = PyArray_DIMS(mapping);
