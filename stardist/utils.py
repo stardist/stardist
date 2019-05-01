@@ -3,10 +3,12 @@ from six.moves import range, zip, map, reduce, filter
 
 import numpy as np
 import warnings
+import shutil
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
 from skimage.draw import polygon
 from csbdeep.utils import _raise
+from csbdeep.utils.six import tempfile, Path
 
 
 _ocl_kernel = r"""
@@ -258,3 +260,62 @@ def sample_points(n_samples, mask, prob=None, b=2):
     points = points[0][ind], points[1][ind]
     points = np.stack(points,axis=-1)
     return points
+
+
+def polyroi_bytearray(x,y,pos=None):
+    """ Byte array of polygon roi with provided x and y coordinates
+        See https://github.com/imagej/imagej1/blob/master/ij/io/RoiDecoder.java
+    """
+    def _int16(x):
+        return int(x).to_bytes(2, byteorder='big', signed=True)
+    def _uint16(x):
+        return int(x).to_bytes(2, byteorder='big', signed=False)
+    def _int32(x):
+        return int(x).to_bytes(4, byteorder='big', signed=True)
+
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    assert len(x) == len(y)
+    top, left, bottom, right = y.min(), x.min(), y.max(), x.max() # bbox
+
+    n_coords = len(x)
+    bytes_header = 64
+    bytes_total = bytes_header + n_coords*2*2
+    B = [0] * bytes_total
+    B[ 0: 4] = map(ord,'Iout')   # magic start
+    B[ 4: 6] = _int16(227)       # version
+    B[ 6: 8] = _int16(0)         # roi type (0 = polygon)
+    B[ 8:10] = _int16(top)       # bbox top
+    B[10:12] = _int16(left)      # bbox left
+    B[12:14] = _int16(bottom)    # bbox bottom
+    B[14:16] = _int16(right)     # bbox right
+    B[16:18] = _uint16(n_coords) # number of coordinates
+    if pos is not None:
+        B[56:60] = _int32(pos)   # position (C, Z, or T)
+
+    for i,(_x,_y) in enumerate(zip(x,y)):
+        xs = bytes_header + 2*i
+        ys = xs + 2*n_coords
+        B[xs:xs+2] = _int16(_x - left)
+        B[ys:ys+2] = _int16(_y - top)
+
+    return bytearray(B)
+
+
+def export_imagej_rois(fname, polygons, set_position=True):
+    """ polygons assumed to be a list/array of arrays with shape (id,x,y) """
+
+    fname = Path(fname)
+    if fname.suffix == '.zip':
+        fname = Path(fname.stem)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        for pos,polygroup in enumerate(polygons,start=1):
+            for i,poly in enumerate(polygroup,start=1):
+                roi = polyroi_bytearray(poly[1],poly[0], pos=(pos if set_position else None))
+                with open(str(tmpdir/'{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i)), 'wb') as f:
+                    f.write(roi)
+
+        shutil.make_archive(str(fname), 'zip', str(tmpdir))
