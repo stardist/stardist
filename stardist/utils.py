@@ -3,12 +3,12 @@ from six.moves import range, zip, map, reduce, filter
 
 import numpy as np
 import warnings
-import shutil
+from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
 from skimage.draw import polygon
 from csbdeep.utils import _raise
-from csbdeep.utils.six import tempfile, Path
+from csbdeep.utils.six import Path
 
 
 _ocl_kernel = r"""
@@ -302,20 +302,15 @@ def polyroi_bytearray(x,y,pos=None):
     return bytearray(B)
 
 
-def export_imagej_rois(fname, polygons, set_position=True):
+def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLATED):
     """ polygons assumed to be a list/array of arrays with shape (id,x,y) """
 
     fname = Path(fname)
     if fname.suffix == '.zip':
         fname = Path(fname.stem)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-
+    with ZipFile(str(fname)+'.zip', mode='w', compression=compression) as roizip:
         for pos,polygroup in enumerate(polygons,start=1):
             for i,poly in enumerate(polygroup,start=1):
                 roi = polyroi_bytearray(poly[1],poly[0], pos=(pos if set_position else None))
-                with open(str(tmpdir/'{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i)), 'wb') as f:
-                    f.write(roi)
-
-        shutil.make_archive(str(fname), 'zip', str(tmpdir))
+                roizip.writestr('{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i), roi)
