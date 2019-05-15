@@ -16,6 +16,7 @@ from keras.models import Model
 from keras.utils import Sequence
 from keras.optimizers import Adam
 
+from csbdeep.models import BaseConfig, BaseModel
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, Path, load_json, save_json, backend_channels_last
 from csbdeep.data import Resizer, NoResizer, PadAndCropResizer
@@ -112,7 +113,7 @@ class StarDistData(Sequence):
 
 
 
-class Config(argparse.Namespace):
+class Config(BaseConfig):
     """Configuration for a :class:`StarDist` model.
 
     Parameters
@@ -167,9 +168,10 @@ class Config(argparse.Namespace):
     def __init__(self, n_rays=32, n_channel_in=1, **kwargs):
         """See class docstring."""
 
+        super().__init__(axes='YX', n_channel_in=n_channel_in, n_channel_out=n_rays)
+
         # directly set by parameters
         self.n_rays                 = n_rays
-        self.n_channel_in           = int(n_channel_in)
 
         # default config (can be overwritten by kwargs below)
         self.unet_n_depth           = 3
@@ -198,17 +200,11 @@ class Config(argparse.Namespace):
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr        = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
 
-        for k in kwargs:
-            setattr(self, k, kwargs[k])
-
-
-    def is_valid(self, return_invalid=False):
-        # TODO: check if configuration is valid
-        return True
+        self.update_parameters(False, **kwargs)
 
 
 
-class StarDist(object):
+class StarDist(BaseModel):
     """StarDist model.
 
     Parameters
@@ -242,60 +238,7 @@ class StarDist(object):
 
     def __init__(self, config=Config(), name=None, basedir='.'):
         """See class docstring."""
-
-        config is None or isinstance(config,Config) or _raise(ValueError('Invalid configuration: %s' % str(config)))
-        # if config is not None and not config.is_valid():
-        #     invalid_attr = config.is_valid(True)[1]
-        #     raise ValueError('Invalid configuration attributes: ' + ', '.join(invalid_attr))
-
-        name is None or isinstance(name,string_types) or _raise(ValueError())
-        isinstance(basedir,(string_types,Path)) or _raise(ValueError())
-        self.config = config
-        self.basedir = Path(basedir)
-        self.name = name
-        self._set_logdir()
-        self._model_prepared = False
-        self.keras_model = self._build()
-        if config is None:
-            self._find_and_load_weights()
-
-
-    def _set_logdir(self):
-        if self.name is None:
-            self.name = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S.%f")
-        self.logdir = self.basedir / self.name
-
-        config_file =  self.logdir / 'config.json'
-        if self.config is None:
-            if config_file.exists():
-                config_dict = load_json(str(config_file))
-                self.config = Config(**config_dict)
-                if not self.config.is_valid():
-                    invalid_attr = self.config.is_valid(True)[1]
-                    raise ValueError('Invalid attributes in loaded config: ' + ', '.join(invalid_attr))
-            else:
-                raise FileNotFoundError("config file doesn't exist: %s" % str(config_file.resolve()))
-        else:
-            if self.logdir.exists():
-                warnings.warn('output path for model already exists, files may be overwritten: %s' % str(self.logdir.resolve()))
-            self.logdir.mkdir(parents=True, exist_ok=True)
-            save_json(vars(self.config), str(config_file))
-
-
-    def _find_and_load_weights(self,prefer='best'):
-        from itertools import chain
-        # get all weight files and sort by modification time descending (newest first)
-        weights_ext   = ('*.h5','*.hdf5')
-        weights_files = chain(*(self.logdir.glob(ext) for ext in weights_ext))
-        weights_files = reversed(sorted(weights_files, key=lambda f: f.stat().st_mtime))
-        weights_files = list(weights_files)
-        if len(weights_files) == 0:
-            warnings.warn("Couldn't find any network weights (%s) to load." % ', '.join(weights_ext))
-            return
-        weights_preferred = list(filter(lambda f: prefer in f.name, weights_files))
-        weights_chosen = weights_preferred[0] if len(weights_preferred)>0 else weights_files[0]
-        print("Loading network weights from '%s'." % weights_chosen.name)
-        self.load_weights(weights_chosen.name)
+        super().__init__(config, name=name, basedir=basedir)
 
 
     def _build(self):
@@ -311,17 +254,6 @@ class StarDist(object):
         output_prob  = Conv2D(1,                 (1,1),name='prob',padding='same',activation='sigmoid')(unet)
         output_dist  = Conv2D(self.config.n_rays,(1,1),name='dist',padding='same',activation='linear')(unet)
         return Model([input_img,input_mask],[output_prob,output_dist])
-
-
-    def load_weights(self, name='weights_best.h5'):
-        """Load neural network weights from model folder.
-
-        Parameters
-        ----------
-        name : str
-            Name of HDF5 weight file (as saved during or after training).
-        """
-        self.keras_model.load_weights(str(self.logdir/name))
 
 
     def prepare_for_training(self, optimizer=None):
@@ -348,12 +280,12 @@ class StarDist(object):
         self.keras_model.compile(optimizer, loss=['binary_crossentropy',dist_loss(input_mask)])
 
         self.callbacks = []
-        if self.config.train_checkpoint is not None:
-            self.callbacks.append(ModelCheckpoint(str(self.logdir / self.config.train_checkpoint), save_best_only=True,  save_weights_only=True))
-            self.callbacks.append(ModelCheckpoint(str(self.logdir / 'weights_now.h5'),             save_best_only=False, save_weights_only=True))
+        if self.basedir is not None:
+            self.callbacks += self._checkpoint_callbacks()
 
-        if self.config.train_tensorboard:
-            self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
+            if self.config.train_tensorboard:
+                # TODO: CARETensorBoard
+                self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
 
         if self.config.train_reduce_lr is not None:
             rlrop_params = self.config.train_reduce_lr
@@ -416,6 +348,8 @@ class StarDist(object):
             'b':                self.config.train_completion_crop,
         }
 
+        # TODO: baked validation data -> already done in stardist_public
+
         X_val, Y_val = validation_data
         data_train = StarDistData(X,     Y,     same_patches=False, **data_kwargs)
         data_val   = StarDistData(X_val, Y_val, same_patches=True,  **data_kwargs)
@@ -423,17 +357,7 @@ class StarDist(object):
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
                                                  callbacks=self.callbacks, verbose=1)
-
-        self.keras_model.save_weights(str(self.logdir / 'weights_last.h5'))
-
-        if self.config.train_checkpoint is not None:
-            print()
-            self._find_and_load_weights(self.config.train_checkpoint)
-            try:
-                # remove temporary weights
-                (self.logdir / 'weights_now.h5').unlink()
-            except FileNotFoundError:
-                pass
+        self._training_finished()
 
         return history
 
@@ -489,3 +413,8 @@ class StarDist(object):
         dist = np.moveaxis(dist,channel,-1)
 
         return prob, dist
+
+
+    @property
+    def _config_class(self):
+        return Config
