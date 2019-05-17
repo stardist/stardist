@@ -4,13 +4,14 @@ from six import string_types
 
 import numpy as np
 import warnings
+import math
 from tqdm import tqdm
 
 from distutils.version import LooseVersion
 import keras
 import keras.backend as K
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from keras.layers import Input, Conv2D
+from keras.layers import Input, Conv2D, MaxPooling2D
 from keras.models import Model
 from keras.utils import Sequence
 from keras.optimizers import Adam
@@ -19,9 +20,9 @@ from csbdeep.models import BaseConfig, BaseModel
 from csbdeep.internals.blocks import unet_block
 from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.data import PadAndCropResizer
+from csbdeep.data import Resizer
 
-from .utils import star_dist, edt_prob
+from .utils import star_dist, edt_prob, _normalize_grid
 from skimage.segmentation import clear_border
 
 
@@ -48,9 +49,49 @@ def masked_loss_mse(mask):
 
 
 
+class StarDistPadAndCropResizer(Resizer):
+    # TODO: check correctness
+    def __init__(self, grid, mode='reflect', **kwargs):
+        assert isinstance(grid, dict)
+        self.mode = mode
+        self.grid = grid
+        self.kwargs = kwargs
+
+    def before(self, x, axes, axes_div_by):
+        assert all(a%g==0 for g,a in zip((self.grid.get(a,1) for a in axes), axes_div_by))
+        axes = axes_check_and_normalize(axes,x.ndim)
+        def _split(v):
+            return 0, v # only pad at the end
+        self.pad = {
+            a : _split((div_n-s%div_n)%div_n)
+            for a, div_n, s in zip(axes, axes_div_by, x.shape)
+        }
+        x_pad = np.pad(x, tuple(self.pad[a] for a in axes), mode=self.mode, **self.kwargs)
+        self.padded_shape = dict(zip(axes,x_pad.shape))
+        if 'C' in self.padded_shape: del self.padded_shape['C']
+        return x_pad
+
+    def after(self, x, axes):
+        # axes can include 'C', which may not have been present in before()
+        axes = axes_check_and_normalize(axes,x.ndim)
+        assert all(s_pad == s * g for s,s_pad,g in zip(x.shape,
+                                                       (self.padded_shape.get(a,_s) for a,_s in zip(axes,x.shape)),
+                                                       (self.grid.get(a,1) for a in axes)))
+        # print(self.padded_shape)
+        # print(self.pad)
+        # print(self.grid)
+        crop = tuple (
+            slice(0, -(math.floor(p[1]/g)) if p[1]>=g else None)
+            for p,g in zip((self.pad.get(a,(0,0)) for a in axes),(self.grid.get(a,1) for a in axes))
+        )
+        # print(crop)
+        return x[crop]
+
+
+
 class StarDistData(Sequence):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, shape_completion=False, same_patches=False):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, same_patches=False):
         """
         Parameters
         ----------
@@ -63,6 +104,7 @@ class StarDistData(Sequence):
         self.batch_size = batch_size
         self.n_rays = n_rays
         self.patch_size = patch_size
+        self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
         self.perm = np.random.permutation(len(self.X))
         self.shape_completion = bool(shape_completion)
         self.same_patches = bool(same_patches)
@@ -109,12 +151,19 @@ class StarDistData(Sequence):
         prob = np.expand_dims(prob,-1)
         dist_mask = np.expand_dims(dist_mask,-1)
 
+        # subsample wth given grid
+        dist_mask = dist_mask[self.ss_grid]
+        prob      = prob[self.ss_grid]
+        dist      = dist[self.ss_grid]
+
         return [X,dist_mask], [prob,dist]
 
 
 
 class Config(BaseConfig):
     """Configuration for a :class:`StarDist` model.
+
+    TODO: update
 
     Parameters
     ----------
@@ -165,39 +214,51 @@ class Config(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, n_rays=32, n_channel_in=1, **kwargs):
+    def __init__(self, n_rays=32, n_channel_in=1, grid=(1,1), backbone='unet', **kwargs):
         """See class docstring."""
 
-        super().__init__(axes='YX', n_channel_in=n_channel_in, n_channel_out=n_rays)
+        super().__init__(axes='YX', n_channel_in=n_channel_in, n_channel_out=1+n_rays)
 
         # directly set by parameters
-        self.n_rays                 = n_rays
+        self.n_rays                    = int(n_rays)
+        self.grid                      = _normalize_grid(grid,2)
+        self.backbone                  = str(backbone).lower()
 
         # default config (can be overwritten by kwargs below)
-        self.unet_n_depth           = 3
-        self.unet_kernel_size       = (3,3)
-        self.unet_n_filter_base     = 32
-        self.net_conv_after_unet    = 128
-        if backend_channels_last():
-            self.net_input_shape    = (None, None, self.n_channel_in)
-            self.net_mask_shape     = (None, None, 1)
+        if self.backbone == 'unet':
+            self.unet_n_depth          = 3
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'relu'
+            self.unet_last_activation  = 'relu'
+            self.unet_batch_norm       = False
+            self.unet_dropout          = 0.0
+            self.unet_prefix           = ''
+            self.net_conv_after_unet   = 128
         else:
-            self.net_input_shape    = (self.n_channel_in, None, None)
-            self.net_mask_shape     = (1, None, None)
+            raise ValueError("backbone '%s' not supported." % self.backbone)
 
-        self.train_shape_completion = False
-        self.train_completion_crop  = 32
-        self.train_patch_size       = (256,256)
+        if backend_channels_last():
+            self.net_input_shape       = None,None,self.n_channel_in
+            self.net_mask_shape        = None,None,1
+        else:
+            self.net_input_shape       = self.n_channel_in,None,None
+            self.net_mask_shape        = 1,None,None
 
-        # TODO: add grid param as in 3D model
+        self.train_shape_completion    = False
+        self.train_completion_crop     = 32
+        self.train_patch_size          = 256,256
+        # self.train_background_reg      = 1e-4 # TODO
 
-        self.train_dist_loss        = 'mae'
-        self.train_epochs           = 100
-        self.train_steps_per_epoch  = 400
-        self.train_learning_rate    = 0.0003
-        self.train_batch_size       = 4
-        self.train_tensorboard      = True
-        self.train_checkpoint       = 'weights_best.h5'
+        self.train_dist_loss           = 'mae'
+        self.train_loss_weights        = 1,1
+        self.train_epochs              = 100
+        self.train_steps_per_epoch     = 400
+        self.train_learning_rate       = 0.0003
+        self.train_batch_size          = 4
+        self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr        = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
@@ -244,18 +305,36 @@ class StarDist(BaseModel):
 
 
     def _build(self):
-        input_img  = Input(self.config.net_input_shape,name='input')
-        input_mask = Input(self.config.net_mask_shape,name='dist_mask')
+        self.config.backbone == 'unet' or _raise(NotImplementedError())
+
+        input_img  = Input(self.config.net_input_shape, name='input')
+        if backend_channels_last():
+            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
+        else:
+            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
+        input_mask = Input(grid_shape, name='dist_mask')
 
         unet_kwargs = {k[5:]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
-        unet        = unet_block(**unet_kwargs)(input_img)
-        if self.config.net_conv_after_unet > 0:
-            unet    = Conv2D(self.config.net_conv_after_unet,self.config.unet_kernel_size,
-                             name='features',padding='same',activation='relu')(unet)
 
-        output_prob  = Conv2D(1,                 (1,1),name='prob',padding='same',activation='sigmoid')(unet)
-        output_dist  = Conv2D(self.config.n_rays,(1,1),name='dist',padding='same',activation='linear')(unet)
-        return Model([input_img,input_mask],[output_prob,output_dist])
+        # maxpool input image to grid size
+        pooled = np.array([1,1])
+        pooled_img = input_img
+        while tuple(pooled) != tuple(self.config.grid):
+            pool = 1 + (np.asarray(self.config.grid) > pooled)
+            pooled *= pool
+            for _ in range(self.config.unet_n_conv_per_depth):
+                pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
+                                    padding="same", activation=self.config.unet_activation)(pooled_img)
+            pooled_img = MaxPooling2D(pool)(pooled_img)
+
+        unet        = unet_block(**unet_kwargs)(pooled_img)
+        if self.config.net_conv_after_unet > 0:
+            unet    = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                             name='features', padding='same', activation=self.config.unet_activation)(unet)
+
+        output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
+        output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
+        return Model([input_img,input_mask], [output_prob,output_dist])
 
 
     def prepare_for_training(self, optimizer=None):
@@ -274,12 +353,14 @@ class StarDist(BaseModel):
             If ``None`` (default), uses ``Adam`` with the learning rate specified in ``config``.
 
         """
+        # TODO: make this exactly the same as in 3D version
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
         dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
         input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
-        self.keras_model.compile(optimizer, loss=['binary_crossentropy',dist_loss(input_mask)])
+        self.keras_model.compile(optimizer, loss=['binary_crossentropy',dist_loss(input_mask)],
+                                            loss_weights = list(self.config.train_loss_weights))
 
         self.callbacks = []
         if self.basedir is not None:
@@ -298,7 +379,7 @@ class StarDist(BaseModel):
         self._model_prepared = True
 
 
-    def train(self, X, Y, validation_data, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
         Parameters
@@ -320,19 +401,22 @@ class StarDist(BaseModel):
             See `Keras training history <https://keras.io/models/model/#fit>`_.
 
         """
+        if seed is not None:
+            # https://keras.io/getting-started/faq/#how-can-i-obtain-reproducible-results-using-keras-during-development
+            np.random.seed(seed)
 
         validation_data is not None or _raise(ValueError())
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)==2)
             or _raise(ValueError('validation_data must be a pair of numpy arrays')))
 
         patch_size = self.config.train_patch_size
+        axes = self.config.axes.replace('C','')
         b = self.config.train_completion_crop if self.config.train_shape_completion else 0
-        div_by = 2**self.config.unet_n_depth
-        if any((p-2*b)%div_by!=0 for p in patch_size):
-            if self.config.train_shape_completion:
-                raise ValueError("every value of 'train_patch_size' - 2*'train_completion_crop' must be divisible by 2**'unet_n_depth'")
-            else:
-                raise ValueError("every value of 'train_patch_size' must be divisible by 2**'unet_n_depth'")
+        div_by = self._axes_div_by(axes)
+        [(p-2*b) % d == 0 or _raise(ValueError(
+            "'train_patch_size' - 2*'train_completion_crop' must be divisible by {d} along axis '{a}'".format(a=a,d=d) if self.config.train_shape_completion else
+            "'train_patch_size' must be divisible by {d} along axis '{a}'".format(a=a,d=d)
+         )) for p,d,a in zip(patch_size,div_by,axes)]
 
         if epochs is None:
             epochs = self.config.train_epochs
@@ -346,6 +430,7 @@ class StarDist(BaseModel):
             'n_rays':           self.config.n_rays,
             'batch_size':       self.config.train_batch_size,
             'patch_size':       self.config.train_patch_size,
+            'grid':             self.config.grid,
             'shape_completion': self.config.train_shape_completion,
             'b':                self.config.train_completion_crop,
         }
@@ -364,7 +449,7 @@ class StarDist(BaseModel):
         return history
 
 
-    def predict(self, img, axes=None, normalizer=None, resizer=PadAndCropResizer(), n_tiles=None, show_tile_progress=True, **predict_kwargs):
+    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -375,10 +460,7 @@ class StarDist(BaseModel):
             Axes of the input ``img``.
             ``None`` denotes that axes of img are the same as defnoted in the config.
         normalizer : :class:`csbdeep.data.Normalizer` or None
-            Normalization of input image before prediction.
-        resizer : :class:`csbdeep.data.Resizer` or None
-            If necessary, input image is resized to enable neural network prediction and result is (possibly)
-            resized to yield original image size.
+            (Optional) normalization of input image before prediction.
         n_tiles : iterable or None
             Out of memory (OOM) errors can occur if the input image is too large.
             To avoid this problem, the input image is broken up into (overlapping) tiles
@@ -396,8 +478,6 @@ class StarDist(BaseModel):
             Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon distances.
 
         """
-        normalizer, resizer = self._check_normalizer_resizer(normalizer, resizer)
-
         if n_tiles is None:
             n_tiles = [1]*img.ndim
         try:
@@ -426,6 +506,13 @@ class StarDist(BaseModel):
         self.config.n_channel_in == x.shape[channel] or _raise(ValueError())
         axes_net_div_by = self._axes_div_by(axes_net)
 
+        grid = tuple(self.config.grid)
+        len(grid) == len(axes_net)-1 or _raise(ValueError())
+        grid_dict = dict(zip(axes_net.replace('C',''),grid))
+
+        normalizer = self._check_normalizer_resizer(normalizer, None)[0]
+        resizer = StarDistPadAndCropResizer(grid=grid_dict)
+
         x = normalizer.before(x, axes_net)
         x = resizer.before(x, axes_net, axes_net_div_by)
 
@@ -443,7 +530,7 @@ class StarDist(BaseModel):
             (all(n_tiles[i] == 1 for i in range(x.ndim) if i not in x_tiling_axis) or
                 _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
 
-            sh = list(x.shape)
+            sh = [s//grid_dict.get(a,1) for a,s in zip(axes_net,x.shape)]
             sh[channel] = 1;                  prob = np.empty(sh,np.float32)
             sh[channel] = self.config.n_rays; dist = np.empty(sh,np.float32)
 
@@ -454,11 +541,12 @@ class StarDist(BaseModel):
                                            disable=(not show_tile_progress), total=np.prod(n_tiles)):
                 prob_tile, dist_tile = predict_direct(tile)
                 # account for grid
-                # s_src = tuple(slice(s.start//g,s.stop//g) for s, g in zip(s_src,grid))
-                # s_dst = tuple(slice(s.start//g,s.stop//g) for s, g in zip(s_dst,grid))
+                s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
+                s_dst = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_dst,axes_net)]
                 # prob and dist have different channel dimensionality than image x
                 s_src[channel] = slice(None)
                 s_dst[channel] = slice(None)
+                s_src, s_dst = tuple(s_src), tuple(s_dst)
                 # print(s_src,s_dst)
                 prob[s_dst] = prob_tile[s_src]
                 dist[s_dst] = dist_tile[s_src]
@@ -476,18 +564,30 @@ class StarDist(BaseModel):
 
 
     def _axes_div_by(self, query_axes):
+        # TODO: different for 3D model / different backbone
+        self.config.backbone == 'unet' or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
-        # default: must be divisible by power of 2 to allow down/up-sampling steps in unet
-        pool_div_by = 2**self.config.unet_n_depth
-        # TODO: different for 3D model
-        return tuple((pool_div_by if a in 'XYZ' else 1) for a in query_axes)
+        assert len(self.config.unet_pool) == len(self.config.grid)
+        div_by = dict(zip(
+            self.config.axes.replace('C',''),
+            tuple(p**self.config.unet_n_depth * g for p,g in zip(self.config.unet_pool,self.config.grid))
+        ))
+        return tuple(div_by.get(a,1) for a in query_axes)
 
 
     def _axes_tile_overlap(self, query_axes):
+        # TODO: different for 3D model / different backbone
+        self.config.backbone == 'unet' or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
-        overlap = tile_overlap(self.config.unet_n_depth, max(self.config.unet_kernel_size))
-        # TODO: different for 3D model
-        return tuple((overlap if a in 'XYZ' else 0) for a in query_axes)
+        assert len(self.config.unet_pool) == len(self.config.grid) == len(self.config.unet_kernel_size)
+        # TODO: compute this properly when any value of grid > 1
+        # all(g==1 for g in self.config.grid) or warnings.warn('FIXME')
+        overlap = dict(zip(
+            self.config.axes.replace('C',''),
+            tuple(tile_overlap(self.config.unet_n_depth + int(np.log2(g)), k, p)
+                  for p,k,g in zip(self.config.unet_pool,self.config.unet_kernel_size,self.config.grid))
+        ))
+        return tuple(overlap.get(a,0) for a in query_axes)
 
 
     @property

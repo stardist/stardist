@@ -129,13 +129,13 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
     PyArrayObject *polys=NULL, *mapping=NULL, *result=NULL;
     float threshold;
-    int max_bbox_search;
+    int max_bbox_search, grid_x, grid_y;
 
-    if (!PyArg_ParseTuple(args, "O!O!fi", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search))
+    if (!PyArg_ParseTuple(args, "O!O!fiii", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x))
         return NULL;
 
     npy_intp *img_dims = PyArray_DIMS(mapping);
-    const int width = img_dims[0], height = img_dims[1];
+    const int height = img_dims[0], width = img_dims[1];
 
     npy_intp *dims = PyArray_DIMS(polys);
     const int n_polys = dims[0];
@@ -165,8 +165,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         ClipperLib::Path clip;
         // build clip poly and bounding boxes
         for (int k =0; k<n_rays; k++) {
-            int x = *(int *)PyArray_GETPTR3(polys,i,0,k);
-            int y = *(int *)PyArray_GETPTR3(polys,i,1,k);
+            int y = *(int *)PyArray_GETPTR3(polys,i,0,k);
+            int x = *(int *)PyArray_GETPTR3(polys,i,1,k);
             if (k==0) {
                 bbox_x1[i] = x;
                 bbox_x2[i] = x;
@@ -204,18 +204,18 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         for (int i=0; i<n_polys-1; i++) {
             if (suppressed[i]) continue;
 
-            const int xs = std::max(bbox_x1[i]-max_bbox_size_x,0);
-            const int xe = std::min(bbox_x2[i]+max_bbox_size_x,width);
-            const int ys = std::max(bbox_y1[i]-max_bbox_size_y,0);
-            const int ye = std::min(bbox_y2[i]+max_bbox_size_y,height);
+            const int xs = std::max((bbox_x1[i]-max_bbox_size_x)/grid_x, 0);
+            const int xe = std::min((bbox_x2[i]+max_bbox_size_x)/grid_x, width);
+            const int ys = std::max((bbox_y1[i]-max_bbox_size_y)/grid_y, 0);
+            const int ye = std::min((bbox_y2[i]+max_bbox_size_y)/grid_y, height);
 
             // printf("%5d [%03d:%03d,%03d:%03d]",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
             // printf(" - search area [%03d:%03d,%03d:%03d]\n",xs,xe,ys,ye);
 
             #pragma omp parallel for collapse(2) schedule(dynamic)
-            for (int ii=xs; ii<xe; ii++) for (int jj=ys; jj<ye; jj++) {
+            for (int jj=ys; jj<ye; jj++) for (int ii=xs; ii<xe; ii++) {
                 // j is the id of the score-sorted polygon at coordinate (ii,jj)
-                const int j = *(int *)PyArray_GETPTR2(mapping,ii,jj);
+                const int j = *(int *)PyArray_GETPTR2(mapping,jj,ii);
                 // if (j<0) continue;  // polygon not even a candidate (check redundant because of next line)
                 if (j<=i) continue; // polygon has higher score (i.e. lower id) than "suppressor polygon" i
                 if (suppressed[j]) continue;

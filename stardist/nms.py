@@ -1,9 +1,10 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
+from .utils import _normalize_grid
 
 
 
-def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
+def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
     """2D coordinates of the polys that survive from a given prediction (prob, coord)
 
     prob.shape = (Ny,Nx)
@@ -15,6 +16,7 @@ def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, v
 
     assert prob.ndim == 2
     assert coord.ndim == 4
+    grid = _normalize_grid(grid,2)
 
     mask = prob > prob_thresh
     if b is not None and b > 0:
@@ -38,7 +40,7 @@ def non_maximum_suppression(coord, prob, b=2, nms_thresh=0.5, prob_thresh=0.5, v
     else:
         mapping = np.empty((0,0),np.int32)
 
-    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), mapping, np.float32(nms_thresh), np.int32(max_bbox_search))
+    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32), mapping, np.float32(nms_thresh), np.int32(max_bbox_search), np.int32(grid[0]), np.int32(grid[1]))
 
     if verbose:
         print("keeping %s/%s polygons" % (np.count_nonzero(survivors), len(polygons)))

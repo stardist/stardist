@@ -1,6 +1,6 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
-
+from .utils import _normalize_grid
 
 def random_label_cmap(n=2**16):
     import matplotlib
@@ -21,20 +21,21 @@ def _plot_polygon(x,y,score,color):
     plt.plot(a,b,'--', alpha=1, linewidth=score, zorder=1, color=color)
 
 
-def draw_polygons(coord, score, poly_idx, cmap=None, show_dist=False):
+def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False):
     """poly_idx is a N x 2 array with row-col coordinate indices"""
     import matplotlib.pyplot as plt
 
+    grid = _normalize_grid(grid,2)
     if cmap is None:
         cmap = random_label_cmap(len(poly_idx)+1)
 
     assert len(cmap.colors[1:]) >= len(poly_idx)
 
     for p,c in zip(poly_idx,cmap.colors[1:]):
-        plt.plot(p[1],p[0],'.r', alpha=.5+0.5, markersize=8*score[p[0],p[1]], color=c)
+        plt.plot(p[1]*grid[1], p[0]*grid[0], '.', markersize=8*score[p[0],p[1]], color=c)
 
         if show_dist:
             for x,y in zip(coord[p[0],p[1],1], coord[p[0],p[1],0]):
-                plt.plot((p[1],x),(p[0],y),'-',color=c, linewidth=0.4)
+                plt.plot((p[1]*grid[1],x), (p[0]*grid[0],y), '-', color=c, linewidth=0.4)
 
-        _plot_polygon( coord[p[0],p[1],1], coord[p[0],p[1],0], 3*score[p[0],p[1]], color=c)
+        _plot_polygon(coord[p[0],p[1],1], coord[p[0],p[1],0], 3*score[p[0],p[1]], color=c)

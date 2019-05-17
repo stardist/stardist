@@ -129,13 +129,25 @@ def _is_power_of_2(i):
     return e == int(e)
 
 
+def _normalize_grid(grid,n):
+    try:
+        grid = tuple(grid)
+        (len(grid) == n and
+         all(map(np.isscalar,grid)) and
+         all(map(_is_power_of_2,grid))) or _raise(TypeError())
+        return tuple(int(g) for g in grid)
+    except (TypeError, AssertionError):
+        raise ValueError("grid must be a list/tuple of length {n} with values that are power of 2".format(n=n))
+
+
 def ray_angles(n_rays=32):
     return np.linspace(0,2*np.pi,n_rays,endpoint=False)
 
 
-def dist_to_coord(rhos):
+def dist_to_coord(rhos, grid=(1,1)):
     """convert from polar to cartesian coordinates for a single image (3-D array) or multiple images (4-D array)"""
 
+    grid = _normalize_grid(grid,2)
     is_single_image = rhos.ndim == 3
     if is_single_image:
         rhos = np.expand_dims(rhos,0)
@@ -144,12 +156,9 @@ def dist_to_coord(rhos):
     n_images,h,w,n_rays = rhos.shape
     coord = np.empty((n_images,h,w,2,n_rays),dtype=rhos.dtype)
 
-    start = np.meshgrid(np.arange(h),np.arange(w), indexing='ij')
+    start = np.indices((h,w))
     for i in range(2):
-        start[i] = start[i].reshape(1,h,w,1)
-        # start[i] = np.tile(start[i],(n_images,1,1,n_rays))
-        start[i] = np.broadcast_to(start[i],(n_images,h,w,n_rays))
-        coord[...,i,:] = start[i]
+        coord[...,i,:] = grid[i] * np.broadcast_to(start[i].reshape(1,h,w,1), (n_images,h,w,n_rays))
 
     phis = ray_angles(n_rays).reshape(1,1,1,n_rays)
 
@@ -192,8 +201,8 @@ def edt_prob(lbl_img):
     return prob
 
 
-def polygons_to_label(coord, prob, points, thr=-np.inf):
-    sh = coord.shape[:2]
+def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
+    sh = coord.shape[:2] if shape is None else shape
     lbl = np.zeros(sh,np.uint16)
     # sort points with increasing probability
     ind = np.argsort([ prob[p[0],p[1]] for p in points ])
