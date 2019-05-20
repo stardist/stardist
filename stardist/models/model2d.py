@@ -10,35 +10,24 @@ from tqdm import tqdm
 from distutils.version import LooseVersion
 import keras
 import keras.backend as K
-from keras.callbacks import ReduceLROnPlateau, TensorBoard
 from keras.layers import Input, Conv2D, MaxPooling2D
 from keras.models import Model
 from keras.utils import Sequence
-from keras.optimizers import Adam
 
 from csbdeep.models import BaseConfig, BaseModel
 from csbdeep.internals.blocks import unet_block
 from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.data import Resizer
+from csbdeep.utils.tf import CARETensorBoard
 
-from .base import StarDistBase, StarDistPadAndCropResizer
+from .base import StarDistBase, StarDistPadAndCropResizer, masked_loss_mse, masked_loss_mae
 from ..utils import star_dist, edt_prob, _normalize_grid, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
 from skimage.segmentation import clear_border
 
 
 
-def masked_loss(mask, penalty):
-    def _loss(d_true, d_pred):
-        return K.mean(mask * penalty(d_pred - d_true), axis=-1)
-    return _loss
-
-def masked_loss_mae(mask):
-    return masked_loss(mask, K.abs)
-
-def masked_loss_mse(mask):
-    return masked_loss(mask, K.square)
 
 
 
@@ -203,7 +192,7 @@ class Config2D(BaseConfig):
         self.train_shape_completion    = False
         self.train_completion_crop     = 32
         self.train_patch_size          = 256,256
-        # self.train_background_reg      = 1e-4 # TODO
+        self.train_background_reg      = 1e-4
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,1
@@ -290,48 +279,6 @@ class StarDist2D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def prepare_for_training(self, optimizer=None):
-        """Prepare for neural network training.
-
-        Compiles the model and creates
-        `Keras Callbacks <https://keras.io/callbacks/>`_ to be used for training.
-
-        Note that this method will be implicitly called once by :func:`train`
-        (with default arguments) if not done so explicitly beforehand.
-
-        Parameters
-        ----------
-        optimizer : obj or None
-            Instance of a `Keras Optimizer <https://keras.io/optimizers/>`_ to be used for training.
-            If ``None`` (default), uses ``Adam`` with the learning rate specified in ``config``.
-
-        """
-        # TODO: make this exactly the same as in 3D version
-        if optimizer is None:
-            optimizer = Adam(lr=self.config.train_learning_rate)
-
-        dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
-        input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
-        self.keras_model.compile(optimizer, loss=['binary_crossentropy',dist_loss(input_mask)],
-                                            loss_weights = list(self.config.train_loss_weights))
-
-        self.callbacks = []
-        if self.basedir is not None:
-            self.callbacks += self._checkpoint_callbacks()
-
-            if self.config.train_tensorboard:
-                # TODO: CARETensorBoard
-                self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
-
-        if self.config.train_reduce_lr is not None:
-            rlrop_params = self.config.train_reduce_lr
-            if 'verbose' not in rlrop_params:
-                rlrop_params['verbose'] = True
-            self.callbacks.append(ReduceLROnPlateau(**rlrop_params))
-
-        self._model_prepared = True
-
-
     def train(self, X, Y, validation_data, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
@@ -357,6 +304,10 @@ class StarDist2D(StarDistBase):
         if seed is not None:
             # https://keras.io/getting-started/faq/#how-can-i-obtain-reproducible-results-using-keras-during-development
             np.random.seed(seed)
+        if epochs is None:
+            epochs = self.config.train_epochs
+        if steps_per_epoch is None:
+            steps_per_epoch = self.config.train_steps_per_epoch
 
         validation_data is not None or _raise(ValueError())
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)==2)
@@ -371,28 +322,34 @@ class StarDist2D(StarDistBase):
             "'train_patch_size' must be divisible by {d} along axis '{a}'".format(a=a,d=d)
          )) for p,d,a in zip(patch_size,div_by,axes)]
 
-        if epochs is None:
-            epochs = self.config.train_epochs
-        if steps_per_epoch is None:
-            steps_per_epoch = self.config.train_steps_per_epoch
-
         if not self._model_prepared:
             self.prepare_for_training()
 
-        data_kwargs = {
-            'n_rays':           self.config.n_rays,
-            'batch_size':       self.config.train_batch_size,
-            'patch_size':       self.config.train_patch_size,
-            'grid':             self.config.grid,
-            'shape_completion': self.config.train_shape_completion,
-            'b':                self.config.train_completion_crop,
-        }
+        data_kwargs = dict (
+            n_rays           = self.config.n_rays,
+            patch_size       = self.config.train_patch_size,
+            grid             = self.config.grid,
+            shape_completion = self.config.train_shape_completion,
+            b                = self.config.train_completion_crop,
+        )
 
-        # TODO: baked validation data -> already done in stardist_public
+        # generate validation data and store in numpy arrays
+        data_val = StarDistData2D(*validation_data, batch_size=1, **data_kwargs)
+        n_data_val = len(data_val)
+        n_take = n_data_val
+        ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
+        Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
+        for i,k in enumerate(ids):
+            (Xv[i],Mv[i]),(Pv[i],Dv[i]) = data_val[k]
+        Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
+        data_val = [[Xv,Mv],[Pv,Dv]]
 
-        X_val, Y_val = validation_data
-        data_train = StarDistData(X,     Y,     same_patches=False, **data_kwargs)
-        data_val   = StarDistData(X_val, Y_val, same_patches=True,  **data_kwargs)
+        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, **data_kwargs)
+
+        for cb in self.callbacks:
+            if isinstance(cb,CARETensorBoard):
+                _n = min(3, self.config.n_rays)
+                cb.output_slices = ([slice(None)],[slice(None), slice(None), slice(None), slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)])
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
