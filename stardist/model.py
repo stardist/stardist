@@ -90,7 +90,7 @@ class StarDistPadAndCropResizer(Resizer):
 
 
 
-class StarDistData(Sequence):
+class StarDistData2D(Sequence):
 
     def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, same_patches=False):
         """
@@ -161,7 +161,7 @@ class StarDistData(Sequence):
 
 
 
-class Config(BaseConfig):
+class Config2D(BaseConfig):
     """Configuration for a :class:`StarDist` model.
 
     TODO: update
@@ -268,7 +268,12 @@ class Config(BaseConfig):
 
 
 
-class StarDist(BaseModel):
+class StarDistBase(BaseModel):
+    pass
+
+
+
+class StarDist2D(StarDistBase):
     """StarDist model.
 
     Parameters
@@ -300,7 +305,7 @@ class StarDist(BaseModel):
         Path to model folder (which stores configuration, weights, etc.)
     """
 
-    def __init__(self, config=Config(), name=None, basedir='.'):
+    def __init__(self, config=Config2D(), name=None, basedir='.'):
         """See class docstring."""
         super().__init__(config, name=name, basedir=basedir)
 
@@ -574,6 +579,7 @@ class StarDist(BaseModel):
         else:
             return labels
 
+
     def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=0.5, nms_thresh=0.5,
                           return_polygons=False, n_tiles=None, show_tile_progress=True,
                           predict_kwargs=None, nms_kwargs=None):
@@ -618,4 +624,4 @@ class StarDist(BaseModel):
 
     @property
     def _config_class(self):
-        return Config
+        return Config2D
