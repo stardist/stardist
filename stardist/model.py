@@ -22,7 +22,8 @@ from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.data import Resizer
 
-from .utils import star_dist, edt_prob, _normalize_grid
+from .utils import star_dist, edt_prob, _normalize_grid, dist_to_coord, polygons_to_label
+from .nms import non_maximum_suppression
 from skimage.segmentation import clear_border
 
 
@@ -561,6 +562,31 @@ class StarDist(BaseModel):
         dist = np.moveaxis(dist,channel,-1)
 
         return prob, dist
+
+
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=0.5, nms_thresh=0.5, return_polygons=False, **nms_kwargs):
+        coord = dist_to_coord(dist, grid=self.config.grid)
+        points = non_maximum_suppression(coord, prob, grid=self.config.grid,
+                                         prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+        labels = polygons_to_label(coord, prob, points, shape=img_shape)
+        if return_polygons:
+            return labels, coord[points[:,0],points[:,1]], points, prob[points[:,0],points[:,1]]
+        else:
+            return labels
+
+    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=0.5, nms_thresh=0.5,
+                          return_polygons=False, n_tiles=None, show_tile_progress=True,
+                          predict_kwargs=None, nms_kwargs=None):
+        if predict_kwargs is None:
+            predict_kwargs = {}
+        if nms_kwargs is None:
+            nms_kwargs = {}
+
+        prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
+                                  n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
+
+        return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
+                                               return_polygons=return_polygons, **nms_kwargs)
 
 
     def _axes_div_by(self, query_axes):

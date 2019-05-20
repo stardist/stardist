@@ -23,27 +23,44 @@ def _plot_polygon(x,y,score,color):
 
 def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False):
     """poly_idx is a N x 2 array with row-col coordinate indices"""
+    return _draw_polygons(polygons=coord[poly_idx[:,0],poly_idx[:,1]],
+                         points=poly_idx,
+                         scores=score[poly_idx[:,0],poly_idx[:,1]],
+                         grid=grid, cmap=cmap, show_dist=show_dist)
+
+
+def _draw_polygons(polygons, points=None, scores=None, grid=(1,1), cmap=None, show_dist=False):
+    """
+        polygons is a list/array of x,y coordinate lists/arrays
+        points is a list/array of x,y coordinates
+        scores is a list/array of scalar values between 0 and 1
+    """
+    # TODO: better name for this function?
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
 
     grid = _normalize_grid(grid,2)
+    if points is None:
+        points = [None]*len(polygons)
+    if scores is None:
+        scores = np.ones(len(polygons))
     if cmap is None:
-        cmap = random_label_cmap(len(poly_idx)+1)
+        cmap = random_label_cmap(len(polygons)+1)
 
-    assert len(cmap.colors[1:]) >= len(poly_idx)
+    assert len(polygons) == len(scores)
+    assert len(cmap.colors[1:]) >= len(polygons)
+    assert not show_dist or all(p is not None for p in points)
 
-    for p,c in zip(poly_idx,cmap.colors[1:]):
-        plt.plot(p[1]*grid[1], p[0]*grid[0], '.', markersize=8*score[p[0],p[1]], color=c)
+    for point,poly,score,c in zip(points,polygons,scores,cmap.colors[1:]):
+        if point is not None:
+            plt.plot(point[1]*grid[1], point[0]*grid[0], '.', markersize=8*score, color=c)
 
         if show_dist:
-            # # too slow
-            # for x,y in zip(coord[p[0],p[1],1], coord[p[0],p[1],0]):
-            #     plt.plot((p[1]*grid[1],x), (p[0]*grid[0],y), '-', color=c, linewidth=0.4)
-            dist_lines = np.empty((coord.shape[-1],2,2))
-            dist_lines[:,0,0] = coord[p[0],p[1],1]
-            dist_lines[:,0,1] = coord[p[0],p[1],0]
-            dist_lines[:,1,0] = p[1]*grid[1]
-            dist_lines[:,1,1] = p[0]*grid[0]
+            dist_lines = np.empty((poly.shape[-1],2,2))
+            dist_lines[:,0,0] = poly[1]
+            dist_lines[:,0,1] = poly[0]
+            dist_lines[:,1,0] = point[1]*grid[1]
+            dist_lines[:,1,1] = point[0]*grid[0]
             plt.gca().add_collection(LineCollection(dist_lines, colors=c, linewidths=0.4))
 
-        _plot_polygon(coord[p[0],p[1],1], coord[p[0],p[1],0], 3*score[p[0],p[1]], color=c)
+        _plot_polygon(poly[1], poly[0], 3*score, color=c)
