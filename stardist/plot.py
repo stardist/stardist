@@ -24,6 +24,7 @@ def _plot_polygon(x,y,score,color):
 def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False):
     """poly_idx is a N x 2 array with row-col coordinate indices"""
     import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
 
     grid = _normalize_grid(grid,2)
     if cmap is None:
@@ -35,7 +36,14 @@ def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False
         plt.plot(p[1]*grid[1], p[0]*grid[0], '.', markersize=8*score[p[0],p[1]], color=c)
 
         if show_dist:
-            for x,y in zip(coord[p[0],p[1],1], coord[p[0],p[1],0]):
-                plt.plot((p[1]*grid[1],x), (p[0]*grid[0],y), '-', color=c, linewidth=0.4)
+            # # too slow
+            # for x,y in zip(coord[p[0],p[1],1], coord[p[0],p[1],0]):
+            #     plt.plot((p[1]*grid[1],x), (p[0]*grid[0],y), '-', color=c, linewidth=0.4)
+            dist_lines = np.empty((coord.shape[-1],2,2))
+            dist_lines[:,0,0] = coord[p[0],p[1],1]
+            dist_lines[:,0,1] = coord[p[0],p[1],0]
+            dist_lines[:,1,0] = p[1]*grid[1]
+            dist_lines[:,1,1] = p[0]*grid[0]
+            plt.gca().add_collection(LineCollection(dist_lines, colors=c, linewidths=0.4))
 
         _plot_polygon(coord[p[0],p[1],1], coord[p[0],p[1],0], 3*score[p[0],p[1]], color=c)
