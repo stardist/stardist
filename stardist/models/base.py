@@ -7,6 +7,7 @@ import warnings
 import math
 
 import keras.backend as K
+from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
 from csbdeep.models import BaseConfig, BaseModel
@@ -55,6 +56,55 @@ def kld(y_true, y_pred):
     y_true = K.clip(y_true, K.epsilon(), 1)
     y_pred = K.clip(y_pred, K.epsilon(), 1)
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
+
+
+
+class StarDistDataBase(Sequence):
+
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None):
+
+        self.X, self.Y = X, Y
+        self.batch_size = batch_size
+        self.n_rays = n_rays
+        self.patch_size = patch_size
+        self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
+        self.perm = np.random.permutation(len(self.X))
+        self.use_gpu = bool(use_gpu)
+
+        if self.use_gpu:
+            from gputools import max_filter
+            self.max_filter = lambda y, patch_size: max_filter(y.astype(np.float32), patch_size)
+        else:
+            from scipy.ndimage.filters import maximum_filter
+            self.max_filter = lambda y, patch_size: maximum_filter(y, patch_size, mode='constant')
+
+        self.maxfilter_patch_size = (maxfilter_patch_size if maxfilter_patch_size is not None else
+                                     [(p//2 if p>1 else p) for p in self.patch_size])
+
+        if maxfilter_cache:
+            self.R = [self.no_background_patches((x,y), self.patch_size) for x,y in zip(self.X,self.Y)]
+        else:
+            self.R = None
+
+
+    def __len__(self):
+        return int(np.ceil(len(self.X) / float(self.batch_size)))
+
+
+    def on_epoch_end(self):
+        self.perm = np.random.permutation(len(self.X))
+
+
+    def no_background_patches(self, arrays, patch_size):
+        x, y = arrays
+        return self.max_filter(y, self.maxfilter_patch_size) > 0
+
+
+    def no_background_patches_cached(self, k):
+        if self.R is None:
+            return self.no_background_patches
+        else:
+            return lambda *args: self.R[k]
 
 
 

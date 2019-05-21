@@ -12,79 +12,55 @@ import keras
 import keras.backend as K
 from keras.layers import Input, Conv2D, MaxPooling2D
 from keras.models import Model
-from keras.utils import Sequence
 
 from csbdeep.models import BaseConfig, BaseModel
 from csbdeep.internals.blocks import unet_block
 from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.data import Resizer
 from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.data import sample_patches_from_multiple_stacks
 
-from .base import StarDistBase, StarDistPadAndCropResizer, masked_loss_mse, masked_loss_mae
+from .base import StarDistBase, StarDistDataBase, StarDistPadAndCropResizer
 from ..utils import star_dist, edt_prob, _normalize_grid, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
 from skimage.segmentation import clear_border
 
 
 
+class StarDistData2D(StarDistDataBase):
 
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, **kwargs):
 
+        super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
+                         batch_size=batch_size, patch_size=patch_size,
+                         **kwargs)
 
-class StarDistData2D(Sequence):
-
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, same_patches=False):
-        """
-        Parameters
-        ----------
-        same_patches : bool
-            Set to true for validation data to always get the same patch for each image
-        """
-
-        # TODO: simple augmentations (rotation & flips)
-        self.X, self.Y = X, Y
-        self.batch_size = batch_size
-        self.n_rays = n_rays
-        self.patch_size = patch_size
-        self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
-        self.perm = np.random.permutation(len(self.X))
         self.shape_completion = bool(shape_completion)
-        self.same_patches = bool(same_patches)
-
         if self.shape_completion and b > 0:
             self.b = slice(b,-b),slice(b,-b)
         else:
             self.b = slice(None),slice(None)
 
-    def __len__(self):
-        return int(np.ceil(len(self.X) / float(self.batch_size)))
-
-    def on_epoch_end(self):
-        self.perm = np.random.permutation(len(self.X))
-
-    def _random_patches(self, shapes, idx):
-        def _single_patch(shape,i):
-            all(s>=p for s,p in zip(shape, self.patch_size)) or _raise(ValueError('patch size > image size'))
-            rng = np.random.RandomState(i) if self.same_patches else np.random
-            start = (rng.randint(0,1+s-p) for s,p in zip(shape, self.patch_size))
-            return tuple(slice(st,st+p) for st,p in zip(start, self.patch_size))
-        return tuple(_single_patch(s,i) for s,i in zip(shapes,idx))
 
     def __getitem__(self, i):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
-        patches = self._random_patches([self.X[k].shape for k in idx], idx)
-        X = [self.X[k][sl][self.b] for k,sl in zip(idx,patches)]
-        Y = [self.Y[k][sl]         for k,sl in zip(idx,patches)]
+
+        arrays = [sample_patches_from_multiple_stacks((self.X[k],self.Y[k]),
+                                                      patch_size=self.patch_size, n_samples=1,
+                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        X, Y = list(zip(*[(x[0][self.b],y[0]) for x,y in arrays]))
+
+        # TODO: apply augmentation here
 
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
-            dist      = np.stack([star_dist(lbl,self.n_rays)[self.b+(slice(None),)] for lbl in Y_cleared])
+            dist      = np.stack([star_dist(lbl,self.n_rays,opencl=self.use_gpu)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
         else:
-            dist      = np.stack([star_dist(lbl,self.n_rays) for lbl in Y])
+            dist      = np.stack([star_dist(lbl,self.n_rays,opencl=self.use_gpu) for lbl in Y])
             dist_mask = prob
 
         X = np.stack(X)
