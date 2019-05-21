@@ -3,6 +3,7 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 from numpy.distutils.misc_util import get_numpy_include_dirs
 from os import path
+from glob import glob
 
 
 class build_ext_openmp(build_ext):
@@ -43,6 +44,9 @@ with open(path.join(_dir,'stardist','version.py')) as f:
 with open(path.join(_dir,'README.md')) as f:
     long_description = f.read()
 
+qhull_root = path.join(_dir, 'stardist', 'lib', 'qhull_src', 'src')
+qhull_src = sorted(glob(path.join(qhull_root, '*', '*.c*')))[::-1]
+
 
 setup(
     name='stardist',
@@ -63,7 +67,12 @@ setup(
             'stardist.lib.stardist2d',
             sources=['stardist/lib/stardist2d.cpp','stardist/lib/clipper.cpp'],
             include_dirs=get_numpy_include_dirs(),
-        )
+        ),
+        Extension(
+            'stardist.lib.stardist3d',
+            sources=['stardist/lib/stardist3d.cpp'] + qhull_src,
+            include_dirs=get_numpy_include_dirs() + [qhull_root],
+        ),
     ],
 
     classifiers=[
