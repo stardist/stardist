@@ -28,7 +28,7 @@ def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, 
     return _loss
 
 def masked_loss(mask, penalty, reg_weight, norm_by_mask):
-    loss = lambda y_true, y_pred: K.abs(y_true - y_pred)
+    loss = lambda y_true, y_pred: penalty(y_true - y_pred)
     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # TODO: should we use norm_by_mask=True in the loss or only in a metric?
@@ -40,6 +40,21 @@ def masked_loss_mae(mask, reg_weight=0, norm_by_mask=True):
 
 def masked_loss_mse(mask, reg_weight=0, norm_by_mask=True):
     return masked_loss(mask, K.square, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
+
+def masked_metric_mae(mask):
+    def relevant_mae(y_true, y_pred):
+        return masked_loss(mask, K.abs, reg_weight=0, norm_by_mask=True)(y_true, y_pred)
+    return relevant_mae
+
+def masked_metric_mse(mask):
+    def relevant_mse(y_true, y_pred):
+        return masked_loss(mask, K.square, reg_weight=0, norm_by_mask=True)(y_true, y_pred)
+    return relevant_mse
+
+def kld(y_true, y_pred):
+    y_true = K.clip(y_true, K.epsilon(), 1)
+    y_pred = K.clip(y_pred, K.epsilon(), 1)
+    return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
 
 
@@ -70,7 +85,7 @@ class StarDistBase(BaseModel):
         prob_loss = 'binary_crossentropy'
         self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics = {}) # TODO: metrics
+                                            metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
 
         self.callbacks = []
         if self.basedir is not None:
