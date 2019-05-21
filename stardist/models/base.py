@@ -78,11 +78,10 @@ class StarDistDataBase(Sequence):
             from scipy.ndimage.filters import maximum_filter
             self.max_filter = lambda y, patch_size: maximum_filter(y, patch_size, mode='constant')
 
-        self.maxfilter_patch_size = (maxfilter_patch_size if maxfilter_patch_size is not None else
-                                     [(p//2 if p>1 else p) for p in self.patch_size])
+        self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
         if maxfilter_cache:
-            self.R = [self.no_background_patches((x,y), self.patch_size) for x,y in zip(self.X,self.Y)]
+            self.R = [self.no_background_patches((x,y)) for x,y in zip(self.X,self.Y)]
         else:
             self.R = None
 
@@ -95,7 +94,7 @@ class StarDistDataBase(Sequence):
         self.perm = np.random.permutation(len(self.X))
 
 
-    def no_background_patches(self, arrays, patch_size):
+    def no_background_patches(self, arrays, *args):
         x, y = arrays
         return self.max_filter(y, self.maxfilter_patch_size) > 0
 
