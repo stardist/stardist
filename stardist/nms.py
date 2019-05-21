@@ -12,7 +12,7 @@ def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_t
 
     b: don't use pixel closer than b pixels to the image boundary
     """
-    from .lib.stardist import c_non_max_suppression_inds
+    from .lib.stardist2d import c_non_max_suppression_inds
 
     assert prob.ndim == 2
     assert coord.ndim == 4

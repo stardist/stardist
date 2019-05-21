@@ -3,124 +3,18 @@ from six.moves import range, zip, map, reduce, filter
 
 import numpy as np
 import warnings
+import os
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
-from skimage.draw import polygon
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
 
 
-_ocl_kernel = r"""
-#ifndef M_PI
-#define M_PI 3.141592653589793
-#endif
-
-__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;
-
-inline float2 pol2cart(const float rho, const float phi) {
-    const float x = rho * cos(phi);
-    const float y = rho * sin(phi);
-    return (float2)(x,y);
-}
-
-__kernel void star_dist(__global float* dst, read_only image2d_t src) {
-
-    const int i = get_global_id(0), j = get_global_id(1);
-    const int Nx = get_global_size(0), Ny = get_global_size(1);
-
-    const float2 origin = (float2)(i,j);
-    const int value = read_imageui(src,sampler,origin).x;
-
-    if (value == 0) {
-        // background pixel -> nothing to do, write all zeros
-        for (int k = 0; k < N_RAYS; k++) {
-            dst[k + i*N_RAYS + j*N_RAYS*Nx] = 0;
-        }
-    } else {
-        float st_rays = (2*M_PI) / N_RAYS; // step size for ray angles
-        // for all rays
-        for (int k = 0; k < N_RAYS; k++) {
-            const float phi = k*st_rays; // current ray angle phi
-            const float2 dir = pol2cart(1,phi); // small vector in direction of ray
-            float2 offset = 0; // offset vector to be added to origin
-            // find radius that leaves current object
-            while (1) {
-                offset += dir;
-                const int offset_value = read_imageui(src,sampler,round(origin+offset)).x;
-                if (offset_value != value) {
-                    const float dist = sqrt(offset.x*offset.x + offset.y*offset.y);
-                    dst[k + i*N_RAYS + j*N_RAYS*Nx] = dist;
-                    break;
-                }
-            }
-        }
-    }
-
-}
-"""
-
-
-def _ocl_star_dist(a, n_rays=32):
-    from gputools import OCLProgram, OCLArray, OCLImage
-    (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
-    n_rays = int(n_rays)
-    src = OCLImage.from_array(a.astype(np.uint16,copy=False))
-    dst = OCLArray.empty(a.shape+(n_rays,), dtype=np.float32)
-    program = OCLProgram(src_str=_ocl_kernel, build_options=['-D', 'N_RAYS=%d' % n_rays])
-    program.run_kernel('star_dist', src.shape, None, dst.data, src)
-    return dst.get()
-
-
-def _cpp_star_dist(a, n_rays=32):
-    from .lib.stardist import c_star_dist
-    (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
-    return c_star_dist(a.astype(np.uint16,copy=False), int(n_rays))
-
-
-def _py_star_dist(a, n_rays=32):
-    (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
-    n_rays = int(n_rays)
-    a = a.astype(np.uint16,copy=False)
-    dst = np.empty(a.shape+(n_rays,),np.float32)
-
-    for i in range(a.shape[0]):
-        for j in range(a.shape[1]):
-            value = a[i,j]
-            if value == 0:
-                dst[i,j] = 0
-            else:
-                st_rays = np.float32((2*np.pi) / n_rays)
-                for k in range(n_rays):
-                    phi = np.float32(k*st_rays)
-                    dy = np.cos(phi)
-                    dx = np.sin(phi)
-                    x, y = np.float32(0), np.float32(0)
-
-                    while True:
-                        x += dx
-                        y += dy
-                        ii = int(round(i+x))
-                        jj = int(round(j+y))
-                        if (ii < 0 or ii >= a.shape[0] or
-                            jj < 0 or jj >= a.shape[1] or
-                            value != a[ii,jj]):
-                            dist = np.sqrt(x*x + y*y)
-                            dst[i,j,k] = dist
-                            break
-    return dst
-
-
-def star_dist(a, n_rays=32, opencl=False):
-    """'a' assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
-    if not _is_power_of_2(n_rays):
-        warnings.warn("not tested with 'n_rays' not being a power of 2.")
-    if opencl:
-        try:
-            return _ocl_star_dist(a,n_rays)
-        except:
-            pass
-    return _cpp_star_dist(a,n_rays)
+def path_absolute(path_relative):
+    """ Get absolute path to resource"""
+    base_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base_path, path_relative)
 
 
 def _is_power_of_2(i):
@@ -140,32 +34,25 @@ def _normalize_grid(grid,n):
         raise ValueError("grid must be a list/tuple of length {n} with values that are power of 2".format(n=n))
 
 
-def ray_angles(n_rays=32):
-    return np.linspace(0,2*np.pi,n_rays,endpoint=False)
-
-
-def dist_to_coord(rhos, grid=(1,1)):
-    """convert from polar to cartesian coordinates for a single image (3-D array) or multiple images (4-D array)"""
-
-    grid = _normalize_grid(grid,2)
-    is_single_image = rhos.ndim == 3
-    if is_single_image:
-        rhos = np.expand_dims(rhos,0)
-    assert rhos.ndim == 4
-
-    n_images,h,w,n_rays = rhos.shape
-    coord = np.empty((n_images,h,w,2,n_rays),dtype=rhos.dtype)
-
-    start = np.indices((h,w))
-    for i in range(2):
-        coord[...,i,:] = grid[i] * np.broadcast_to(start[i].reshape(1,h,w,1), (n_images,h,w,n_rays))
-
-    phis = ray_angles(n_rays).reshape(1,1,1,n_rays)
-
-    coord[...,0,:] += rhos * np.sin(phis) # row coordinate
-    coord[...,1,:] += rhos * np.cos(phis) # col coordinate
-
-    return coord[0] if is_single_image else coord
+def _check_label_array(y, name=None, check_sequential=False):
+    def label_are_sequential(y):
+        """ returns true if y has only sequential labels from 1... """
+        labels = np.unique(y)
+        return (set(labels)-{0}) == set(range(1,1+labels.max()))
+    def is_array_of_integers(y):
+        """https://stackoverflow.com/a/934652"""
+        # return issubclass(y.dtype.type, np.integer)
+        return isinstance(y,np.ndarray) and np.issubdtype(y.dtype, np.integer)
+    err = ValueError("{label} must be an array of {integers}.".format(
+        label = 'labels' if name is None else name,
+        integers = ('sequential ' if check_sequential else '') + 'non-negative integers',
+    ))
+    is_array_of_integers(y) or _raise(err)
+    if check_sequential:
+        label_are_sequential(y) or _raise(err)
+    else:
+        y.min() >= 0 or _raise(err)
+    return True
 
 
 def _edt_prob(lbl_img):
@@ -199,24 +86,6 @@ def edt_prob(lbl_img):
         edt = distance_transform_edt(grown_mask)[shrink_slice][mask]
         prob[sl][mask] = edt/np.max(edt)
     return prob
-
-
-def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
-    sh = coord.shape[:2] if shape is None else shape
-    lbl = np.zeros(sh,np.uint16)
-    # sort points with increasing probability
-    ind = np.argsort([ prob[p[0],p[1]] for p in points ])
-    points = points[ind]
-
-    i = 1
-    for p in points:
-        if prob[p[0],p[1]] < thr:
-            continue
-        rr,cc = polygon(coord[p[0],p[1],0], coord[p[0],p[1],1], sh)
-        lbl[rr,cc] = i
-        i += 1
-
-    return lbl
 
 
 def _fill_label_holes(lbl_img, **kwargs):

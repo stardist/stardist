@@ -285,14 +285,14 @@ static struct PyMethodDef methods[] = {
 
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "stardist", /* name of module */
-    NULL,       /* module documentation, may be NULL */
-    -1,         /* size of per-interpreter state of the module, or -1 if the module keeps state in global variables. */
+    "stardist2d", /* name of module */
+    NULL,         /* module documentation, may be NULL */
+    -1,           /* size of per-interpreter state of the module, or -1 if the module keeps state in global variables. */
     methods,
     NULL,NULL,NULL,NULL
 };
 
-PyMODINIT_FUNC PyInit_stardist(void) {
+PyMODINIT_FUNC PyInit_stardist2d(void) {
     import_array();
     return PyModule_Create(&moduledef);
 }

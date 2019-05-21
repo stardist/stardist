@@ -60,8 +60,8 @@ setup(
     cmdclass={'build_ext': build_ext_openmp},
     ext_modules=[
         Extension(
-            'stardist.lib.stardist',
-            sources=['stardist/lib/stardist.cpp','stardist/lib/clipper.cpp'],
+            'stardist.lib.stardist2d',
+            sources=['stardist/lib/stardist2d.cpp','stardist/lib/clipper.cpp'],
             include_dirs=get_numpy_include_dirs(),
         )
     ],
