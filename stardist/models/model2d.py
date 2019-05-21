@@ -42,6 +42,8 @@ class StarDistData2D(StarDistDataBase):
         else:
             self.b = slice(None),slice(None)
 
+        self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
+
 
     def __getitem__(self, i):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
@@ -58,10 +60,10 @@ class StarDistData2D(StarDistDataBase):
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
-            dist      = np.stack([star_dist(lbl,self.n_rays,opencl=self.use_gpu)[self.b+(slice(None),)] for lbl in Y_cleared])
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
         else:
-            dist      = np.stack([star_dist(lbl,self.n_rays,opencl=self.use_gpu) for lbl in Y])
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y])
             dist_mask = prob
 
         X = np.stack(X)

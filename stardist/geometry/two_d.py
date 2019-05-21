@@ -5,7 +5,7 @@ import warnings
 from skimage.draw import polygon
 from csbdeep.utils import _raise
 
-from ..utils import _raise, _check_label_array, path_absolute, _is_power_of_2, _normalize_grid
+from ..utils import _check_label_array, path_absolute, _is_power_of_2, _normalize_grid
 from ..lib.stardist2d import c_star_dist
 
 
@@ -59,15 +59,21 @@ def _py_star_dist(a, n_rays=32):
     return dst
 
 
-def star_dist(a, n_rays=32, opencl=False):
+def star_dist(a, n_rays=32, mode='cpp'):
     """'a' assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
-    if not _is_power_of_2(n_rays):
-        warnings.warn("not tested with 'n_rays' not being a power of 2.")
-    if opencl:
+
+    mode in ('python','cpp','opencl') or _raise(ValueError("Unknown mode %s" % mode))
+    _is_power_of_2(n_rays) or warnings.warn("not tested with 'n_rays' not being a power of 2.")
+
+    if mode == 'python':
+        return _py_star_dist(a,n_rays)
+
+    if mode == 'opencl':
         try:
             return _ocl_star_dist(a,n_rays)
         except:
             pass
+
     return _cpp_star_dist(a,n_rays)
 
 
