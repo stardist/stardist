@@ -82,7 +82,7 @@ class StarDistData2D(StarDistDataBase):
 
 
 class Config2D(BaseConfig):
-    """Configuration for a :class:`StarDist` model.
+    """Configuration for a :class:`StarDist2D` model.
 
     TODO: update
 
@@ -135,10 +135,10 @@ class Config2D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, n_rays=32, n_channel_in=1, grid=(1,1), backbone='unet', **kwargs):
+    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, grid=(1,1), backbone='unet', **kwargs):
         """See class docstring."""
 
-        super().__init__(axes='YX', n_channel_in=n_channel_in, n_channel_out=1+n_rays)
+        super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+n_rays)
 
         # directly set by parameters
         self.n_rays                    = int(n_rays)
@@ -182,7 +182,7 @@ class Config2D(BaseConfig):
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
-        self.train_reduce_lr        = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
+        self.train_reduce_lr           = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
 
         self.update_parameters(False, **kwargs)
 
