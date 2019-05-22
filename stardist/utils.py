@@ -7,6 +7,7 @@ import os
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
+from skimage.measure import regionprops
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
 
@@ -55,21 +56,33 @@ def _check_label_array(y, name=None, check_sequential=False):
     return True
 
 
-def _edt_prob(lbl_img):
+def _edt_prob(lbl_img, anisotropy=None):
+    if anisotropy is None:
+        dist_func = distance_transform_edt
+    else:
+        from edt import edt as _edt_aniso
+        dist_func = lambda img: _edt_aniso(np.ascontiguousarray(img>0), anisotropy=anisotropy)
     prob = np.zeros(lbl_img.shape,np.float32)
     for l in (set(np.unique(lbl_img)) - set([0])):
         mask = lbl_img==l
-        edt = distance_transform_edt(mask)[mask]
-        prob[mask] = edt/np.max(edt)
+        edt = dist_func(mask)[mask]
+        prob[mask] = edt/(np.max(edt)+1e-10)
     return prob
 
 
-def edt_prob(lbl_img):
+def edt_prob(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize."""
     def grow(sl,interior):
         return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
     def shrink(interior):
         return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
+
+    if anisotropy is None:
+        dist_func = distance_transform_edt
+    else:
+        from edt import edt as _edt_aniso
+        dist_func = lambda img: _edt_aniso(np.ascontiguousarray(img>0), anisotropy=anisotropy)
+
     objects = find_objects(lbl_img)
     prob = np.zeros(lbl_img.shape,np.float32)
     for i,sl in enumerate(objects,1):
@@ -83,8 +96,8 @@ def edt_prob(lbl_img):
         shrink_slice = shrink(interior)
         grown_mask = lbl_img[grow(sl,interior)]==i
         mask = grown_mask[shrink_slice]
-        edt = distance_transform_edt(grown_mask)[shrink_slice][mask]
-        prob[sl][mask] = edt/np.max(edt)
+        edt = dist_func(grown_mask)[shrink_slice][mask]
+        prob[sl][mask] = edt/(np.max(edt)+1e-10)
     return prob
 
 
@@ -138,6 +151,20 @@ def sample_points(n_samples, mask, prob=None, b=2):
     points = points[0][ind], points[1][ind]
     points = np.stack(points,axis=-1)
     return points
+
+
+def calculate_extents(lbl, func=np.median):
+    if isinstance(lbl,(tuple,list)) or lbl.ndim==4:
+        return func(np.stack([calculate_extents(_lbl,func) for _lbl in lbl], axis=0), axis=0)
+
+    lbl.ndim == 3 or _raise(ValueError("label image should be 3 dimensional"))
+
+    regs = regionprops(lbl)
+    if len(regs) == 0:
+        return np.zeros(3)
+    else:
+        extents = np.array([np.array(r.bbox[3:])-np.array(r.bbox[:3]) for r in regs])
+        return func(extents, axis=0)
 
 
 def polyroi_bytearray(x,y,pos=None):
