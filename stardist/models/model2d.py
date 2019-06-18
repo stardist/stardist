@@ -191,6 +191,8 @@ class Config2D(BaseConfig):
 class StarDist2D(StarDistBase):
     """StarDist model.
 
+    TODO: update
+
     Parameters
     ----------
     config : :class:`Config` or None
@@ -235,7 +237,7 @@ class StarDist2D(StarDistBase):
             grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
         input_mask = Input(grid_shape, name='dist_mask')
 
-        unet_kwargs = {k[5:]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
+        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         # maxpool input image to grid size
         pooled = np.array([1,1])
@@ -245,7 +247,7 @@ class StarDist2D(StarDistBase):
             pooled *= pool
             for _ in range(self.config.unet_n_conv_per_depth):
                 pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
-                                    padding="same", activation=self.config.unet_activation)(pooled_img)
+                                    padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
         unet        = unet_block(**unet_kwargs)(pooled_img)
@@ -327,8 +329,10 @@ class StarDist2D(StarDistBase):
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
+                # show dist for three rays
                 _n = min(3, self.config.n_rays)
-                cb.output_slices = ([slice(None)],[slice(None), slice(None), slice(None), slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)])
+                cb.output_slices = [[slice(None)]*4,[slice(None)]*4]
+                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
@@ -336,120 +340,6 @@ class StarDist2D(StarDistBase):
         self._training_finished()
 
         return history
-
-
-    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
-        """Predict.
-
-        Parameters
-        ----------
-        img : :class:`numpy.ndarray`
-            Input image
-        axes : str or None
-            Axes of the input ``img``.
-            ``None`` denotes that axes of img are the same as defnoted in the config.
-        normalizer : :class:`csbdeep.data.Normalizer` or None
-            (Optional) normalization of input image before prediction.
-        n_tiles : iterable or None
-            Out of memory (OOM) errors can occur if the input image is too large.
-            To avoid this problem, the input image is broken up into (overlapping) tiles
-            that are processed independently and re-assembled.
-            This parameter denotes a tuple of the number of tiles for every image axis (see ``axes``).
-            ``None`` denotes that no tiling should be used.
-        show_tile_progress: bool
-            Whether to show progress during tiled prediction.
-        predict_kwargs: dict
-            Keyword arguments for ``predict`` function of Keras model.
-
-        Returns
-        -------
-        (:class:`numpy.ndarray`,:class:`numpy.ndarray`)
-            Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon distances.
-
-        """
-        if n_tiles is None:
-            n_tiles = [1]*img.ndim
-        try:
-            n_tiles = tuple(n_tiles)
-            img.ndim == len(n_tiles) or _raise(TypeError())
-        except TypeError:
-            raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
-        all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
-            ValueError("all values of n_tiles must be integer values >= 1"))
-        n_tiles = tuple(map(int,n_tiles))
-
-        if axes is None:
-            axes = self.config.axes
-            assert 'C' in axes
-            if img.ndim == len(axes)-1 and self.config.n_channel_in == 1:
-                # img has no dedicated channel axis, but 'C' always part of config axes
-                axes = axes.replace('C','')
-
-        axes     = axes_check_and_normalize(axes,img.ndim)
-        axes_net = self.config.axes
-
-        _permute_axes = self._make_permute_axes(axes, axes_net)
-        x = _permute_axes(img) # x has axes_net semantics
-
-        channel = axes_dict(axes_net)['C']
-        self.config.n_channel_in == x.shape[channel] or _raise(ValueError())
-        axes_net_div_by = self._axes_div_by(axes_net)
-
-        grid = tuple(self.config.grid)
-        len(grid) == len(axes_net)-1 or _raise(ValueError())
-        grid_dict = dict(zip(axes_net.replace('C',''),grid))
-
-        normalizer = self._check_normalizer_resizer(normalizer, None)[0]
-        resizer = StarDistPadAndCropResizer(grid=grid_dict)
-
-        x = normalizer.before(x, axes_net)
-        x = resizer.before(x, axes_net, axes_net_div_by)
-
-        def predict_direct(tile):
-            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
-            return prob[0], dist[0]
-
-        if np.prod(n_tiles) > 1:
-            tiling_axes   = axes_net.replace('C','') # axes eligible for tiling
-            x_tiling_axis = tuple(axes_dict(axes_net)[a] for a in tiling_axes) # numerical axis ids for x
-            axes_net_tile_overlaps = self._axes_tile_overlap(axes_net)
-            # hack: permute tiling axis in the same way as img -> x was permuted
-            n_tiles = _permute_axes(np.empty(n_tiles,np.bool)).shape
-            (all(n_tiles[i] == 1 for i in range(x.ndim) if i not in x_tiling_axis) or
-                _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
-
-            sh = [s//grid_dict.get(a,1) for a,s in zip(axes_net,x.shape)]
-            sh[channel] = 1;                  prob = np.empty(sh,np.float32)
-            sh[channel] = self.config.n_rays; dist = np.empty(sh,np.float32)
-
-            n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
-                                in zip(axes_net_tile_overlaps, axes_net_div_by)]
-
-            for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
-                                           disable=(not show_tile_progress), total=np.prod(n_tiles)):
-                prob_tile, dist_tile = predict_direct(tile)
-                # account for grid
-                s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
-                s_dst = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_dst,axes_net)]
-                # prob and dist have different channel dimensionality than image x
-                s_src[channel] = slice(None)
-                s_dst[channel] = slice(None)
-                s_src, s_dst = tuple(s_src), tuple(s_dst)
-                # print(s_src,s_dst)
-                prob[s_dst] = prob_tile[s_src]
-                dist[s_dst] = dist_tile[s_src]
-
-        else:
-            prob, dist = predict_direct(x)
-
-        prob = resizer.after(prob, axes_net)
-        dist = resizer.after(dist, axes_net)
-
-        prob = np.take(prob,0,axis=channel)
-        dist = np.moveaxis(dist,channel,-1)
-
-        return prob, dist
 
 
     def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=0.5, nms_thresh=0.5, return_polygons=False, **nms_kwargs):
@@ -461,21 +351,6 @@ class StarDist2D(StarDistBase):
             return labels, coord[points[:,0],points[:,1]], points, prob[points[:,0],points[:,1]]
         else:
             return labels
-
-
-    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=0.5, nms_thresh=0.5,
-                          return_polygons=False, n_tiles=None, show_tile_progress=True,
-                          predict_kwargs=None, nms_kwargs=None):
-        if predict_kwargs is None:
-            predict_kwargs = {}
-        if nms_kwargs is None:
-            nms_kwargs = {}
-
-        prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
-                                  n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-
-        return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
-                                               return_polygons=return_polygons, **nms_kwargs)
 
 
     def _axes_div_by(self, query_axes):

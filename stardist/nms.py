@@ -59,10 +59,12 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
     assert prob.ndim == 3 and dist.ndim == 4 and dist.shape[-1] == len(rays)
     grid = _normalize_grid(grid,3)
 
+    verbose and print("predicting instances with prob_thresh = {prob_thresh} and nms_thresh = {nms_thresh}".format(prob_thresh=prob_thresh, nms_thresh=nms_thresh), flush=True)
+
     ind_thresh = prob > prob_thresh
     if b is not None and b > 0:
         _ind_thresh = np.zeros_like(ind_thresh)
-        _ind_thresh[b:-b,b:-b] = True
+        _ind_thresh[b:-b,b:-b,b:-b] = True
         ind_thresh &= _ind_thresh
 
     points = np.stack(np.where(ind_thresh), axis=1)
@@ -75,13 +77,13 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
     disti = disti[_sorted]
     points = points[_sorted]
 
-    verbose and print("non maximum supression...")
+    verbose and print("non-maximum suppression...")
     points = (points * np.array(grid).reshape((1,3)))
 
     inds = non_maximum_suppression_3d_inds(disti, points, rays=rays, scores=probi, thresh=nms_thresh, verbose=verbose)
 
     verbose and print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
-    return points[inds]
+    return points[inds], probi[inds], disti[inds]
 
 
 
