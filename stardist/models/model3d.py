@@ -156,7 +156,10 @@ class Config3D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, axes='ZYX', rays=Rays_GoldenSpiral(96), n_channel_in=1, grid=(1,1,1), anisotropy=None, backbone='resnet', **kwargs):
+    def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), anisotropy=None, backbone='resnet', **kwargs):
+
+        if rays is None:
+            rays = Rays_GoldenSpiral(96)
 
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+len(rays))
 
@@ -166,6 +169,13 @@ class Config3D(BaseConfig):
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
         self.backbone                  = str(backbone).lower()
         self.rays_json                 = rays.to_json()
+
+        if 'anisotropy' in self.rays_json['kwargs']:
+            if self.rays_json['kwargs']['anisotropy'] is None and self.anisotropy is not None:
+                self.rays_json['kwargs']['anisotropy'] = self.anisotropy
+                print("Changing 'anisotropy' of rays to %s" % str(anisotropy))
+            elif self.rays_json['kwargs']['anisotropy'] != self.anisotropy:
+                warnings.warn("Mismatch of 'anisotropy' of rays and 'anisotropy'.")
 
         # default config (can be overwritten by kwargs below)
         if self.backbone == 'unet':
@@ -462,7 +472,8 @@ class StarDist3D(StarDistBase):
             ))
             return tuple(div_by.get(a,1) for a in query_axes)
         elif self.config.backbone == "resnet":
-            return (1,) * len(query_axes)
+            grid_dict = dict(zip(self.config.axes.replace('C',''), self.config.grid))
+            return tuple(grid_dict.get(a,1) for a in query_axes)
         else:
             raise NotImplementedError()
 
