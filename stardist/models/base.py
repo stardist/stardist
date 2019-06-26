@@ -20,7 +20,7 @@ from csbdeep.data import Resizer
 
 
 # TODO: support (optional) classification of objects?
-# TODO: helber function to check if receptive field of cnn is sufficient for object sizes in GT
+# TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
 def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, reg_penalty=K.abs):
     def _loss(y_true, y_pred):
@@ -66,7 +66,7 @@ def kld(y_true, y_pred):
 
 class StarDistDataBase(Sequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
 
         self.X, self.Y = X, Y
         self.batch_size = batch_size
@@ -75,6 +75,10 @@ class StarDistDataBase(Sequence):
         self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
         self.perm = np.random.permutation(len(self.X))
         self.use_gpu = bool(use_gpu)
+        if augmenter is None:
+            augmenter = lambda *args: args
+        callable(augmenter) or _raise(ValueError("augmenter must be None or callable"))
+        self.augmenter = augmenter
 
         if self.use_gpu:
             from gputools import max_filter
@@ -130,7 +134,6 @@ class StarDistBase(BaseModel):
             If ``None`` (default), uses ``Adam`` with the learning rate specified in ``config``.
 
         """
-        # TODO: make this exactly the same as in 3D version
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
@@ -265,7 +268,7 @@ class StarDistBase(BaseModel):
 
         prob = resizer.after(prob, axes_net)
         dist = resizer.after(dist, axes_net)
-        dist = np.maximum(1e-3, dist)
+        dist = np.maximum(1e-3, dist) # avoid small/negative dist values to prevent problems with Qhull
 
         prob = np.take(prob,0,axis=channel)
         dist = np.moveaxis(dist,channel,-1)
@@ -281,6 +284,8 @@ class StarDistBase(BaseModel):
         if nms_kwargs is None:
             nms_kwargs = {}
 
+        # TODO: always return label image, details of instances
+
         prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
                                   n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
 
@@ -290,7 +295,7 @@ class StarDistBase(BaseModel):
 
 
 class StarDistPadAndCropResizer(Resizer):
-    
+
     # TODO: check correctness
     def __init__(self, grid, mode='reflect', **kwargs):
         assert isinstance(grid, dict)

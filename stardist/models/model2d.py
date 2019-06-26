@@ -30,11 +30,11 @@ from skimage.segmentation import clear_border
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         **kwargs)
+                         augmenter=augmenter, **kwargs)
 
         self.shape_completion = bool(shape_completion)
         if self.shape_completion and b > 0:
@@ -54,7 +54,8 @@ class StarDistData2D(StarDistDataBase):
                                                       patch_filter=self.no_background_patches_cached(k)) for k in idx]
         X, Y = list(zip(*[(x[0][self.b],y[0]) for x,y in arrays]))
 
-        # TODO: apply augmentation here
+        # TODO: check augmentation
+        X, Y = self.augmenter(X, Y)
 
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
 
@@ -159,6 +160,7 @@ class Config2D(BaseConfig):
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
         else:
+            # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
         if backend_channels_last():
@@ -354,7 +356,6 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        # TODO: different for 3D model / different backbone
         self.config.backbone == 'unet' or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid)
@@ -366,7 +367,6 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_tile_overlap(self, query_axes):
-        # TODO: different for 3D model / different backbone
         self.config.backbone == 'unet' or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid) == len(self.config.unet_kernel_size)

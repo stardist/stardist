@@ -26,7 +26,7 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
 
-from .base import StarDistBase, StarDistDataBase, StarDistPadAndCropResizer
+from .base import StarDistBase, StarDistDataBase
 from ..utils import edt_prob, _normalize_grid, _is_power_of_2, calculate_extents, relabel_sequential
 from ..geometry.three_d import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
@@ -36,13 +36,13 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, **kwargs):
         # TODO: support shape completion as in 2D?
 
         X = [x.astype(np.float32, copy=False) for x in X]
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         **kwargs)
+                         augmenter=augmenter, **kwargs)
 
         self.rays = rays
         self.anisotropy = anisotropy
@@ -65,10 +65,11 @@ class StarDistData3D(StarDistDataBase):
                                                       patch_filter=self.no_background_patches_cached(k)) for k in idx]
         X, Y = list(zip(*[(x[0],y[0]) for x,y in arrays]))
 
-        # TODO: apply augmentation here
+        # TODO: check augmentation
+        X, Y = self.augmenter(X, Y)
 
         if len(Y) == 1:
-            X = np.array(X)
+            X = X[0][np.newaxis]
         else:
             X = np.stack(X, out=self.out_X[:len(Y)])
         if X.ndim == 4: # input image has no channel axis

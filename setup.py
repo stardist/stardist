@@ -87,7 +87,7 @@ setup(
     ],
 
     install_requires=[
-        'csbdeep>=0.3.0',
+        'csbdeep>=0.4.0',
         'scikit-image',
     ],
 )
