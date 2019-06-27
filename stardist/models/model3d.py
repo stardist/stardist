@@ -159,7 +159,10 @@ class Config3D(BaseConfig):
     def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), anisotropy=None, backbone='resnet', **kwargs):
 
         if rays is None:
-            rays = Rays_GoldenSpiral(96)
+            if 'rays_json' in kwargs:
+                rays = rays_from_json(kwargs['rays_json'])
+            else:
+                rays = Rays_GoldenSpiral(96)
 
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+len(rays))
 
