@@ -6,6 +6,7 @@ import numpy as np
 import warnings
 import math
 from tqdm import tqdm
+from collections import namedtuple
 
 import keras.backend as K
 from keras.utils import Sequence
@@ -13,10 +14,11 @@ from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
 from csbdeep.models import BaseConfig, BaseModel
 from csbdeep.utils.tf import CARETensorBoard
-from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
+from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
+from ..utils import optimize_threshold
 
 
 # TODO: support (optional) classification of objects?
@@ -117,6 +119,37 @@ class StarDistDataBase(Sequence):
 
 
 class StarDistBase(BaseModel):
+
+    def __init__(self, config, name=None, basedir='.'):
+        super().__init__(config=config, name=name, basedir=basedir)
+        try:
+            threshs = load_json(str(self.logdir / 'thresholds.json'))
+            if threshs.get('prob') is None or not (0 < threshs.get('prob') < 1):
+                print("Found invalid value for 'prob' threshold (%s), using default value." % str(threshs.get('prob')))
+                threshs['prob'] = None
+            if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
+                print("Found invalid value for 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
+                threshs['nms'] = None
+        except FileNotFoundError:
+            threshs = dict(prob=None, nms=None)
+            print("Didn't find thresholds to load ('thresholds.json'), using default values.")
+
+        self.thresholds = dict (
+            prob = 0.5 if threshs['prob'] is None else threshs['prob'],
+            nms  = 0.4 if threshs['nms']  is None else threshs['nms'],
+        )
+        print("Using %s." % str(self.thresholds))
+
+
+    @property
+    def thresholds(self):
+        return self._thresholds
+
+
+    @thresholds.setter
+    def thresholds(self, d):
+        self._thresholds = namedtuple('Thresholds',d.keys())(*d.values())
+
 
     def prepare_for_training(self, optimizer=None):
         """Prepare for neural network training.
@@ -276,7 +309,7 @@ class StarDistBase(BaseModel):
         return prob, dist
 
 
-    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=0.5, nms_thresh=0.5,
+    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
                           return_polygons=False, n_tiles=None, show_tile_progress=True,
                           predict_kwargs=None, nms_kwargs=None):
         if predict_kwargs is None:
@@ -291,6 +324,26 @@ class StarDistBase(BaseModel):
 
         return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
                                                return_polygons=return_polygons, **nms_kwargs)
+
+
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None):
+        if predict_kwargs is None:
+            predict_kwargs = {}
+        if optimize_kwargs is None:
+            optimize_kwargs = {}
+
+        Yhat_val = [self.predict(x, **predict_kwargs) for x in X_val]
+
+        opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
+        for _opt_nms_thresh in nms_threshs:
+            _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, iou_threshs=iou_threshs, **optimize_kwargs)
+            if _opt_measure > opt_measure:
+                opt_prob_thresh, opt_measure, opt_nms_thresh = _opt_prob_thresh, _opt_measure, _opt_nms_thresh
+        opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)
+
+        self.thresholds = opt_threshs
+        print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
+        save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
 
 
 

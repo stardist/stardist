@@ -1,15 +1,19 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
-from six.moves import range, zip, map, reduce, filter
 
 import numpy as np
 import warnings
 import os
+import datetime
+from tqdm import tqdm
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
+from scipy.optimize import minimize_scalar
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
+
+from .matching import matching_dataset
 
 
 def path_absolute(path_relative):
@@ -219,3 +223,41 @@ def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLA
             for i,poly in enumerate(polygroup,start=1):
                 roi = polyroi_bytearray(poly[1],poly[0], pos=(pos if set_position else None))
                 roizip.writestr('{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i), roi)
+
+
+def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_threshs=[0.3,0.5,0.7], bracket=None, tol=1e-2, maxiter=20, verbose=1):
+    np.isscalar(nms_thresh) or _raise(ValueError("nms_thresh must be a scalar"))
+    iou_threshs = [iou_threshs] if np.isscalar(iou_threshs) else iou_threshs
+    img_shape = Y[0].shape
+    values = dict()
+
+    if bracket is None:
+        bracket = 0.5 * max([np.max(prob) for prob, dist in Yhat]), 1
+    # print("bracket =", bracket)
+
+    with tqdm(total=maxiter, disable=(verbose!=1), desc="NMS threshold = %g" % nms_thresh) as progress:
+
+        def fn(thr):
+            prob_thresh = np.clip(thr, *bracket)
+            value = values.get(prob_thresh)
+            if value is None:
+                Y_instances = [model._instances_from_prediction(img_shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh) for prob, dist in Yhat]
+                stats = matching_dataset(Y, Y_instances, thresh=iou_threshs, show_progress=False, parallel=True)
+                values[prob_thresh] = value = np.mean([s._asdict()[measure] for s in stats])
+            if verbose > 1:
+                print("{now}   thresh: {prob_thresh:f}   {measure}: {value:f}".format(
+                    now = datetime.datetime.now().strftime('%H:%M:%S'),
+                    prob_thresh = prob_thresh,
+                    measure = measure,
+                    value = value,
+                ), flush=True)
+            else:
+                progress.update()
+                progress.set_postfix_str("{prob_thresh:.3f} -> {value:.3f}".format(prob_thresh=prob_thresh, value=value))
+                progress.refresh()
+            return -value
+
+        opt = minimize_scalar(fn, method='golden', bracket=bracket, tol=tol, options={'maxiter': maxiter})
+
+    verbose > 1 and print('\n',opt, flush=True)
+    return opt.x, -opt.fun

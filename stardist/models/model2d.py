@@ -1,6 +1,4 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
-from six.moves import range, zip, map, reduce, filter
-from six import string_types
 
 import numpy as np
 import warnings
@@ -344,7 +342,10 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=0.5, nms_thresh=0.5, return_polygons=False, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, return_polygons=False, **nms_kwargs):
+        if prob_thresh is None: prob_thresh = self.thresholds.prob
+        if nms_thresh  is None: nms_thresh  = self.thresholds.nms
+
         coord = dist_to_coord(dist, grid=self.config.grid)
         points = non_maximum_suppression(coord, prob, grid=self.config.grid,
                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
