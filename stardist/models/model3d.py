@@ -27,7 +27,8 @@ from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
 
 from .base import StarDistBase, StarDistDataBase
-from ..utils import edt_prob, _normalize_grid, _is_power_of_2, calculate_extents, relabel_sequential
+from ..utils import edt_prob, _normalize_grid, _is_power_of_2, calculate_extents
+from ..matching import relabel_sequential
 from ..geometry.three_d import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
 from ..nms import non_maximum_suppression_3d

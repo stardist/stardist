@@ -89,5 +89,7 @@ setup(
     install_requires=[
         'csbdeep>=0.4.0',
         'scikit-image',
+        'numba',
+        'edt',
     ],
 )
