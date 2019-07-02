@@ -17,7 +17,7 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
-from ..utils import optimize_threshold
+from ..utils import _is_power_of_2, optimize_threshold
 
 
 # TODO: support (optional) classification of objects?
@@ -70,6 +70,7 @@ class StarDistDataBase(Sequence):
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
 
         X = [x.astype(np.float32, copy=False) for x in X]
+        # Y = [y.astype(np.uint16,  copy=False) for y in Y]
         self.X, self.Y = X, Y
         self.batch_size = batch_size
         self.n_rays = n_rays
@@ -122,18 +123,21 @@ class StarDistBase(BaseModel):
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)
-        try:
-            threshs = load_json(str(self.logdir / 'thresholds.json'))
-            print("Loading thresholds from 'thresholds.json'.")
-            if threshs.get('prob') is None or not (0 < threshs.get('prob') < 1):
-                print("- Invalid 'prob' threshold (%s), using default value." % str(threshs.get('prob')))
-                threshs['prob'] = None
-            if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
-                print("- Invalid 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
-                threshs['nms'] = None
-        except FileNotFoundError:
-            threshs = dict(prob=None, nms=None)
-            print("Couldn't load thresholds from 'thresholds.json', using default values.")
+        threshs = dict(prob=None, nms=None)
+        if basedir is not None:
+            try:
+                threshs = load_json(str(self.logdir / 'thresholds.json'))
+                print("Loading thresholds from 'thresholds.json'.")
+                if threshs.get('prob') is None or not (0 < threshs.get('prob') < 1):
+                    print("- Invalid 'prob' threshold (%s), using default value." % str(threshs.get('prob')))
+                    threshs['prob'] = None
+                if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
+                    print("- Invalid 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
+                    threshs['nms'] = None
+            except FileNotFoundError:
+                if config is None and len(tuple(self.logdir.glob('*.h5'))) > 0:
+                    print("Couldn't load thresholds from 'thresholds.json', using default values. "
+                          "(Call 'optimize_thresholds' to change that.)")
 
         self.thresholds = dict (
             prob = 0.5 if threshs['prob'] is None else threshs['prob'],
@@ -340,6 +344,44 @@ class StarDistBase(BaseModel):
         print(end='', file=sys.stderr, flush=True)
         print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
         save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
+
+
+    def _compute_receptive_field(self, img_size=None):
+        # TODO: good enough?
+        from scipy.ndimage import zoom
+        grid = self.config.grid
+        if img_size is None:
+            img_size = tuple(g*(128 if self.config.n_dim==2 else 64) for g in grid)
+        if np.isscalar(img_size):
+            img_size = (img_size,) * self.config.n_dim
+        img_size = tuple(img_size)
+        # print(img_size)
+        assert all(_is_power_of_2(s) for s in img_size)
+        mid = tuple(s//2 for s in img_size)
+        x = np.zeros((1,)+img_size+(1,), dtype=np.float32)
+        z = np.zeros_like(x)
+        x[(0,)+mid+(0,)] = 1
+        y  = self.keras_model.predict([x,x])[0][0,...,0]
+        y0 = self.keras_model.predict([z,z])[0][0,...,0]
+        grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
+        assert grid == self.config.grid
+        y  = zoom(y,grid,order=0);
+        y0 = zoom(y0,grid,order=0);
+        ind = np.where(np.abs(y-y0)>0)
+        return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
+
+
+    def _axes_tile_overlap(self, query_axes):
+        try:
+            self._tile_overlap
+        except AttributeError:
+            self._tile_overlap = self._compute_receptive_field()
+        query_axes = axes_check_and_normalize(query_axes)
+        overlap = dict(zip(
+            self.config.axes.replace('C',''),
+            tuple(max(rf) for rf in self._tile_overlap)
+        ))
+        return tuple(overlap.get(a,0) for a in query_axes)
 
 
 

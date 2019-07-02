@@ -62,7 +62,6 @@ class StarDistData3D(StarDistDataBase):
                                                       patch_filter=self.no_background_patches_cached(k)) for k in idx]
         X, Y = list(zip(*[(x[0],y[0]) for x,y in arrays]))
 
-        # TODO: check augmentation
         X, Y = self.augmenter(X, Y)
 
         if len(Y) == 1:
@@ -458,7 +457,6 @@ class StarDist3D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        # TODO: correct?
         if self.config.backbone == "unet":
             query_axes = axes_check_and_normalize(query_axes)
             assert len(self.config.unet_pool) == len(self.config.grid)
@@ -474,24 +472,24 @@ class StarDist3D(StarDistBase):
             raise NotImplementedError()
 
 
-    def _axes_tile_overlap(self, query_axes):
-        # TODO: correct?
-        if self.config.backbone == "unet":
-            query_axes = axes_check_and_normalize(query_axes)
-            assert len(self.config.unet_pool) == len(self.config.grid) == len(self.config.unet_kernel_size)
-            # TODO: compute this properly when any value of grid > 1
-            # all(g==1 for g in self.config.grid) or warnings.warn('FIXME')
-            overlap = dict(zip(
-                self.config.axes.replace('C',''),
-                tuple(tile_overlap(self.config.unet_n_depth + int(np.log2(g)), k, p)
-                      for p,k,g in zip(self.config.unet_pool,self.config.unet_kernel_size,self.config.grid))
-            ))
-            return tuple(overlap.get(a,0) for a in query_axes)
-        elif self.config.backbone == "resnet":
-            # TODO: compute properly?
-            return tuple(0 if a == 'C' else 32 for a in query_axes)
-        else:
-            raise NotImplementedError()
+    # def _axes_tile_overlap(self, query_axes):
+    #     # TODO: correct?
+    #     if self.config.backbone == "unet":
+    #         query_axes = axes_check_and_normalize(query_axes)
+    #         assert len(self.config.unet_pool) == len(self.config.grid) == len(self.config.unet_kernel_size)
+    #         # TODO: compute this properly when any value of grid > 1
+    #         # all(g==1 for g in self.config.grid) or warnings.warn('FIXME')
+    #         overlap = dict(zip(
+    #             self.config.axes.replace('C',''),
+    #             tuple(tile_overlap(self.config.unet_n_depth + int(np.log2(g)), k, p)
+    #                   for p,k,g in zip(self.config.unet_pool,self.config.unet_kernel_size,self.config.grid))
+    #         ))
+    #         return tuple(overlap.get(a,0) for a in query_axes)
+    #     elif self.config.backbone == "resnet":
+    #         # TODO: compute properly?
+    #         return tuple(0 if a == 'C' else 32 for a in query_axes)
+    #     else:
+    #         raise NotImplementedError()
 
 
     @property
