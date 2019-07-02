@@ -38,7 +38,6 @@ class StarDistData3D(StarDistDataBase):
     def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, **kwargs):
         # TODO: support shape completion as in 2D?
 
-        X = [x.astype(np.float32, copy=False) for x in X]
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
                          augmenter=augmenter, **kwargs)
@@ -46,7 +45,6 @@ class StarDistData3D(StarDistDataBase):
         self.rays = rays
         self.anisotropy = anisotropy
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
-
 
         # re-use arrays
         if self.batch_size > 1:
@@ -100,7 +98,7 @@ class StarDistData3D(StarDistDataBase):
 class Config3D(BaseConfig):
     """Configuration for a :class:`StarDist3D` model.
 
-    TODO: update
+    TODO: update docstring
 
     Parameters
     ----------
@@ -223,7 +221,7 @@ class Config3D(BaseConfig):
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
         self.train_batch_size          = 1
-        self.train_n_val_patches       = None # TODO: add this in 2D as well (useful if raw images are much bigger than patch size)
+        self.train_n_val_patches       = None
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
@@ -236,7 +234,7 @@ class Config3D(BaseConfig):
 class StarDist3D(StarDistBase):
     """StarDist model.
 
-    TODO: update
+    TODO: update docstring
 
     Parameters
     ----------
@@ -356,7 +354,7 @@ class StarDist3D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def train(self, X,Y, validation_data, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
         Parameters
@@ -419,9 +417,7 @@ class StarDist3D(StarDistBase):
         Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,Dv]]
 
-        # TODO: augmentation
-        # data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augment=self.config.train_augment, **data_kwargs)
-        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, **data_kwargs)
+        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
@@ -443,12 +439,10 @@ class StarDist3D(StarDistBase):
                                                  callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
-        # TODO: tune thesholds after training automatically? also for 2D
-
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, return_polygons=False, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
 
@@ -459,11 +453,8 @@ class StarDist3D(StarDistBase):
         verbose and print("render polygons...")
         labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, verbose=verbose)
         labels = relabel_sequential(labels)[0]
-        if return_polygons:
-            # convert to polyhedra faces?
-            return labels, disti, points, probi
-        else:
-            return labels
+        # TODO: convert to polyhedra faces?
+        return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
 
 
     def _axes_div_by(self, query_axes):

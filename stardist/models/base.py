@@ -1,8 +1,7 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
-from six.moves import range, zip, map, reduce, filter
-from six import string_types
 
 import numpy as np
+import sys
 import warnings
 import math
 from tqdm import tqdm
@@ -70,6 +69,7 @@ class StarDistDataBase(Sequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
 
+        X = [x.astype(np.float32, copy=False) for x in X]
         self.X, self.Y = X, Y
         self.batch_size = batch_size
         self.n_rays = n_rays
@@ -124,15 +124,16 @@ class StarDistBase(BaseModel):
         super().__init__(config=config, name=name, basedir=basedir)
         try:
             threshs = load_json(str(self.logdir / 'thresholds.json'))
+            print("Loading thresholds from 'thresholds.json'.")
             if threshs.get('prob') is None or not (0 < threshs.get('prob') < 1):
-                print("Found invalid value for 'prob' threshold (%s), using default value." % str(threshs.get('prob')))
+                print("- Invalid 'prob' threshold (%s), using default value." % str(threshs.get('prob')))
                 threshs['prob'] = None
             if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
-                print("Found invalid value for 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
+                print("- Invalid 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
                 threshs['nms'] = None
         except FileNotFoundError:
             threshs = dict(prob=None, nms=None)
-            print("Didn't find thresholds to load ('thresholds.json'), using default values.")
+            print("Couldn't load thresholds from 'thresholds.json', using default values.")
 
         self.thresholds = dict (
             prob = 0.5 if threshs['prob'] is None else threshs['prob'],
@@ -310,20 +311,14 @@ class StarDistBase(BaseModel):
 
 
     def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
-                          return_polygons=False, n_tiles=None, show_tile_progress=True,
-                          predict_kwargs=None, nms_kwargs=None):
+                          n_tiles=None, show_tile_progress=True, predict_kwargs=None, nms_kwargs=None):
         if predict_kwargs is None:
             predict_kwargs = {}
         if nms_kwargs is None:
             nms_kwargs = {}
 
-        # TODO: always return label image, details of instances
-
-        prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
-                                  n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-
-        return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
-                                               return_polygons=return_polygons, **nms_kwargs)
+        prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
+        return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None):
@@ -342,6 +337,7 @@ class StarDistBase(BaseModel):
         opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)
 
         self.thresholds = opt_threshs
+        print(end='', file=sys.stderr, flush=True)
         print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
         save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
 

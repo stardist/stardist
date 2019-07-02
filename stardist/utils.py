@@ -158,6 +158,7 @@ def sample_points(n_samples, mask, prob=None, b=2):
 
 
 def calculate_extents(lbl, func=np.median):
+    """ Aggregate bounding box sizes of objects in label images. """
     if isinstance(lbl,(tuple,list)) or lbl.ndim==4:
         return func(np.stack([calculate_extents(_lbl,func) for _lbl in lbl], axis=0), axis=0)
 
@@ -226,13 +227,15 @@ def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLA
 
 
 def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_threshs=[0.3,0.5,0.7], bracket=None, tol=1e-2, maxiter=20, verbose=1):
+    """ Tune prob_thresh for provided (fixed) nms_thresh to maximize matching score (for given measure and averaged over iou_threshs). """
     np.isscalar(nms_thresh) or _raise(ValueError("nms_thresh must be a scalar"))
     iou_threshs = [iou_threshs] if np.isscalar(iou_threshs) else iou_threshs
     img_shape = Y[0].shape
     values = dict()
 
     if bracket is None:
-        bracket = 0.5 * max([np.max(prob) for prob, dist in Yhat]), 1
+        max_prob = max([np.max(prob) for prob, dist in Yhat])
+        bracket = max_prob/2, max_prob
     # print("bracket =", bracket)
 
     with tqdm(total=maxiter, disable=(verbose!=1), desc="NMS threshold = %g" % nms_thresh) as progress:
@@ -241,7 +244,7 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
             prob_thresh = np.clip(thr, *bracket)
             value = values.get(prob_thresh)
             if value is None:
-                Y_instances = [model._instances_from_prediction(img_shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh) for prob, dist in Yhat]
+                Y_instances = [model._instances_from_prediction(img_shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh)[0] for prob, dist in Yhat]
                 stats = matching_dataset(Y, Y_instances, thresh=iou_threshs, show_progress=False, parallel=True)
                 values[prob_thresh] = value = np.mean([s._asdict()[measure] for s in stats])
             if verbose > 1:

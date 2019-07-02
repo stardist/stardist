@@ -83,7 +83,7 @@ class StarDistData2D(StarDistDataBase):
 class Config2D(BaseConfig):
     """Configuration for a :class:`StarDist2D` model.
 
-    TODO: update
+    TODO: update docstring
 
     Parameters
     ----------
@@ -173,12 +173,14 @@ class Config2D(BaseConfig):
         self.train_patch_size          = 256,256
         self.train_background_reg      = 1e-4
 
+        # TODO: good default params?
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,1
         self.train_epochs              = 100
         self.train_steps_per_epoch     = 400
         self.train_learning_rate       = 0.0003
         self.train_batch_size          = 4
+        self.train_n_val_patches       = None
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
@@ -191,7 +193,7 @@ class Config2D(BaseConfig):
 class StarDist2D(StarDistBase):
     """StarDist model.
 
-    TODO: update
+    TODO: update docstring
 
     Parameters
     ----------
@@ -260,7 +262,7 @@ class StarDist2D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def train(self, X, Y, validation_data, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
         Parameters
@@ -317,7 +319,7 @@ class StarDist2D(StarDistBase):
         # generate validation data and store in numpy arrays
         data_val = StarDistData2D(*validation_data, batch_size=1, **data_kwargs)
         n_data_val = len(data_val)
-        n_take = n_data_val
+        n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
         Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
         for i,k in enumerate(ids):
@@ -325,7 +327,7 @@ class StarDist2D(StarDistBase):
         Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,Dv]]
 
-        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, **data_kwargs)
+        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
@@ -342,7 +344,7 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, return_polygons=False, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
 
@@ -350,10 +352,7 @@ class StarDist2D(StarDistBase):
         points = non_maximum_suppression(coord, prob, grid=self.config.grid,
                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
         labels = polygons_to_label(coord, prob, points, shape=img_shape)
-        if return_polygons:
-            return labels, coord[points[:,0],points[:,1]], points, prob[points[:,0],points[:,1]]
-        else:
-            return labels
+        return labels, dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]])
 
 
     def _axes_div_by(self, query_axes):
