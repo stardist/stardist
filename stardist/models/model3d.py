@@ -190,7 +190,7 @@ class Config3D(BaseConfig):
             self.unet_prefix             = ''
             self.net_conv_after_unet     = 128
         elif self.backbone == 'resnet':
-            self.resnet_n_blocks         = 2
+            self.resnet_n_blocks         = 4
             self.resnet_kernel_size      = 3,3,3
             self.resnet_kernel_init      = 'he_normal'
             self.resnet_n_filter_base    = 32
@@ -213,10 +213,9 @@ class Config3D(BaseConfig):
         self.train_patch_size          = 128,128,128
         self.train_background_reg      = 1e-4
 
-        # TODO: good default params?
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,1
-        self.train_epochs              = 200
+        self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
         self.train_batch_size          = 1
@@ -306,7 +305,6 @@ class StarDist3D(StarDistBase):
             unet = Conv3D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
                           name='features', padding='same', activation=self.config.unet_activation)(unet)
 
-        # TODO: prob after additional features as for 2D model, unlike what we did for the paper submission
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(unet)
         return Model([input_img,input_mask], [output_prob,output_dist])
@@ -347,7 +345,6 @@ class StarDist3D(StarDistBase):
             layer = Conv3D(self.config.net_conv_after_resnet, self.config.resnet_kernel_size,
                            name='features', padding='same', activation=self.config.resnet_activation)(layer)
 
-        # TODO: prob after additional features as for 2D model, unlike what we did for the paper submission
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(layer)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(layer)
         return Model([input_img,input_mask], [output_prob,output_dist])

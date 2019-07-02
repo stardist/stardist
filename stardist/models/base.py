@@ -349,9 +349,8 @@ class StarDistBase(BaseModel):
     def _compute_receptive_field(self, img_size=None):
         # TODO: good enough?
         from scipy.ndimage import zoom
-        grid = self.config.grid
         if img_size is None:
-            img_size = tuple(g*(128 if self.config.n_dim==2 else 64) for g in grid)
+            img_size = tuple(g*(128 if self.config.n_dim==2 else 64) for g in self.config.grid)
         if np.isscalar(img_size):
             img_size = (img_size,) * self.config.n_dim
         img_size = tuple(img_size)
@@ -365,18 +364,18 @@ class StarDistBase(BaseModel):
         y0 = self.keras_model.predict([z,z])[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
-        y  = zoom(y,grid,order=0);
-        y0 = zoom(y0,grid,order=0);
+        y  = zoom(y, grid,order=0)
+        y0 = zoom(y0,grid,order=0)
         ind = np.where(np.abs(y-y0)>0)
         return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
 
 
     def _axes_tile_overlap(self, query_axes):
+        query_axes = axes_check_and_normalize(query_axes)
         try:
             self._tile_overlap
         except AttributeError:
             self._tile_overlap = self._compute_receptive_field()
-        query_axes = axes_check_and_normalize(query_axes)
         overlap = dict(zip(
             self.config.axes.replace('C',''),
             tuple(max(rf) for rf in self._tile_overlap)

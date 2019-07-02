@@ -172,18 +172,17 @@ class Config2D(BaseConfig):
         self.train_patch_size          = 256,256
         self.train_background_reg      = 1e-4
 
-        # TODO: good default params?
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,1
-        self.train_epochs              = 100
-        self.train_steps_per_epoch     = 400
+        self.train_epochs              = 400
+        self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
         self.train_batch_size          = 4
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
-        self.train_reduce_lr           = {'factor': 0.5, 'patience': 10, min_delta_key: 0}
+        self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.update_parameters(False, **kwargs)
 
