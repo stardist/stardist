@@ -20,7 +20,7 @@ from csbdeep.data import sample_patches_from_multiple_stacks
 
 from .base import StarDistBase, StarDistDataBase, StarDistPadAndCropResizer
 from ..utils import edt_prob, _normalize_grid
-from ..geometry.two_d import star_dist, dist_to_coord, polygons_to_label
+from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
 from skimage.segmentation import clear_border
 
