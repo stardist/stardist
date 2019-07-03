@@ -4,10 +4,11 @@ from .version import __version__
 # TODO: which functions to expose here? all?
 
 from .nms import non_maximum_suppression, non_maximum_suppression_3d
-from .utils import edt_prob, fill_label_holes, sample_points
-from .geometry import star_dist, polygons_to_label, ray_angles, dist_to_coord
-from .geometry import star_dist3D, polyhedron_to_label, relabel_image_stardist, dist_to_volume, dist_to_centroid
+from .utils import edt_prob, fill_label_holes, sample_points, calculate_extents, export_imagej_rois
+from .geometry import star_dist,   polygons_to_label,   relabel_image_stardist, ray_angles, dist_to_coord
+from .geometry import star_dist3D, polyhedron_to_label, relabel_image_stardist3D
 from .plot import random_label_cmap, draw_polygons, _draw_polygons
+from .rays3d import rays_from_json, Rays_Cartesian, Rays_SubDivide, Rays_Tetra, Rays_Octo, Rays_GoldenSpiral
 from .models import Config2D, StarDist2D, StarDistData2D
 from .models import Config3D, StarDist3D, StarDistData3D
 Config, StarDist, StarDistData = Config2D, StarDist2D, StarDistData2D

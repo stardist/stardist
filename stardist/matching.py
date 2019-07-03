@@ -24,7 +24,7 @@ def is_array_of_integers(y):
 
 
 
-def _check_array(y, name=None, check_sequential=False):
+def _check_label_array(y, name=None, check_sequential=False):
     err = ValueError("{label} must be an array of {integers}.".format(
         label = 'labels' if name is None else name,
         integers = ('sequential ' if check_sequential else '') + 'non-negative integers',
@@ -40,8 +40,8 @@ def _check_array(y, name=None, check_sequential=False):
 
 def label_overlap(x, y, check=True):
     if check:
-        _check_array(x,'x',True)
-        _check_array(y,'y',True)
+        _check_label_array(x,'x',True)
+        _check_label_array(y,'y',True)
         x.shape == y.shape or _raise(ValueError("x and y must have the same shape"))
     return _label_overlap(x, y)
 
@@ -57,7 +57,7 @@ def _label_overlap(x, y):
 
 
 def intersection_over_union(overlap):
-    _check_array(overlap,'overlap')
+    _check_label_array(overlap,'overlap')
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
@@ -69,7 +69,7 @@ matching_criteria['iou'] = intersection_over_union
 
 
 def intersection_over_true(overlap):
-    _check_array(overlap,'overlap')
+    _check_label_array(overlap,'overlap')
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_true = np.sum(overlap, axis=1, keepdims=True)
@@ -80,7 +80,7 @@ matching_criteria['iot'] = intersection_over_true
 
 
 def intersection_over_pred(overlap):
-    _check_array(overlap,'overlap')
+    _check_label_array(overlap,'overlap')
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
@@ -108,8 +108,8 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     """
     if report_matches=True, return (matched_pairs,matched_scores) are independent of 'thresh'
     """
-    _check_array(y_true,'y_true')
-    _check_array(y_pred,'y_pred')
+    _check_label_array(y_true,'y_true')
+    _check_label_array(y_pred,'y_pred')
     y_true.shape == y_pred.shape or _raise(ValueError("y_true ({y_true.shape}) and y_pred ({y_pred.shape}) have different shapes".format(y_true=y_true, y_pred=y_pred)))
     criterion in matching_criteria or _raise(ValueError("Matching criterion '%s' not supported." % criterion))
     if thresh is None: thresh = 0

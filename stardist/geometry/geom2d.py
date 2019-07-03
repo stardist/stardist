@@ -2,10 +2,12 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 import numpy as np
 import warnings
 
+from skimage.measure import regionprops
 from skimage.draw import polygon
 from csbdeep.utils import _raise
 
-from ..utils import _check_label_array, path_absolute, _is_power_of_2, _normalize_grid
+from ..utils import path_absolute, _is_power_of_2, _normalize_grid
+from ..matching import _check_label_array
 from ..lib.stardist2d import c_star_dist
 
 
@@ -93,6 +95,15 @@ def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
         i += 1
 
     return lbl
+
+
+def relabel_image_stardist(lbl, n_rays):
+    """relabel each label region in `lbl` with its star representation"""
+    _check_label_array(lbl, "lbl")
+    dist = star_dist(lbl, n_rays)
+    coord = dist_to_coord(dist)
+    points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
+    return polygons_to_label(coord, np.ones_like(lbl), points, shape=lbl.shape)
 
 
 def ray_angles(n_rays=32):

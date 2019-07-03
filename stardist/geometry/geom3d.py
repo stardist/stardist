@@ -5,7 +5,8 @@ import os
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
 
-from ..utils import _check_label_array, path_absolute, _normalize_grid
+from ..utils import path_absolute, _normalize_grid
+from ..matching import _check_label_array
 from ..lib.stardist3d import c_star_dist3d, c_polyhedron_to_label, c_dist_to_volume, c_dist_to_centroid
 
 
@@ -174,7 +175,7 @@ def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, label
                                  )
 
 
-def relabel_image_stardist(lbl, rays, verbose=False):
+def relabel_image_stardist3D(lbl, rays, verbose=False):
     """relabel each label region in `lbl` with its star representation"""
     _check_label_array(lbl, "lbl")
 

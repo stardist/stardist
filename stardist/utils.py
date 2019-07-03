@@ -39,27 +39,6 @@ def _normalize_grid(grid,n):
         raise ValueError("grid must be a list/tuple of length {n} with values that are power of 2".format(n=n))
 
 
-def _check_label_array(y, name=None, check_sequential=False):
-    def label_are_sequential(y):
-        """ returns true if y has only sequential labels from 1... """
-        labels = np.unique(y)
-        return (set(labels)-{0}) == set(range(1,1+labels.max()))
-    def is_array_of_integers(y):
-        """https://stackoverflow.com/a/934652"""
-        # return issubclass(y.dtype.type, np.integer)
-        return isinstance(y,np.ndarray) and np.issubdtype(y.dtype, np.integer)
-    err = ValueError("{label} must be an array of {integers}.".format(
-        label = 'labels' if name is None else name,
-        integers = ('sequential ' if check_sequential else '') + 'non-negative integers',
-    ))
-    is_array_of_integers(y) or _raise(err)
-    if check_sequential:
-        label_are_sequential(y) or _raise(err)
-    else:
-        y.min() >= 0 or _raise(err)
-    return True
-
-
 def _edt_prob(lbl_img, anisotropy=None):
     if anisotropy is None:
         dist_func = distance_transform_edt

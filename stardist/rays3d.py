@@ -236,6 +236,7 @@ class Rays_Octo(Rays_SubDivide):
 
         return verts, faces
 
+
 def reorder_faces(verts, faces):
     """reorder faces such that their orientation points outward"""
     def _single(face):
