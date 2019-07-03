@@ -11,7 +11,7 @@ import keras.backend as K
 from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from csbdeep.models import BaseConfig, BaseModel
+from csbdeep.models import BaseModel
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
@@ -71,6 +71,7 @@ class StarDistDataBase(Sequence):
 
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
+
         self.X, self.Y = X, Y
         self.batch_size = batch_size
         self.n_rays = n_rays
@@ -208,9 +209,10 @@ class StarDistBase(BaseModel):
             Input image
         axes : str or None
             Axes of the input ``img``.
-            ``None`` denotes that axes of img are the same as defnoted in the config.
+            ``None`` denotes that axes of img are the same as denoted in the config.
         normalizer : :class:`csbdeep.data.Normalizer` or None
             (Optional) normalization of input image before prediction.
+            Note that the default (``None``) assumes ``img`` to be already normalized.
         n_tiles : iterable or None
             Out of memory (OOM) errors can occur if the input image is too large.
             To avoid this problem, the input image is broken up into (overlapping) tiles
@@ -225,7 +227,7 @@ class StarDistBase(BaseModel):
         Returns
         -------
         (:class:`numpy.ndarray`,:class:`numpy.ndarray`)
-            Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon distances.
+            Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon/polyhedra distances.
 
         """
         if n_tiles is None:
@@ -326,6 +328,34 @@ class StarDistBase(BaseModel):
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None):
+        """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
+
+        Note that the default thresholds yield good results in many cases, but optimizing
+        the thresholds for a particular dataset can further improve performance.
+
+        The optimized thresholds are automatically used for all further predictions
+        and also written to the model directory.
+
+        See ``utils.optimize_threshold`` for details and possible choices for ``optimize_kwargs``.
+
+        Parameters
+        ----------
+        X_val : list of ndarray
+            (Validation) input images (must be normalized) to use for threshold tuning.
+        Y_val : list of ndarray
+            (Validation) label images to use for threshold tuning.
+        nms_threshs : list of float
+            List of overlap thresholds to be considered for NMS.
+            For each value in this list, optimization is run to find a corresponding prob_thresh value.
+        iou_threshs : list of float
+            List of intersection over union (IOU) thresholds for which
+            the (average) matching performance is considered to tune the thresholds.
+        predict_kwargs: dict
+            Keyword arguments for ``predict`` function of this class.
+        predict_kwargs: dict
+            Keyword arguments for ``utils.optimize_threshold`` function.
+
+        """
         if predict_kwargs is None:
             predict_kwargs = {}
         if optimize_kwargs is None:
@@ -342,8 +372,11 @@ class StarDistBase(BaseModel):
 
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
-        print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
-        save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
+        if self.basedir is None:
+            print("Using optimized %s." % str(self.thresholds))
+        else:
+            print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
+            save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
 
 
     def _compute_receptive_field(self, img_size=None):

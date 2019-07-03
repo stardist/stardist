@@ -11,18 +11,17 @@ import keras.backend as K
 from keras.layers import Input, Conv2D, MaxPooling2D
 from keras.models import Model
 
-from csbdeep.models import BaseConfig, BaseModel
+from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
-from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
+from skimage.segmentation import clear_border
 
-from .base import StarDistBase, StarDistDataBase, StarDistPadAndCropResizer
+from .base import StarDistBase, StarDistDataBase
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-from skimage.segmentation import clear_border
 
 
 
@@ -82,15 +81,20 @@ class StarDistData2D(StarDistDataBase):
 class Config2D(BaseConfig):
     """Configuration for a :class:`StarDist2D` model.
 
-    TODO: update docstring
-
     Parameters
     ----------
+    axes : str or None
+        Axes of the input images.
     n_rays : int
         Number of radial directions for the star-convex polygon.
         Recommended to use a power of 2 (default: 32).
     n_channel_in : int
         Number of channels of given input image (default: 1).
+    grid : (int,int)
+        Subsampling factors (must be powers of 2) for each of the axes.
+        Model will predict on a subsampled grid for increased efficiency and larger field of view.
+    backbone : str
+        Name of the neural network architecture to be used as backbone.
     kwargs : dict
         Overwrite (or add) configuration attributes (see below).
 
@@ -104,8 +108,12 @@ class Config2D(BaseConfig):
     unet_n_filter_base : int
         Number of convolution kernels (feature channels) for first U-Net layer.
         Doubled after each down-sampling layer.
+    unet_pool : (int,int)
+        Maxpooling size for all (U-Net) convolution layers.
     net_conv_after_unet : int
         Number of filters of the extra convolution layer after U-Net (0 to disable).
+    unet_* : *
+        Additional parameters for U-net backbone.
     train_shape_completion : bool
         Train model to predict complete shapes for partially visible objects at image boundary.
     train_completion_crop : int
@@ -113,8 +121,12 @@ class Config2D(BaseConfig):
         Should be chosen based on (largest) object sizes.
     train_patch_size : (int,int)
         Size of patches to be cropped from provided training images.
+    train_background_reg : float
+        Regularizer to encourage distance predictions on background regions to be 0.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
+    train_loss_weights : tuple of float
+        Weights for losses relating to (probability, distance)
     train_epochs : int
         Number of training epochs.
     train_steps_per_epoch : int
@@ -123,10 +135,10 @@ class Config2D(BaseConfig):
         Learning rate for training.
     train_batch_size : int
         Batch size for training.
+    train_n_val_patches : int
+        Number of patches to be extracted from validation images (``None`` = one patch per image).
     train_tensorboard : bool
         Enable TensorBoard for monitoring training progress.
-    train_checkpoint : str
-        Name of checkpoint file for model weights (only best are saved); set to ``None`` to disable.
     train_reduce_lr : dict
         Parameter :class:`dict` of ReduceLROnPlateau_ callback; set to ``None`` to disable.
 
@@ -189,9 +201,7 @@ class Config2D(BaseConfig):
 
 
 class StarDist2D(StarDistBase):
-    """StarDist model.
-
-    TODO: update docstring
+    """StarDist2D model.
 
     Parameters
     ----------
@@ -271,6 +281,13 @@ class StarDist2D(StarDistBase):
             Array of label masks.
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
+        augmenter : None or callable
+            Function with expected signature ``Xbt, Ybt = augmenter(Xb, Yb)``
+            that takes in batch input/label images (Xb,Yb) and returns
+            transformed images (Xbt, Ybt) for the purpose of data augmentation
+            during training. Not applied to validation images.
+        seed : int
+            Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
             Optional argument to use instead of the value from ``config``.
         steps_per_epoch : int

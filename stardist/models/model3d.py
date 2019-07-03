@@ -1,15 +1,9 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 
-import os
-import json
 import numpy as np
-import argparse
 import warnings
-import datetime
 import math
-from six import iteritems
 from tqdm import tqdm
-from warnings import warn
 
 from distutils.version import LooseVersion
 import keras
@@ -17,15 +11,14 @@ import keras.backend as K
 from keras.layers import Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate
 from keras.models import Model
 
-from csbdeep.models import BaseConfig, BaseModel
+from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
-from csbdeep.internals.predict import tile_iterator, tile_overlap
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
 
 from .base import StarDistBase, StarDistDataBase
-from ..utils import edt_prob, _normalize_grid, _is_power_of_2, calculate_extents
+from ..utils import edt_prob, _normalize_grid
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
@@ -97,18 +90,23 @@ class StarDistData3D(StarDistDataBase):
 class Config3D(BaseConfig):
     """Configuration for a :class:`StarDist3D` model.
 
-    TODO: update docstring
-
     Parameters
     ----------
+    axes : str or None
+        Axes of the input images.
     rays : Rays_Base
-        ray factory baseclass
-
-    grid : (int,int,int)
-
+        Ray factory
     n_channel_in : int
         Number of channels of given input image (default: 1).
-
+    grid : (int,int,int)
+        Subsampling factors (must be powers of 2) for each of the axes.
+        Model will predict on a subsampled grid for increased efficiency and larger field of view.
+    anisotropy : (float,float,float)
+        Anisotropy of objects along each of the axes.
+        Use ``None`` to disable only for (nearly) isotropic objects shapes.
+        Also see ``utils.calculate_extents``.
+    backbone : str
+        Name of the neural network architecture to be used as backbone.
     kwargs : dict
         Overwrite (or add) configuration attributes (see below).
 
@@ -117,23 +115,36 @@ class Config3D(BaseConfig):
     ----------
     unet_n_depth : int
         Number of U-Net resolution levels (down/up-sampling layers).
-    unet_kernel_size : (int,int, int)
+    unet_kernel_size : (int,int,int)
         Convolution kernel size for all (U-Net) convolution layers.
-    unet_pool : (int,int, int)
-        Maxpooling  size for all (U-Net) convolution layers.
     unet_n_filter_base : int
         Number of convolution kernels (feature channels) for first U-Net layer.
         Doubled after each down-sampling layer.
-    unet_dilation_rates : tuple or None
-        dilations rates inside of Unet
+    unet_pool : (int,int,int)
+        Maxpooling size for all (U-Net) convolution layers.
     net_conv_after_unet : int
         Number of filters of the extra convolution layer after U-Net (0 to disable).
-    sparse_labeling: False
-        set to True if GT instance labeling is only sparse
-    train_patch_size : (int,int, int)
+    unet_* : *
+        Additional parameters for U-net backbone.
+    resnet_n_blocks : int
+        Number of ResNet blocks.
+    resnet_kernel_size : (int,int,int)
+        Convolution kernel size for all ResNet blocks.
+    resnet_n_filter_base : int
+        Number of convolution kernels (feature channels) for ResNet blocks.
+        (Number is doubled after every downsampling, see ``grid``.)
+    net_conv_after_resnet : int
+        Number of filters of the extra convolution layer after ResNet (0 to disable).
+    resnet_* : *
+        Additional parameters for ResNet backbone.
+    train_patch_size : (int,int,int)
         Size of patches to be cropped from provided training images.
+    train_background_reg : float
+        Regularizer to encourage distance predictions on background regions to be 0.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
+    train_loss_weights : tuple of float
+        Weights for losses relating to (probability, distance)
     train_epochs : int
         Number of training epochs.
     train_steps_per_epoch : int
@@ -144,8 +155,8 @@ class Config3D(BaseConfig):
         Batch size for training.
     train_tensorboard : bool
         Enable TensorBoard for monitoring training progress.
-    train_checkpoint : str
-        Name of checkpoint file for model weights (only best are saved); set to ``None`` to disable.
+    train_n_val_patches : int
+        Number of patches to be extracted from validation images (``None`` = one patch per image).
     train_reduce_lr : dict
         Parameter :class:`dict` of ReduceLROnPlateau_ callback; set to ``None`` to disable.
 
@@ -230,9 +241,7 @@ class Config3D(BaseConfig):
 
 
 class StarDist3D(StarDistBase):
-    """StarDist model.
-
-    TODO: update docstring
+    """StarDist3D model.
 
     Parameters
     ----------
@@ -361,6 +370,13 @@ class StarDist3D(StarDistBase):
             Array of label masks.
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
+        augmenter : None or callable
+            Function with expected signature ``Xbt, Ybt = augmenter(Xb, Yb)``
+            that takes in batch input/label images (Xb,Yb) and returns
+            transformed images (Xbt, Ybt) for the purpose of data augmentation
+            during training. Not applied to validation images.
+        seed : int
+            Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
             Optional argument to use instead of the value from ``config``.
         steps_per_epoch : int
