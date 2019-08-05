@@ -40,11 +40,11 @@ def _normalize_grid(grid,n):
 
 
 def _edt_prob(lbl_img, anisotropy=None):
-    if anisotropy is None:
-        dist_func = distance_transform_edt
-    else:
-        from edt import edt as _edt_aniso
-        dist_func = lambda img: _edt_aniso(np.ascontiguousarray(img>0), anisotropy=anisotropy)
+    try:
+        from edt import edt as edt_func
+        dist_func = lambda img: edt_func(img>0, anisotropy=anisotropy)
+    except ImportError:
+        dist_func = lambda img: distance_transform_edt(img, sampling=anisotropy)
     prob = np.zeros(lbl_img.shape,np.float32)
     for l in (set(np.unique(lbl_img)) - set([0])):
         mask = lbl_img==l
@@ -60,12 +60,11 @@ def edt_prob(lbl_img, anisotropy=None):
     def shrink(interior):
         return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
 
-    if anisotropy is None:
-        dist_func = distance_transform_edt
-    else:
-        from edt import edt as _edt_aniso
-        dist_func = lambda img: _edt_aniso(np.ascontiguousarray(img>0), anisotropy=anisotropy)
-
+    try:
+        from edt import edt as edt_func
+        dist_func = lambda img: edt_func(img>0, anisotropy=anisotropy)
+    except ImportError:
+        dist_func = lambda img: distance_transform_edt(img, sampling=anisotropy)
     objects = find_objects(lbl_img)
     prob = np.zeros(lbl_img.shape,np.float32)
     for i,sl in enumerate(objects,1):
