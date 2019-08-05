@@ -62,13 +62,12 @@ def _ocl_star_dist3D(lbl, rays, grid=(1,1,1)):
     from gputools import OCLProgram, OCLArray, OCLImage
 
     grid = _normalize_grid(grid,3)
-    lbl.dtype.type == np.uint16 or _raise(ValueError("lbl image must be uint16!"))
 
     lbl_g = OCLImage.from_array(lbl.astype(np.uint16, copy=False))
     dist_g = OCLArray.empty(lbl.shape + (len(rays),), dtype=np.float32)
     rays_g = OCLArray.from_array(rays.vertices.astype(np.float32, copy=False))
 
-    program = OCLProgram(path_absolute("../kernels/stardist3d.cl"), build_options=['-D', 'N_RAYS=%d' % len(rays)])
+    program = OCLProgram(path_absolute("kernels/stardist3d.cl"), build_options=['-D', 'N_RAYS=%d' % len(rays)])
     program.run_kernel('stardist3d', lbl.shape[::-1], None, lbl_g, rays_g.data, dist_g.data)
 
     return dist_g.get()

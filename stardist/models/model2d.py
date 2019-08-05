@@ -141,6 +141,8 @@ class Config2D(BaseConfig):
         Enable TensorBoard for monitoring training progress.
     train_reduce_lr : dict
         Parameter :class:`dict` of ReduceLROnPlateau_ callback; set to ``None`` to disable.
+    use_gpu : bool
+        Indicate that the data generator should use OpenCL to do computations on the GPU.
 
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
@@ -195,6 +197,8 @@ class Config2D(BaseConfig):
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
+
+        self.use_gpu                   = False
 
         self.update_parameters(False, **kwargs)
 
@@ -329,6 +333,7 @@ class StarDist2D(StarDistBase):
             grid             = self.config.grid,
             shape_completion = self.config.train_shape_completion,
             b                = self.config.train_completion_crop,
+            use_gpu          = self.config.use_gpu,
         )
 
         # generate validation data and store in numpy arrays

@@ -144,7 +144,7 @@ class StarDistBase(BaseModel):
             prob = 0.5 if threshs['prob'] is None else threshs['prob'],
             nms  = 0.4 if threshs['nms']  is None else threshs['nms'],
         )
-        print("Using %s." % str(self.thresholds))
+        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
 
 
     @property
