@@ -9,6 +9,3 @@ from .geometry import star_dist,   polygons_to_label,   relabel_image_stardist, 
 from .geometry import star_dist3D, polyhedron_to_label, relabel_image_stardist3D
 from .plot import random_label_cmap, draw_polygons, _draw_polygons
 from .rays3d import rays_from_json, Rays_Cartesian, Rays_SubDivide, Rays_Tetra, Rays_Octo, Rays_GoldenSpiral
-from .models import Config2D, StarDist2D, StarDistData2D
-from .models import Config3D, StarDist3D, StarDistData3D
-Config, StarDist, StarDistData = Config2D, StarDist2D, StarDistData2D
