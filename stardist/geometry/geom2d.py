@@ -18,7 +18,7 @@ def _ocl_star_dist(a, n_rays=32):
     n_rays = int(n_rays)
     src = OCLImage.from_array(a.astype(np.uint16,copy=False))
     dst = OCLArray.empty(a.shape+(n_rays,), dtype=np.float32)
-    program = OCLProgram(path_absolute("../kernels/stardist2d.cl"), build_options=['-D', 'N_RAYS=%d' % n_rays])
+    program = OCLProgram(path_absolute("kernels/stardist2d.cl"), build_options=['-D', 'N_RAYS=%d' % n_rays])
     program.run_kernel('star_dist', src.shape, None, dst.data, src)
     return dst.get()
 
@@ -64,19 +64,16 @@ def _py_star_dist(a, n_rays=32):
 def star_dist(a, n_rays=32, mode='cpp'):
     """'a' assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
 
-    mode in ('python','cpp','opencl') or _raise(ValueError("Unknown mode %s" % mode))
-    _is_power_of_2(n_rays) or warnings.warn("not tested with 'n_rays' not being a power of 2.")
+    n_rays >= 3 or _raise(ValueError("need 'n_rays' >= 3"))
 
     if mode == 'python':
-        return _py_star_dist(a,n_rays)
-
-    if mode == 'opencl':
-        try:
-            return _ocl_star_dist(a,n_rays)
-        except:
-            pass
-
-    return _cpp_star_dist(a,n_rays)
+        return _py_star_dist(a, n_rays)
+    elif mode == 'cpp':
+        return _cpp_star_dist(a, n_rays)
+    elif mode == 'opencl':
+        return _ocl_star_dist(a, n_rays)
+    else:
+        _raise(ValueError("Unknown mode %s" % mode))
 
 
 def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
@@ -97,10 +94,10 @@ def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
     return lbl
 
 
-def relabel_image_stardist(lbl, n_rays):
+def relabel_image_stardist(lbl, n_rays, **kwargs):
     """relabel each label region in `lbl` with its star representation"""
     _check_label_array(lbl, "lbl")
-    dist = star_dist(lbl, n_rays)
+    dist = star_dist(lbl, n_rays, **kwargs)
     coord = dist_to_coord(dist)
     points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
     return polygons_to_label(coord, np.ones_like(lbl), points, shape=lbl.shape)

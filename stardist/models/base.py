@@ -372,10 +372,9 @@ class StarDistBase(BaseModel):
 
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
-        if self.basedir is None:
-            print("Using optimized %s." % str(self.thresholds))
-        else:
-            print("Using optimized %s. Saving to 'thresholds.json'." % str(self.thresholds))
+        print("Using optimized values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+        if self.basedir is not None:
+            print("Saving to 'thresholds.json'.")
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
 
 
