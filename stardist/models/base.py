@@ -318,6 +318,44 @@ class StarDistBase(BaseModel):
 
     def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True, predict_kwargs=None, nms_kwargs=None):
+        """Predict instance segmentation from input image.
+
+        Parameters
+        ----------
+        img : :class:`numpy.ndarray`
+            Input image
+        axes : str or None
+            Axes of the input ``img``.
+            ``None`` denotes that axes of img are the same as denoted in the config.
+        normalizer : :class:`csbdeep.data.Normalizer` or None
+            (Optional) normalization of input image before prediction.
+            Note that the default (``None``) assumes ``img`` to be already normalized.
+        prob_thresh : float or None
+            Consider only object candidates from pixels with predicted object probability
+            above this threshold (also see `optimize_thresholds`).
+        nms_thresh : float or None
+            Perform non-maximum suppression that considers two objects to be the same
+            when their area/surface overlap exceeds this threshold (also see `optimize_thresholds`).
+        n_tiles : iterable or None
+            Out of memory (OOM) errors can occur if the input image is too large.
+            To avoid this problem, the input image is broken up into (overlapping) tiles
+            that are processed independently and re-assembled.
+            This parameter denotes a tuple of the number of tiles for every image axis (see ``axes``).
+            ``None`` denotes that no tiling should be used.
+        show_tile_progress: bool
+            Whether to show progress during tiled prediction.
+        predict_kwargs: dict
+            Keyword arguments for ``predict`` function of Keras model.
+        nms_kwargs: dict
+            Keyword arguments for non-maximum suppression.
+
+        Returns
+        -------
+        (:class:`numpy.ndarray`, dict)
+            Returns a tuple of the label instances image and also
+            a dictionary with the details (coordinates, etc.) of all remaining polygons/polyhedra.
+
+        """
         if predict_kwargs is None:
             predict_kwargs = {}
         if nms_kwargs is None:
