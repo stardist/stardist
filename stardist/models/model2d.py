@@ -187,7 +187,7 @@ class Config2D(BaseConfig):
         self.train_background_reg      = 1e-4
 
         self.train_dist_loss           = 'mae'
-        self.train_loss_weights        = 1,1
+        self.train_loss_weights        = 1,0.2
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
