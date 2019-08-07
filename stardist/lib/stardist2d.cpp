@@ -130,8 +130,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     PyArrayObject *polys=NULL, *mapping=NULL, *result=NULL;
     float threshold;
     int max_bbox_search, grid_x, grid_y;
-
-    if (!PyArg_ParseTuple(args, "O!O!fiii", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x))
+	int verbose;
+	
+    if (!PyArg_ParseTuple(args, "O!O!fiiii", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x, &verbose))
         return NULL;
 
     npy_intp *img_dims = PyArray_DIMS(mapping);
@@ -159,8 +160,13 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         suppressed[i] = false;
     }
 
+	if (verbose)
+	  printf("build polys and areas \n");
+	
     // build polys and areas
-    #pragma omp parallel for
+
+	// disable OpenMP  for now, as there is still a race condition (segfaults on OSX)
+    // #pragma omp parallel for
     for (int i=0; i<n_polys; i++) {
         ClipperLib::Path clip;
         // build clip poly and bounding boxes
@@ -197,6 +203,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     }
 
     // printf("max_bbox_size_x = %d, max_bbox_size_y = %d\n", max_bbox_size_x, max_bbox_size_y);
+	if (verbose)
+	  printf("starting main loop \n");
 
     if (max_bbox_search) {
 
@@ -253,6 +261,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         }
 
     }
+	if (verbose)
+	  printf("finished main loop \n");
 
     npy_intp dims_result[1];
     dims_result[0] = n_polys;

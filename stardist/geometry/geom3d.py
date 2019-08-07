@@ -63,12 +63,19 @@ def _ocl_star_dist3D(lbl, rays, grid=(1,1,1)):
 
     grid = _normalize_grid(grid,3)
 
+    # if not all(g==1 for g in grid):
+    #     raise NotImplementedError("grid not yet implemented for OpenCL version of star_dist3D()...")
+
+    res_shape = tuple(s//g for s, g in zip(lbl.shape, grid))
+
     lbl_g = OCLImage.from_array(lbl.astype(np.uint16, copy=False))
-    dist_g = OCLArray.empty(lbl.shape + (len(rays),), dtype=np.float32)
+    dist_g = OCLArray.empty(res_shape + (len(rays),), dtype=np.float32)
     rays_g = OCLArray.from_array(rays.vertices.astype(np.float32, copy=False))
 
     program = OCLProgram(path_absolute("kernels/stardist3d.cl"), build_options=['-D', 'N_RAYS=%d' % len(rays)])
-    program.run_kernel('stardist3d', lbl.shape[::-1], None, lbl_g, rays_g.data, dist_g.data)
+    program.run_kernel('stardist3d', res_shape[::-1], None,
+                       lbl_g, rays_g.data, dist_g.data,
+                       np.int32(grid[0]),np.int32(grid[1]),np.int32(grid[2]))
 
     return dist_g.get()
 
