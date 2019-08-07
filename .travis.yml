@@ -1,0 +1,70 @@
+# As a general rule, the latest release of Keras is compatible with the latest
+# release of TensorFlow as well as the previous release of TensorFlow (in most
+# cases, it is actually compatible with several prior TF releases, but that is
+# not guaranteed).
+#
+# -- https://github.com/keras-team/keras/issues/10440#issuecomment-397428200
+
+language: python
+
+branches:
+  only:
+    - 3d
+
+env:
+  - TENSORFLOW='tensorflow' KERAS='keras'
+
+# compiler: gcc
+# addons:
+#   apt:
+#     sources:
+#       - ubuntu-toolchain-r-test
+#     packages:
+#       - g++-6
+# env:
+#   - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
+
+matrix:
+  include:
+    - os: linux
+      python: 3.7
+      dist: xenial
+    # - os: linux
+    #   python: 3.5
+    # - os: linux
+    #   python: 3.6
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   env: TENSORFLOW='tensorflow<1.12'   KERAS='keras'
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   env: TENSORFLOW='tensorflow<1.11'   KERAS='keras'
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   env: TENSORFLOW='tensorflow<1.10'   KERAS='keras==2.2.2'
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   # env: TENSORFLOW='tensorflow<1.9'    KERAS='keras==2.2.0' # causes segmentation fault, why?
+    #   env: TENSORFLOW='tensorflow<1.8'    KERAS='keras==2.2.0'
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   env: TENSORFLOW='tensorflow<1.8'    KERAS='keras==2.1.6'
+    # - os: linux
+    #   python: 3.6
+    #   if: branch = master
+    #   # lowest supported keras version, last tensorflow release that supports CUDA 8
+    #   env: TENSORFLOW='tensorflow==1.4.1' KERAS='keras==2.1.2'
+    #   ###########
+
+install: 
+  - pip install $TENSORFLOW $KERAS
+  - pip install .
+
+script:
+  # - echo `which gcc`
+  - pytest -v -s --durations=50 -m "not gpu"
