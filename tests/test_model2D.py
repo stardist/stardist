@@ -19,9 +19,9 @@ def test_model():
         n_rays       = 16,
         grid         = (1,1),
         use_gpu      = False,
-        train_epochs     = 10,
+        train_epochs     = 1,
+        train_steps_per_epoch = 10,
         train_loss_weights = (4,1),
-        train_steps_per_epoch = 50,
         train_patch_size = (128,128),
         n_channel_in = 1)
 
