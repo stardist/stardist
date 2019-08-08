@@ -1,13 +1,20 @@
-# StarDist
+<img src="https://cloud.mpi-cbg.de/index.php/s/4OQON14D0tw09tQ/download" width=200px align="top"></img> <img src="https://travis-ci.org/maweigert/stardist3d_mw.svg?branch=3d" align="top"> </img> 
+
+
+# *StarDist* - Object Detection with Star-convex Shapes 
+
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
 
 
-The code in this repository implements object detection with star-convex polygons as described in the paper:
+This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
+
 
 Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
 International Conference on Medical Image Computing and Computer-Assisted Intervention (MICCAI), Granada, Spain, September 2018.
+
+and 
 
 Please cite the paper if you are using this code in your research.
 
