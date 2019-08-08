@@ -94,8 +94,9 @@ class Config3D(BaseConfig):
     ----------
     axes : str or None
         Axes of the input images.
-    rays : Rays_Base
-        Ray factory
+    rays : Rays_Base, int, or None
+        Ray factory (e.g. Ray_GoldenSpiral). 
+        If an integer then Ray_GoldenSpiral(rays) will be used
     n_channel_in : int
         Number of channels of given input image (default: 1).
     grid : (int,int,int)
@@ -172,10 +173,13 @@ class Config3D(BaseConfig):
                 rays = rays_from_json(kwargs['rays_json'])
             else:
                 rays = Rays_GoldenSpiral(96)
-
+        elif np.isscalar(rays):
+            rays = Rays_GoldenSpiral(rays)
+        
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+len(rays))
 
         # directly set by parameters
+        not "n_rays" in kwargs or _raise(ValueError("explicitly setting `config.n_rays` is disabled - use `config.rays` instead"))
         self.n_rays                    = len(rays)
         self.grid                      = _normalize_grid(grid,3)
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
