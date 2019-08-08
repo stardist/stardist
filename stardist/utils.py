@@ -200,7 +200,10 @@ def polyroi_bytearray(x,y,pos=None):
 
 
 def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLATED):
-    """ polygons assumed to be a list/array of arrays with shape (id,x,y) """
+    """ polygons assumed to be a list of arrays with shape (id,2,c) """
+
+    if isinstance(polygons,np.ndarray):
+        polygons = (polygons,)
 
     fname = Path(fname)
     if fname.suffix == '.zip':
