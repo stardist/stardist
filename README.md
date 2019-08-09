@@ -1,14 +1,12 @@
-<img src="https://cloud.mpi-cbg.de/index.php/s/4OQON14D0tw09tQ/download" width=200px align="top"></img> <img src="https://travis-ci.org/maweigert/stardist3d_mw.svg?branch=3d" align="top"> </img> 
-
+<img src="https://cloud.mpi-cbg.de/index.php/s/4OQON14D0tw09tQ/download" width="200px" align="top">
+<img src="https://travis-ci.org/maweigert/stardist3d_mw.svg?branch=3d" align="top">
 
 # *StarDist* - Object Detection with Star-convex Shapes 
 
-
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
-
+<!-- ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png) -->
+![](images/stardist_overview.png)
 
 This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
-
 
 Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
@@ -16,8 +14,11 @@ International Conference on Medical Image Computing and Computer-Assisted Interv
 
 and 
 
-Please cite the paper if you are using this code in your research.
+Martin Weigert, Uwe Schmidt, Robert Haase, Ko Sugawara, and Gene Myers.  
+[*Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy*](TBD).  
+arXiv, 2019
 
+Please cite the paper(s) if you are using this code in your research.
 
 
 ``` 
@@ -32,7 +33,11 @@ Please cite the paper if you are using this code in your research.
 }
 ```
 
+### 2D
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
 
+### 3D
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview.png)
 
 
 ## Installation
@@ -45,7 +50,7 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
 - Since this package relies on a C++ extension, you could run into compilation problems (see [Troubleshooting](#troubleshooting) below). We currently do not provide pre-compiled binaries.
-- StarDist uses the deep learning library [Keras](https://keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we only tested [TensorFlow](http://www.tensorflow.org/)).
+- StarDist uses the deep learning library [Keras](https://keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we currently only support [TensorFlow](http://www.tensorflow.org/)).
 
 
 ## Usage
