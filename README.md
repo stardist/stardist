@@ -21,7 +21,7 @@ Please cite the paper if you are using this code in your research.
   2018 - 21st International Conference, Granada, Spain, September 16-20, 2018, Proceedings, Part {II}},
   pages     = {265--273},
   year      = {2018},
-  doi       = {10.1007/978-3-030-00934-2\_30},
+  doi       = {10.1007/978-3-030-00934-2_30},
 }
 ```
 
