@@ -5,20 +5,17 @@
 
 This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
 
-<img src="https://cloud.mpi-cbg.de/index.php/s/4OQON14D0tw09tQ/download" width="200" align="right">
+<img src="images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
 
 - Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
 International Conference on Medical Image Computing and Computer-Assisted Intervention (MICCAI), Granada, Spain, September 2018.
-
-and 
 
 - Martin Weigert, Uwe Schmidt, Robert Haase, Ko Sugawara, and Gene Myers.  
 [*Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy*](TBD).  
 arXiv, 2019
 
 Please [cite the paper(s)](#how-to-cite) if you are using this code in your research.
-
 
 
 ### 2D
@@ -39,7 +36,7 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
 - Since this package relies on a C++ extension, you could run into compilation problems (see [Troubleshooting](#troubleshooting) below). We currently do not provide pre-compiled binaries.
 - StarDist uses the deep learning library [Keras](https://keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we currently only support [TensorFlow](http://www.tensorflow.org/)).
-- (Optional) You need to install [gputools](https://github.com/maweigert/gputools/) if you want to use OpenCL-based computations on the GPU to speed up training.
+- (Optional) You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - (Optional) You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).
 
 
