@@ -18,10 +18,14 @@ arXiv, 2019
 Please [cite the paper(s)](#how-to-cite) if you are using this code in your research.
 
 
-### 2D
+## Overview
+
+The following figure illustrates the general approach for 2D images. The training data consists of corresponding pairs of input (i.e. raw) images and fully annotated label images (i.e. every pixel is labeled with a unique cell id or 0 for background). 
+A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum supression (NMS) of these candidates.  
+
 ![](images/overview_2d.png)
 
-### 3D
+The approach for 3D volume is similar to the one described for 2D, using pairs of input and fully annotated label volumes as training data.   
 ![](images/overview_3d.png)
 
 
@@ -31,7 +35,7 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 
     pip install stardist
 
-### Notes
+#### Notes
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
 - Since this package relies on a C++ extension, you could run into compilation problems (see [Troubleshooting](#troubleshooting) below). We currently do not provide pre-compiled binaries.
@@ -42,7 +46,7 @@ This package requires Python 3.5 (or newer) and can be installed with `pip`:
 
 ## Usage
 
-We provide several Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/tree/master/examples) that illustrate how this package can be used.
+We provide example workflows for 2D and 3D via Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/tree/master/examples) that illustrate how this package can be used.
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
