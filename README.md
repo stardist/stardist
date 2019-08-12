@@ -31,7 +31,16 @@ The approach for 3D volume is similar to the one described for 2D, using pairs o
 
 ## Installation
 
-This package requires Python 3.5 (or newer) and can be installed with `pip`:
+This package requires Python 3.5 (or newer).
+
+Please first [install TensorFlow 1.x](https://www.tensorflow.org/install)
+by following the official instructions. (**Do not choose a preview release version of TensorFlow 2.x**)
+For [GPU support](https://www.tensorflow.org/install/gpu>), it is very
+important to install the specific versions of CUDA and cuDNN that are
+compatible with the respective version of TensorFlow.
+
+
+Install *StarDist* can then be installed with `pip`:
 
     pip install stardist
 
