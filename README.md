@@ -1,3 +1,5 @@
+ ![](https://badge.fury.io/py/stardist.svg) ![](https://travis-ci.org/mpicbg-csbd/stardist.svg?branch=master)
+
 # *StarDist* - Object Detection with Star-convex Shapes 
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png)
