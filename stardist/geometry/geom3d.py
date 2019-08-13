@@ -112,7 +112,7 @@ def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, label
     """
     if len(points) == 0:
         if verbose:
-            print(f"warning: empty list of points (returning background-only image)")
+            print("warning: empty list of points (returning background-only image)")
         return np.zeros(shape, np.uint16)
 
     dist = np.asanyarray(dist)
@@ -153,7 +153,7 @@ def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, label
     ind = np.where(prob >= thr)[0]
     if len(ind) == 0:
         if verbose:
-            print(f"warning: no points found with probability>= {thr:.4f} (returning background-only image)")
+            print("warning: no points found with probability>= {thr:.4f} (returning background-only image)".format(thr=thr))
         return lbl
 
     prob = prob[ind]
@@ -203,8 +203,8 @@ def dist_to_volume(dist, rays):
         dist.shape = (nz,ny,nx,nrays)
     """
     dist = np.asanyarray(dist)
-    dist.ndim == 4 or _raise(ValueError(f"dist.ndim= {dist.ndim} but should be 4"))
-    dist.shape[-1]== len(rays) or _raise(ValueError(f"dist.shape[-1] = {dist.shape[-1]} but should be {len(rays)}"))
+    dist.ndim == 4 or _raise(ValueError("dist.ndim = {dist.ndim} but should be 4".format(dist = dist)))
+    dist.shape[-1]== len(rays) or _raise(ValueError("dist.shape[-1] = {d} but should be {l}".format(d = dist.shape[-1], l = len(rays))))
 
     dist = np.ascontiguousarray(dist.astype(np.float32, copy=False))
 
@@ -223,8 +223,8 @@ def dist_to_centroid(dist, rays, mode = 'absolute'):
         mode = 'absolute' or 'relative'
 
     """
-    dist.ndim == 4 or _raise(ValueError(f"dist.ndim= {dist.ndim} but should be 4"))
-    dist.shape[-1] == len(rays) or _raise(ValueError(f"dist.shape[-1] = {dist.shape[-1]} but should be {len(rays)}"))
+    dist.ndim == 4 or _raise(ValueError("dist.ndim = {dist.ndim} but should be 4".format(dist = dist)))
+    dist.shape[-1]== len(rays) or _raise(ValueError("dist.shape[-1] = {d} but should be {l}".format(d = dist.shape[-1], l = len(rays))))
     dist = np.ascontiguousarray(dist.astype(np.float32, copy=False))
 
     mode in ('absolute', 'relative') or _raise(ValueError("mode should be either 'absolute' or 'relative'"))
