@@ -14,7 +14,7 @@ def test_types(img, n_rays, grid):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist3D(img.astype(dtype), rays=rays, grid=grid, mode=mode)
-        print(f"test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}")
+        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
         check_similar(gt, x)
 
 
@@ -29,7 +29,7 @@ def test_types_gpu(img, n_rays, grid):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist3D(img.astype(dtype), rays=rays, grid=grid, mode=mode)
-        print(f"test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}")
+        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
         check_similar(gt, x)
 
 

@@ -23,7 +23,7 @@ def test_acc(img):
     img2 = polygons_to_label(coord, prob, points, shape=img.shape)
     m = matching(img, img2)
     acc = m.accuracy
-    print(f"accuracy {acc:.2f}")
+    print("accuracy {acc:.2f}".format(acc=acc))
     assert acc > 0.9
 
 
