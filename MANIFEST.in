@@ -1,1 +1,2 @@
 include stardist/lib/*.hpp
+recursive-include stardist/lib/qhull_src *.txt *.h *.c *.cpp

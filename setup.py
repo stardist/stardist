@@ -77,6 +77,8 @@ setup(
         ),
     ],
 
+    package_data={'stardist': ['kernels/*.cl']},
+
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
