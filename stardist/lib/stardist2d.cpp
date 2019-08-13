@@ -131,7 +131,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     float threshold;
     int max_bbox_search, grid_x, grid_y;
 	int verbose;
-	
+
     if (!PyArg_ParseTuple(args, "O!O!fiiii", &PyArray_Type, &polys, &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x, &verbose))
         return NULL;
 
@@ -162,7 +162,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 	if (verbose)
 	  printf("build polys and areas \n");
-	
+
     // build polys and areas
 
 	// disable OpenMP  for now, as there is still a race condition (segfaults on OSX)
@@ -220,7 +220,12 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
             // printf("%5d [%03d:%03d,%03d:%03d]",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
             // printf(" - search area [%03d:%03d,%03d:%03d]\n",xs,xe,ys,ye);
 
-            #pragma omp parallel for collapse(2) schedule(dynamic)
+            // cf. https://github.com/peterwittek/somoclu/issues/111
+            #ifdef _WIN32
+                #pragma omp parallel for schedule(dynamic)
+            #else
+                #pragma omp parallel for collapse(2) schedule(dynamic)
+            #endif
             for (int jj=ys; jj<ye; jj++) for (int ii=xs; ii<xe; ii++) {
                 // j is the id of the score-sorted polygon at coordinate (ii,jj)
                 const int j = *(int *)PyArray_GETPTR2(mapping,jj,ii);

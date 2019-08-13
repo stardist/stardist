@@ -36,7 +36,8 @@ class build_ext_openmp(build_ext):
             super(build_ext_openmp, self).build_extension(ext)
 
 
-_dir = path.abspath(path.dirname(__file__))
+# cf. https://github.com/mkleehammer/pyodbc/issues/82#issuecomment-231561240
+_dir = path.dirname(__file__)
 
 with open(path.join(_dir,'stardist','version.py')) as f:
     exec(f.read())
