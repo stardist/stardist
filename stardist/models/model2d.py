@@ -200,6 +200,11 @@ class Config2D(BaseConfig):
 
         self.use_gpu                   = False
 
+        # remove derived attributes that shouldn't be overwritten
+        for k in ('n_dim', 'n_channel_out'):
+            try: del kwargs[k]
+            except KeyError: pass
+
         self.update_parameters(False, **kwargs)
 
 

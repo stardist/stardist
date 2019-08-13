@@ -171,6 +171,8 @@ class Config3D(BaseConfig):
         if rays is None:
             if 'rays_json' in kwargs:
                 rays = rays_from_json(kwargs['rays_json'])
+            elif 'n_rays' in kwargs:
+                rays = Rays_GoldenSpiral(kwargs['n_rays'])
             else:
                 rays = Rays_GoldenSpiral(96)
         elif np.isscalar(rays):
@@ -179,7 +181,6 @@ class Config3D(BaseConfig):
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+len(rays))
 
         # directly set by parameters
-        not "n_rays" in kwargs or _raise(ValueError("explicitly setting `config.n_rays` is disabled - use `config.rays` instead"))
         self.n_rays                    = len(rays)
         self.grid                      = _normalize_grid(grid,3)
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
@@ -243,6 +244,11 @@ class Config3D(BaseConfig):
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False
+
+        # remove derived attributes that shouldn't be overwritten
+        for k in ('n_dim', 'n_channel_out', 'n_rays', 'rays_json'):
+            try: del kwargs[k]
+            except KeyError: pass
 
         self.update_parameters(False, **kwargs)
 
