@@ -1,11 +1,10 @@
 # *StarDist* - Object Detection with Star-convex Shapes 
 
-<!-- ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png) -->
-![](images/stardist_overview.png)
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png)
 
 This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
 
-<img src="images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
+<img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
 
 - Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
@@ -23,11 +22,11 @@ Please [cite the paper(s)](#how-to-cite) if you are using this code in your rese
 The following figure illustrates the general approach for 2D images. The training data consists of corresponding pairs of input (i.e. raw) images and fully annotated label images (i.e. every pixel is labeled with a unique object id or 0 for background). 
 A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum supression (NMS) of these candidates.  
 
-![](images/overview_2d.png)
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_2d.png)
 
 The approach for 3D volumes is similar to the one described for 2D, using pairs of input and fully annotated label volumes as training data.
 
-![](images/overview_3d.png)
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_3d.png)
 
 
 ## Installation
