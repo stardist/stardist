@@ -47,9 +47,15 @@ def test_cpu_gpu(img, n_rays, grid):
 if __name__ == '__main__':
     from utils import circle_image
 
-    rays = Rays_GoldenSpiral(4)
-    lbl = circle_image((64,) * 3)
+    rays = Rays_GoldenSpiral(16)
+    lbl = circle_image((64,) * 3, radius = .7, center =(0,0.8,.8))
 
-    a = star_dist3D(lbl, rays=rays, grid=(1, 2, 2), mode="cpp")
-    b = star_dist3D(lbl, rays=rays, grid=(1, 2, 2), mode="opencl")
-    print(np.amax(np.abs(a - b)))
+    dist, mask = star_dist3D(lbl, rays=rays, grid=(1, 1, 1), mode="cpp", return_mask = True)
+    dist2, mask2 = star_dist3D(lbl, rays=rays, grid=(1, 1, 1), mode="opencl", return_mask = True)
+    print(np.max(np.abs(dist - dist2)))
+    print(np.allclose(dist, dist2))
+    print(np.allclose(mask, mask2))
+
+
+
+    

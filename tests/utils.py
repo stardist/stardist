@@ -13,13 +13,13 @@ def random_image(shape=(128, 128)):
     return img
 
 
-def circle_image(shape=(128, 128), center=None):
+def circle_image(shape=(128, 128), radius = .5, center=None):
     if center is None:
         center = (0,)*len(shape)
     xs = tuple(np.linspace(-1, 1, s) for s in shape)
     Xs = np.meshgrid(*xs, indexing="ij")
     R = np.sqrt(np.sum([(X - c) ** 2 for X, c in zip(Xs, center)], axis=0))
-    img = R < .5
+    img = R < radius
     return img
 
 

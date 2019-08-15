@@ -9,24 +9,29 @@ inline int round_to_int(float r) {
 }
 
 
-__kernel void stardist3d(read_only image3d_t lbl, __constant float * rays, __global float* dist, const int grid_z, const int grid_y, const int grid_x) {
+__kernel void stardist3d(read_only image3d_t lbl, __constant float * rays, __global float* dist, __global bool* mask, const int grid_z, const int grid_y, const int grid_x) {
 
-  const int i = get_global_id(0);
-  const int j = get_global_id(1);
-  const int k = get_global_id(2);
+  const long i = get_global_id(0);
+  const long j = get_global_id(1);
+  const long k = get_global_id(2);
 
-  const int Nx = get_global_size(0);
-  const int Ny = get_global_size(1);
-  const int Nz = get_global_size(2);
+  const long Nx = get_global_size(0);
+  const long Ny = get_global_size(1);
+  const long Nz = get_global_size(2);
 
   const float4 grid = (float4)(grid_x, grid_y, grid_z, 1);
   const float4 origin = (float4)(i,j,k,0) * grid;
-  const int value = read_imageui(lbl,sampler,origin).x;
+  const long value = read_imageui(lbl,sampler,origin).x;
 
+  const long offset = i*N_RAYS + j*N_RAYS*Nx+k*N_RAYS*Nx*Ny;
+
+  for (int m = 0; m < N_RAYS; m++) 
+	mask[m + offset] = true;
+	
   if (value == 0) {
 	// background pixel -> nothing to do, write all zeros
 	for (int m = 0; m < N_RAYS; m++) {
-	  dist[m + i*N_RAYS + j*N_RAYS*Nx+k*N_RAYS*Nx*Ny] = 0;
+	  dist[m + offset] = 0;
 	}
 	
   }
@@ -45,16 +50,34 @@ __kernel void stardist3d(read_only image3d_t lbl, __constant float * rays, __glo
 		// if ((i==10)&&(j==10)&(k==10)){
 		//   printf("kernel run: %.2f %.2f  %.2f value %d \n",x.x,x.y,x.z, read_imageui(lbl,sampler,origin+x).x);
 		// }
-		
+
 		// to make it equivalent to the cpp version... 
 		const float4 x_int = (float4)(round_to_int(x.x),
 										 round_to_int(x.y),
 										 round_to_int(x.z),
 										 0);
+		
+		const float4 x_current = origin+x_int;
+		
+		bool outside = (x_current.x < 0 || x_current.x>= Nx ||
+						x_current.y < 0 || x_current.y>= Ny ||
+						x_current.z < 0 || x_current.z>= Nz);
 
+		// if ((i==Nx/2)&&(j==Ny/2)&&(k==Nz/2)&&(m==0)){
+		//   printf("kernel run: %.2f %.2f  %.2f outside %d \n",x_current.x,x_current.y,x_current.z, (int)outside );
+		// }
+
+		if (outside){
+		  dist[m + offset] = length(x);
+		  mask[m + offset] = false;
+		  break;
+		}
+			
 		if (value != read_imageui(lbl,sampler,origin+x_int).x){
 
-		  dist[m + i*N_RAYS + j*N_RAYS*Nx+k*N_RAYS*Nx*Ny] = length(x);
+		  dist[m + offset] = length(x);
+		  mask[m + offset] = !outside;
+		  
 		  break;		  
 		}
 	  }

@@ -11,15 +11,19 @@ from ..lib.stardist3d import c_star_dist3d, c_polyhedron_to_label, c_dist_to_vol
 
 
 
-def _cpp_star_dist3D(lbl, rays, grid=(1,1,1)):
+def _cpp_star_dist3D(lbl, rays, grid=(1,1,1), return_mask = False):
     dz, dy, dx = rays.vertices.T
     grid = _normalize_grid(grid,3)
 
-    return c_star_dist3d(lbl.astype(np.uint16, copy=False),
+    dist, mask = c_star_dist3d(lbl.astype(np.uint16, copy=False),
                          dz.astype(np.float32, copy=False),
                          dy.astype(np.float32, copy=False),
                          dx.astype(np.float32, copy=False),
                          int(len(rays)), *tuple(int(a) for a in grid))
+    if return_mask:
+        return dist, mask
+    else:
+        return dist 
 
 
 def _py_star_dist3D(img, rays, grid=(1,1,1)):
@@ -58,7 +62,7 @@ def _py_star_dist3D(img, rays, grid=(1,1,1)):
     return dst
 
 
-def _ocl_star_dist3D(lbl, rays, grid=(1,1,1)):
+def _ocl_star_dist3D(lbl, rays, grid=(1,1,1), return_mask = False):
     from gputools import OCLProgram, OCLArray, OCLImage
 
     grid = _normalize_grid(grid,3)
@@ -70,26 +74,29 @@ def _ocl_star_dist3D(lbl, rays, grid=(1,1,1)):
 
     lbl_g = OCLImage.from_array(lbl.astype(np.uint16, copy=False))
     dist_g = OCLArray.empty(res_shape + (len(rays),), dtype=np.float32)
+    mask_g = OCLArray.empty(res_shape + (len(rays),), dtype=np.bool)
     rays_g = OCLArray.from_array(rays.vertices.astype(np.float32, copy=False))
 
     program = OCLProgram(path_absolute("kernels/stardist3d.cl"), build_options=['-D', 'N_RAYS=%d' % len(rays)])
     program.run_kernel('stardist3d', res_shape[::-1], None,
-                       lbl_g, rays_g.data, dist_g.data,
+                       lbl_g, rays_g.data, dist_g.data,mask_g.data,
                        np.int32(grid[0]),np.int32(grid[1]),np.int32(grid[2]))
+    if return_mask:
+        return dist_g.get(), mask_g.get()
+    else:
+        return dist_g.get()
 
-    return dist_g.get()
 
-
-def star_dist3D(lbl, rays, grid=(1,1,1), mode='cpp'):
+def star_dist3D(lbl, rays, grid=(1,1,1), mode='cpp', return_mask = False):
     """lbl assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
 
     grid = _normalize_grid(grid,3)
     if mode == 'python':
         return _py_star_dist3D(lbl, rays, grid=grid)
     elif mode == 'cpp':
-        return _cpp_star_dist3D(lbl, rays, grid=grid)
+        return _cpp_star_dist3D(lbl, rays, grid=grid, return_mask = return_mask)
     elif mode == 'opencl':
-        return _ocl_star_dist3D(lbl, rays, grid=grid)
+        return _ocl_star_dist3D(lbl, rays, grid=grid, return_mask = return_mask)
     else:
         _raise(ValueError("Unknown mode %s" % mode))
 

@@ -1592,6 +1592,7 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
 
     PyArrayObject *src = NULL;
     PyArrayObject *dst = NULL;
+    PyArrayObject *mask = NULL;
 
     PyArrayObject *pdx = NULL;
     PyArrayObject *pdy = NULL;
@@ -1614,27 +1615,34 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
     dims_dst[3] = n_rays;
 
     dst = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_FLOAT32);
+    mask = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_BOOL);
 
     # pragma omp parallel for schedule(dynamic)
     for (int i=0; i<dims_dst[0]; i++) {
         for (int j=0; j<dims_dst[1]; j++) {
             for (int k=0; k<dims_dst[2]; k++) {
-                const unsigned short value = *(unsigned short *)PyArray_GETPTR3(src,i*grid_z,j*grid_y,k*grid_x);
-                // background pixel
-                if (value == 0) {
-                    for (int n = 0; n < n_rays; n++) {
-                        *(float *)PyArray_GETPTR4(dst,i,j,k,n) = 0;
-                    }
+
+			  // initialize the mask to True for all rays
+			  for (int n = 0; n < n_rays; n++)
+				*(bool *)PyArray_GETPTR4(mask,i,j,k,n) = true;
+
+			  const unsigned short value = *(unsigned short *)PyArray_GETPTR3(src,i*grid_z,j*grid_y,k*grid_x);
+			  // background pixel
+			  if (value == 0) {
+				for (int n = 0; n < n_rays; n++) {
+				  *(float *)PyArray_GETPTR4(dst,i,j,k,n) = 0;
+				}
                 // foreground pixel
-                } else {
+			  } else {
+				
+				for (int n = 0; n < n_rays; n++) {
 
-                    for (int n = 0; n < n_rays; n++) {
+				  float dx = *(float *)PyArray_GETPTR1(pdx,n);
+				  float dy = *(float *)PyArray_GETPTR1(pdy,n);
+				  float dz = *(float *)PyArray_GETPTR1(pdz,n);
 
-                        float dx = *(float *)PyArray_GETPTR1(pdx,n);
-                        float dy = *(float *)PyArray_GETPTR1(pdy,n);
-                        float dz = *(float *)PyArray_GETPTR1(pdz,n);
-
-                        float x = 0, y = 0, z=0;
+				  float x = 0, y = 0, z=0;
+						
                         // move along ray
                         while (1) {
                             x += dx;
@@ -1645,21 +1653,25 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
                             //std::cout<<"ii: "<<ii<<" vs  "<<i*grid_z+z<<std::endl;
 
                             // stop if out of bounds or reaching a pixel with a different value/id
-                            if (ii < 0 || ii >= dims[0] ||
-                                jj < 0 || jj >= dims[1] ||
-                                kk < 0 || kk >= dims[2] ||
+
+							bool outside_array = (ii < 0 || ii >= dims[0] ||
+													jj < 0 || jj >= dims[1] ||
+													kk < 0 || kk >= dims[2]);
+							
+							
+							if (outside_array ||
                                 value != *(unsigned short *)PyArray_GETPTR3(src,ii,jj,kk))
                             {
                               const float dist = sqrt(x*x + y*y + z*z);
 
-                               // const int x2 = round_to_int(x);
-                               // const int y2 = round_to_int(y);
-                               // const int z2 = round_to_int(z);
-                               // const float dist = sqrt(x2*x2 + y2*y2 + z2*z2);
-
-                                *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
-                                break;
+							  *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
+							  // set mask to False if outside array
+							  *(bool *)PyArray_GETPTR4(mask,i,j,k,n) = !outside_array;
+							  
+							  break;
                             }
+
+							
                         }
                     }
                 }
@@ -1668,7 +1680,11 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
         }
      }
 
-    return PyArray_Return(dst);
+
+	PyObject *result = PyTuple_New(2);
+    PyTuple_SetItem(result, 0, PyArray_Return(dst));
+    PyTuple_SetItem(result, 1, PyArray_Return(mask));
+    return result;
 }
 
 //------------------------------------------------------------------------
