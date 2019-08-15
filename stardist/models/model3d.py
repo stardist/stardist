@@ -28,7 +28,7 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, use_dist_mask = False, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
@@ -38,12 +38,13 @@ class StarDistData3D(StarDistDataBase):
         self.rays = rays
         self.anisotropy = anisotropy
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
-
+        self.use_dist_mask = use_dist_mask
         # re-use arrays
         if self.batch_size > 1:
             self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
             self.out_edt_prob = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
             self.out_star_dist3D = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.float32)
+            self.out_star_dist3D_mask = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.bool)
 
 
     def __getitem__(self, i):
@@ -71,13 +72,22 @@ class StarDistData3D(StarDistDataBase):
             prob = np.stack(tmp, out=self.out_edt_prob[:len(Y)])
 
         tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode) for lbl in Y]
+        dist_tmp, dist_mask_tmp = tuple(zip(*tuple(star_dist3D(lbl, self.rays, mode=self.sd_mode, return_mask = True) for lbl in Y)))
+
         if len(Y) == 1:
-            dist = tmp[0][np.newaxis]
+            dist = dist_tmp[0][np.newaxis]
+            dist_mask = dist_mask_tmp[0][np.newaxis]
         else:
-            dist = np.stack(tmp, out=self.out_star_dist3D[:len(Y)])
+            dist = np.stack(dist_tmp, out=self.out_star_dist3D[:len(Y)])
+            dist_mask = np.stack(dist_mask_tmp, out=self.out_star_dist3D_mask[:len(Y)])
 
-        prob = dist_mask = np.expand_dims(prob, -1)
+        prob = np.expand_dims(prob, -1)
 
+        if self.use_dist_mask:
+            dist_mask = prob * dist_mask
+        else:
+            dist_mask = np.broadcast_to(prob, dist_mask.shape)
+            
         # subsample wth given grid
         dist_mask = dist_mask[self.ss_grid]
         prob      = prob[self.ss_grid]
@@ -106,6 +116,8 @@ class Config3D(BaseConfig):
         Anisotropy of objects along each of the axes.
         Use ``None`` to disable only for (nearly) isotropic objects shapes.
         Also see ``utils.calculate_extents``.
+    use_dist_mask : bool
+        If true, only uses valid distances (that do not intersect boundary)
     backbone : str
         Name of the neural network architecture to be used as backbone.
     kwargs : dict
@@ -186,6 +198,7 @@ class Config3D(BaseConfig):
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
         self.backbone                  = str(backbone).lower()
         self.rays_json                 = rays.to_json()
+        self.use_dist_mask             = False,
 
         if 'anisotropy' in self.rays_json['kwargs']:
             if self.rays_json['kwargs']['anisotropy'] is None and self.anisotropy is not None:
@@ -266,6 +279,7 @@ class StarDist3D(StarDistBase):
         Model name. Uses a timestamp if set to ``None`` (default).
     basedir : str
         Directory that contains (or will contain) a folder with the given model name.
+        Use ``None`` to disable saving (or loading) any data to (or from) disk (regardless of other parameters).
 
     Raises
     ------
@@ -305,9 +319,9 @@ class StarDist3D(StarDistBase):
 
         input_img = Input(self.config.net_input_shape, name='input')
         if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
+            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (self.config.n_rays,)
         else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
+            grid_shape = (self.config.n_rays,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
         input_mask = Input(grid_shape, name='dist_mask')
 
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
@@ -338,9 +352,9 @@ class StarDist3D(StarDistBase):
 
         input_img = Input(self.config.net_input_shape, name='input')
         if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
+            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (self.config.n_rays,)
         else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
+            grid_shape = (self.config.n_rays,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
         input_mask = Input(grid_shape, name='dist_mask')
 
         n_filter = self.config.resnet_n_filter_base
@@ -430,6 +444,8 @@ class StarDist3D(StarDistBase):
             patch_size            = self.config.train_patch_size,
             anisotropy            = self.config.anisotropy,
             use_gpu               = self.config.use_gpu,
+            use_dist_mask         = self.config.use_dist_mask
+            
         )
 
         # generate validation data and store in numpy arrays
@@ -445,7 +461,7 @@ class StarDist3D(StarDistBase):
         data_val = [[Xv,Mv],[Pv,Dv]]
 
         data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
-
+        self._data_train = data_train
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
                 # only show middle slice of 3D inputs/outputs

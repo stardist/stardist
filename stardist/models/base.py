@@ -269,7 +269,10 @@ class StarDistBase(BaseModel):
         x = resizer.before(x, axes_net, axes_net_div_by)
 
         def predict_direct(tile):
-            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
+            sh = list(tile.shape);
+            ax_channel = -1 if backend_channels_last() else 1
+            sh[channel] = self.keras_model.input_shape[1][ax_channel];
+            dummy = np.empty(sh,np.float32)
             prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
             return prob[0], dist[0]
 
@@ -417,6 +420,8 @@ class StarDistBase(BaseModel):
 
 
     def _compute_receptive_field(self, img_size=None):
+        # TODO: currently only works for channel last
+        assert backend_channels_last()        
         # TODO: good enough?
         from scipy.ndimage import zoom
         if img_size is None:
@@ -430,8 +435,11 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(1,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(0,)] = 1
-        y  = self.keras_model.predict([x,x])[0][0,...,0]
-        y0 = self.keras_model.predict([z,z])[0][0,...,0]
+
+        dummy = np.empty(x.shape[:-1]+(self.keras_model.input_shape[1][-1],),np.float32)
+
+        y  = self.keras_model.predict([x,dummy])[0][0,...,0]
+        y0 = self.keras_model.predict([z,dummy])[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
