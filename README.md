@@ -1,5 +1,6 @@
 [![PyPI version](https://badge.fury.io/py/stardist.svg)](https://pypi.org/project/stardist)
-[![Linux build Status](https://travis-ci.org/mpicbg-csbd/stardist.svg?branch=master)](https://travis-ci.org/mpicbg-csbd/stardist)
+[![Linux build status](https://travis-ci.org/mpicbg-csbd/stardist.svg?branch=master)](https://travis-ci.org/mpicbg-csbd/stardist)
+[![Windows build status](https://ci.appveyor.com/api/projects/status/gyu127aqc8y5av79/branch/master?svg=true)](https://ci.appveyor.com/project/UweSchmidt/stardist/branch/master)
 
 # *StarDist* - Object Detection with Star-convex Shapes 
 
