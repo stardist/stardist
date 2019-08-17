@@ -1,0 +1,34 @@
+# tests are much faster when using "Visual Studio 2017" image. why?
+image: Visual Studio 2019
+
+branches:
+  only:
+    - master
+
+environment:
+  matrix:
+    - PYTHON: "C:\\Python35-x64"
+      PYTHON_VERSION: "3.5.x"
+      PYTHON_ARCH: "64"
+      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
+    - PYTHON: "C:\\Python36-x64"
+      PYTHON_VERSION: "3.6.x"
+      PYTHON_ARCH: "64"
+    - PYTHON: "C:\\Python37-x64"
+      PYTHON_VERSION: "3.7.x"
+      PYTHON_ARCH: "64"
+
+init:
+  - echo %PYTHON% %PYTHON_VERSION% %PYTHON_ARCH%
+
+install:
+  - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - "python --version"
+  - "python -m pip install -U pip"
+  - "pip install tensorflow keras pytest"
+  - "pip install ."
+
+build: none
+
+test_script:
+  - "pytest -v --durations=50 -m \"not gpu\""
