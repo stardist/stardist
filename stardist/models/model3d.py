@@ -198,7 +198,8 @@ class Config3D(BaseConfig):
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
         self.backbone                  = str(backbone).lower()
         self.rays_json                 = rays.to_json()
-        self.use_dist_mask             = False,
+        self.use_dist_mask             = False
+        self.use_valid_mask            = False
 
         if 'anisotropy' in self.rays_json['kwargs']:
             if self.rays_json['kwargs']['anisotropy'] is None and self.anisotropy is not None:
@@ -445,7 +446,6 @@ class StarDist3D(StarDistBase):
             anisotropy            = self.config.anisotropy,
             use_gpu               = self.config.use_gpu,
             use_dist_mask         = self.config.use_dist_mask
-            
         )
 
         # generate validation data and store in numpy arrays
@@ -475,6 +475,7 @@ class StarDist3D(StarDistBase):
                 cb.output_slices[1][1+i] = _n_out
                 # show dist for three rays
                 _n = min(3, self.config.n_rays)
+                cb.input_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
                 cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,

@@ -46,28 +46,44 @@ if __name__ == '__main__':
 
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
+    
 
+    
     n_rays = 32
     rays = Rays_GoldenSpiral(n_rays)
     
     X, Y = create_data()
-    data = StarDistData3D(X,Y, batch_size = 1, rays = rays, patch_size=X[0].shape, use_dist_mask= False)
 
-    (x,dist_mask), (prob,dist) = data[0]
+    # np.random.seed(44)
+    # from tifffile import imread
+    # X = (imread("/home/mweigert/python/stardist/examples/3D_dist_mask/data/test/images/stack_0027.tif"),)
+    # Y = (imread("/home/mweigert/python/stardist/examples/3D_dist_mask/data/test/masks/stack_0027.tif"),)
+    # data = StarDistData3D(X,Y, batch_size = 1, rays = rays,
+    #                       # patch_size=X[0].shape,
+    #                       patch_size=(32,48,48),
+    #                       use_dist_mask= True)
+
+    # (x,dist_mask), (prob,dist) = data[0]
     
+
+
+
     conf = Config3D (
         rays       = n_rays,
-        grid       = (1,1,1),
+        grid       = (1,2,2),
+        
         use_gpu    = False,
-        use_dist_mask = False, 
-        train_epochs     = 20,
+        use_dist_mask = True, 
+        use_valid_mask = True, 
+        train_epochs     = 1,
         train_steps_per_epoch = 20,
         train_loss_weights = (4,1),
-        train_patch_size = (48,64,64),
+        train_patch_size = (48,80,80),
         n_channel_in = 1)
 
     # with tempfile.TemporaryDirectory() as tmp:
-    model = StarDist3D(conf, basedir =None)
+    model = StarDist3D(conf, name = "test3D", basedir = "_tmp")
+    # model.prepare_for_training()
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
 
-    p,d = model.predict(X[0])
+    # p,d = model.predict(X[0])
