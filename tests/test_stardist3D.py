@@ -4,7 +4,7 @@ from stardist import star_dist3D, Rays_GoldenSpiral
 from utils import random_image, real_image3d, check_similar
 
 
-@pytest.mark.parametrize('img', (real_image3d(), random_image((33, 44, 55))))
+@pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 @pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
 def test_types(img, n_rays, grid):
@@ -19,7 +19,7 @@ def test_types(img, n_rays, grid):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize('img', (real_image3d(), random_image((33, 44, 55))))
+@pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 @pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
 def test_types_gpu(img, n_rays, grid):
@@ -34,7 +34,7 @@ def test_types_gpu(img, n_rays, grid):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize('img', (real_image3d(), random_image((33, 44, 55))))
+@pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 @pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
 def test_cpu_gpu(img, n_rays, grid):

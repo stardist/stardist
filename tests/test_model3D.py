@@ -2,11 +2,13 @@ import sys
 import numpy as np
 import pytest
 from stardist.models import Config3D, StarDist3D
-from utils import circle_image
+from stardist.matching import matching
+from csbdeep.utils import normalize
+from utils import circle_image, real_image3d, path_model3d
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel', [(73,(2,2,2),None), (33,(1,2,4),1), (7,(2,1,1),2)])
-def test_model(tmpdir, n_rays, grid, n_channel):
+@pytest.mark.parametrize('n_rays, grid, n_channel, backbone', [(73,(2,2,2),None,'resnet'), (33,(1,2,4),1,'resnet'), (7,(2,1,1),2,'unet')])
+def test_model(tmpdir, n_rays, grid, n_channel, backbone):
     img = circle_image(shape=(64,80,96))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
@@ -19,6 +21,7 @@ def test_model(tmpdir, n_rays, grid, n_channel):
     Y = (imgs if imgs.ndim==4 else imgs[...,0]).astype(int)
 
     conf = Config3D (
+        backbone              = backbone,
         rays                  = n_rays,
         grid                  = grid,
         n_channel_in          = n_channel,
@@ -32,6 +35,20 @@ def test_model(tmpdir, n_rays, grid, n_channel):
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
+
+
+def test_load_and_predict():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+    prob, dist = model.predict(x, n_tiles=(1,2,2))
+    assert prob.shape == dist.shape[:3]
+    assert model.config.n_rays == dist.shape[-1]
+    labels, _ = model.predict_instances(x)
+    assert labels.shape == img.shape[:3]
+    stats = matching(mask, labels, thresh=0.5)
+    assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
 
 
 

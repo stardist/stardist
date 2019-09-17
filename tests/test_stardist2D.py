@@ -4,7 +4,7 @@ import pytest
 from utils import random_image, real_image2d, check_similar
 
 
-@pytest.mark.parametrize('img', (real_image2d(), random_image((128, 123))))
+@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 def test_types(img, n_rays):
     mode = "cpp"
@@ -17,7 +17,7 @@ def test_types(img, n_rays):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize('img', (real_image2d(), random_image((128, 123))))
+@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 def test_types_gpu(img, n_rays):
     mode = "opencl"
@@ -30,7 +30,7 @@ def test_types_gpu(img, n_rays):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize('img', (real_image2d(), random_image((128, 123))))
+@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 def test_cpu_gpu(img, n_rays):
     s_cpp = star_dist(img, n_rays=n_rays, mode="cpp")

@@ -3,7 +3,7 @@ import numpy as np
 from tifffile import imread
 from skimage.measure import label
 from scipy.ndimage.filters import gaussian_filter
-
+from pathlib import Path
 
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
@@ -35,19 +35,31 @@ def overlap_image(shape=(128, 128)):
     return img, iou
 
 
+def _root_dir():
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def real_image2d():
-    root = os.path.dirname(os.path.abspath(__file__))
-    img = imread(os.path.join(root, 'data', 'mask2d.tif'))
-    return img
+    img  = imread(os.path.join(_root_dir(), 'data', 'img2d.tif'))
+    mask = imread(os.path.join(_root_dir(), 'data', 'mask2d.tif'))
+    return img, mask
 
 
 def real_image3d():
-    root = os.path.dirname(os.path.abspath(__file__))
-    img = imread(os.path.join(root, 'data', 'mask3d.tif'))
-    return img
+    img  = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
+    mask = imread(os.path.join(_root_dir(), 'data', 'mask3d.tif'))
+    return img, mask
 
 
 def check_similar(x, y):
     delta = np.abs(x - y)
     debug = 'avg abs err = %.10f, max abs err = %.10f' % (np.mean(delta), np.max(delta))
     assert np.allclose(x, y), debug
+
+
+def path_model2d():
+    return Path(_root_dir()) / '..' / 'models' / 'examples' / '2D_demo'
+
+
+def path_model3d():
+    return Path(_root_dir()) / '..' / 'models' / 'examples' / '3D_demo'

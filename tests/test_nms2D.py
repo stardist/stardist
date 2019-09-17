@@ -4,7 +4,7 @@ from stardist import star_dist, edt_prob, non_maximum_suppression, dist_to_coord
 from stardist.matching import matching
 from utils import random_image, real_image2d, check_similar
 
-@pytest.mark.parametrize('img', (real_image2d(), random_image((128, 123))))
+@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
 def test_bbox_search(img):
     prob = edt_prob(img)
     dist = star_dist(img, n_rays=32, mode="cpp")
@@ -14,7 +14,7 @@ def test_bbox_search(img):
     check_similar(nms_a, nms_b)
 
 
-@pytest.mark.parametrize('img', (real_image2d(), ))
+@pytest.mark.parametrize('img', (real_image2d()[1], ))
 def test_acc(img):
     prob = edt_prob(img)
     dist = star_dist(img, n_rays=32, mode="cpp")

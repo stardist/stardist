@@ -2,7 +2,9 @@ import sys
 import numpy as np
 import pytest
 from stardist.models import Config2D, StarDist2D
-from utils import circle_image
+from stardist.matching import matching
+from csbdeep.utils import normalize
+from utils import circle_image, real_image2d, path_model2d
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel', [(17,(1,1),None), (32,(2,4),1), (4,(8,2),2)])
@@ -32,6 +34,22 @@ def test_model(tmpdir, n_rays, grid, n_channel):
 
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
+
+
+def test_load_and_predict():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image2d()
+    x = normalize(img,1,99.8)
+    prob, dist = model.predict(x, n_tiles=(2,3))
+    assert prob.shape == dist.shape[:2]
+    assert model.config.n_rays == dist.shape[-1]
+    labels, polygons = model.predict_instances(x)
+    assert labels.shape == img.shape[:2]
+    assert labels.max() == len(polygons['coord'])
+    assert len(polygons['coord']) == len(polygons['points']) == len(polygons['prob'])
+    stats = matching(mask, labels, thresh=0.5)
+    assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
 
 
 
