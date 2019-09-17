@@ -260,14 +260,7 @@ class StarDistBase(BaseModel):
             ValueError("all values of n_tiles must be integer values >= 1"))
         n_tiles = tuple(map(int,n_tiles))
 
-        if axes is None:
-            axes = self.config.axes
-            assert 'C' in axes
-            if img.ndim == len(axes)-1 and self.config.n_channel_in == 1:
-                # img has no dedicated channel axis, but 'C' always part of config axes
-                axes = axes.replace('C','')
-
-        axes     = axes_check_and_normalize(axes,img.ndim)
+        axes     = self._normalize_axes(img, axes)
         axes_net = self.config.axes
 
         _permute_axes = self._make_permute_axes(axes, axes_net)
@@ -380,8 +373,13 @@ class StarDistBase(BaseModel):
         if nms_kwargs is None:
             nms_kwargs = {}
 
+        _axes         = self._normalize_axes(img, axes)
+        _axes_net     = self.config.axes
+        _permute_axes = self._make_permute_axes(_axes, _axes_net)
+        _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
+
         prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(img.shape, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None):
@@ -433,6 +431,16 @@ class StarDistBase(BaseModel):
         if self.basedir is not None:
             print("Saving to 'thresholds.json'.")
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
+
+
+    def _normalize_axes(self, img, axes):
+        if axes is None:
+            axes = self.config.axes
+            assert 'C' in axes
+            if img.ndim == len(axes)-1 and self.config.n_channel_in == 1:
+                # img has no dedicated channel axis, but 'C' always part of config axes
+                axes = axes.replace('C','')
+        return axes_check_and_normalize(axes, img.ndim)
 
 
     def _compute_receptive_field(self, img_size=None):
