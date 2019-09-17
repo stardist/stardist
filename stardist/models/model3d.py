@@ -41,7 +41,7 @@ class StarDistData3D(StarDistDataBase):
 
         # re-use arrays
         if self.batch_size > 1:
-            self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
+            self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size)+(() if self.n_channel is None else (self.n_channel,)), dtype=np.float32)
             self.out_edt_prob = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
             self.out_star_dist3D = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.float32)
 
@@ -50,10 +50,13 @@ class StarDistData3D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.X[k],self.Y[k]),
+        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                                       patch_size=self.patch_size, n_samples=1,
                                                       patch_filter=self.no_background_patches_cached(k)) for k in idx]
-        X, Y = list(zip(*[(x[0],y[0]) for x,y in arrays]))
+        if self.n_channel is None:
+            X, Y = list(zip(*[(x[0],y[0]) for y,x in arrays]))
+        else:
+            X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1), y[0]) for y,*x in arrays]))
 
         X, Y = self.augmenter(X, Y)
 
@@ -95,7 +98,7 @@ class Config3D(BaseConfig):
     axes : str or None
         Axes of the input images.
     rays : Rays_Base, int, or None
-        Ray factory (e.g. Ray_GoldenSpiral). 
+        Ray factory (e.g. Ray_GoldenSpiral).
         If an integer then Ray_GoldenSpiral(rays) will be used
     n_channel_in : int
         Number of channels of given input image (default: 1).
@@ -177,7 +180,7 @@ class Config3D(BaseConfig):
                 rays = Rays_GoldenSpiral(96)
         elif np.isscalar(rays):
             rays = Rays_GoldenSpiral(rays)
-        
+
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+len(rays))
 
         # directly set by parameters

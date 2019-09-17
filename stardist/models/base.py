@@ -72,6 +72,19 @@ class StarDistDataBase(Sequence):
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
 
+        # sanity checks
+        assert len(X)==len(Y) and len(X)>0
+        nD = len(patch_size)
+        assert nD in (2,3)
+        x_ndim = X[0].ndim
+        assert x_ndim in (nD,nD+1)
+        assert all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y))
+        if x_ndim == nD:
+            self.n_channel = None
+        else:
+            self.n_channel = X[0].shape[-1]
+            assert all(x.shape[-1]==self.n_channel for x in X)
+
         self.X, self.Y = X, Y
         self.batch_size = batch_size
         self.n_rays = n_rays
@@ -94,7 +107,7 @@ class StarDistDataBase(Sequence):
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
         if maxfilter_cache:
-            self.R = [self.no_background_patches((x,y)) for x,y in zip(self.X,self.Y)]
+            self.R = [self.no_background_patches((y,x)) for x,y in zip(self.X,self.Y)]
         else:
             self.R = None
 
@@ -108,7 +121,7 @@ class StarDistDataBase(Sequence):
 
 
     def no_background_patches(self, arrays, *args):
-        x, y = arrays
+        y = arrays[0]
         return self.max_filter(y, self.maxfilter_patch_size) > 0
 
 
@@ -117,6 +130,12 @@ class StarDistDataBase(Sequence):
             return self.no_background_patches
         else:
             return lambda *args: self.R[k]
+
+    def channels_as_tuple(self, x):
+        if self.n_channel is None:
+            return (x,)
+        else:
+            return tuple(x[...,i] for i in range(self.n_channel))
 
 
 

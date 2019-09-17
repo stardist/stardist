@@ -46,10 +46,13 @@ class StarDistData2D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.X[k],self.Y[k]),
+        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                                       patch_size=self.patch_size, n_samples=1,
                                                       patch_filter=self.no_background_patches_cached(k)) for k in idx]
-        X, Y = list(zip(*[(x[0][self.b],y[0]) for x,y in arrays]))
+        if self.n_channel is None:
+            X, Y = list(zip(*[(x[0][self.b],y[0]) for y,x in arrays]))
+        else:
+            X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1)[self.b], y[0]) for y,*x in arrays]))
 
         X, Y = self.augmenter(X, Y)
 
