@@ -56,9 +56,19 @@ def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_t
 
 
 def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False):
+    """Non-Maximum-Supression of 3D polyhedra 
+    
+    Retains only polyhedra whose overlap is smaller than nms_thresh 
+
+    dist.shape = (Nz,Ny,Nx, n_rays)
+    prob.shape = (Nz,Ny,Nx)
+
+    """
+    
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
-    assert prob.ndim == 3 and dist.ndim == 4 and dist.shape[-1] == len(rays)
+    assert prob.ndim == 3 and dist.ndim == 4 and dist.shape[-1] == len(rays) and prob.shape == dist.shape[:3]
+    
     grid = _normalize_grid(grid,3)
 
     verbose and print("predicting instances with prob_thresh = {prob_thresh} and nms_thresh = {nms_thresh}".format(prob_thresh=prob_thresh, nms_thresh=nms_thresh), flush=True)
