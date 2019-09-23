@@ -9,6 +9,7 @@
 #include <limits>
 #include <vector>
 #include <array>
+#include <omp.h>
 
 #include "libqhullcpp/QhullFacet.h"
 #include "libqhullcpp/QhullError.h"
@@ -650,11 +651,12 @@ inline float qhull_volume_halfspace_intersection(const double * halfspaces,
 
   std::vector<std::array<double,DIM>> intersections;
 
-  QhullFacetListIterator it(q.facetList());
-  while(it.hasNext()){
+
+  auto facetlist = q.facetList();
+  for (auto itr = facetlist.begin(); itr != facetlist.end(); ++itr){
 
   	std::array<coordT,DIM> inter;
-  	QhullHyperplane plane = it.next().hyperplane();
+  	QhullHyperplane plane = (*itr).hyperplane();
 
   	for (int i = 0; i < DIM; ++i)
   	  inter[i] = -plane[i]/plane.offset() + interior_point[i];
@@ -721,9 +723,9 @@ halfspaces_convex(const float * const polyverts,
   std::vector<std::array<double,DIM+1>> halfspaces;
   std::array<double,DIM+1> hs;
 
-  QhullFacetListIterator it(qvert.facetList());
-  while(it.hasNext()){
-	QhullHyperplane plane = it.next().hyperplane();
+  auto facetlist = qvert.facetList();
+  for (auto itr = facetlist.begin(); itr != facetlist.end(); ++itr){
+	QhullHyperplane plane = (*itr).hyperplane();
 	for (int i = 0; i < DIM; ++i)
 	  hs[i] = plane[i];
 
@@ -840,33 +842,27 @@ inline float qhull_overlap_convex_hulls(
 
 	std::vector<double> halfspaces;
 
-	QhullFacetListIterator it1(qvert1.facetList());
-	while(it1.hasNext()){
-	  QhullHyperplane plane = it1.next().hyperplane();
+	auto facetlist1 = qvert1.facetList();
+	for (auto itr = facetlist1.begin(); itr != facetlist1.end(); ++itr){
+	  QhullHyperplane plane = (*itr).hyperplane();
 	  for (int i = 0; i < DIM; ++i)
 		halfspaces.push_back(plane[i]);
 	  halfspaces.push_back(plane.offset());
 
 	}
-	QhullFacetListIterator it2(qvert2.facetList());
-	while(it2.hasNext()){
-	  QhullHyperplane plane = it2.next().hyperplane();
+
+	auto facetlist2 = qvert2.facetList();
+	for (auto itr = facetlist2.begin(); itr != facetlist2.end(); ++itr){
+	  QhullHyperplane plane = (*itr).hyperplane();
 	  for (int i = 0; i < DIM; ++i)
 		halfspaces.push_back(plane[i]);
 	  halfspaces.push_back(plane.offset());
 	}
-
-
 
 	std::vector<double> interior_point = {.5*(pcenter1[0]+pcenter2[0]),
 										  .5*(pcenter1[1]+pcenter2[1]),
 										  .5*(pcenter1[2]+pcenter2[2])};
 
-
-	// for (int i = 0; i<halfspaces.size();i++){
-	// 	std::cout << halfspaces.data()[i]<< ((i%4)==3?"\n":" ");
-
-	// }
 
 	// intersect all halfspaces
 
@@ -878,11 +874,11 @@ inline float qhull_overlap_convex_hulls(
 
 	std::vector<std::array<double,DIM>> intersections;
 
-	QhullFacetListIterator it(qhalf.facetList());
-	while(it.hasNext()){
 
+	auto facetlist = qhalf.facetList();
+	for (auto itr = facetlist.begin(); itr != facetlist.end(); ++itr){
 	  std::array<coordT,DIM> inter;
-	  QhullHyperplane plane = it.next().hyperplane();
+	  QhullHyperplane plane = (*itr).hyperplane();
 
 	  for (int i = 0; i < DIM; ++i)
 		inter[i] = -plane[i]/plane.offset() + interior_point[i];
@@ -950,6 +946,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    if (verbose>=1){
 	 printf("non-maximum suppression ++++ \n");
 	 printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
+	 printf("NMS: using %d thread(s)\n", omp_get_max_threads());
    }
 
 

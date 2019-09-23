@@ -54,4 +54,4 @@ def test_load_and_predict():
 
 
 if __name__ == '__main__':
-    test_model()
+    test_model("tmpdir",32,(1,1),1)
