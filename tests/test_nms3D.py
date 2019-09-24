@@ -4,8 +4,7 @@ from stardist import non_maximum_suppression_3d, polyhedron_to_label
 from stardist import Rays_GoldenSpiral
 from utils import random_image, check_similar
 
-@pytest.mark.parametrize('n_rays', (5,11,32))
-@pytest.mark.parametrize('nms_thresh',(0,.4,.6))
+@pytest.mark.parametrize('n_rays, nms_thresh',[(5,0),(14,.2),(22,.4),(32,.6)])
 def test_nms(n_rays, nms_thresh):
     dist = 10*np.ones((33,44,55,n_rays))
     prob = np.random.uniform(0,1,dist.shape[:3])
