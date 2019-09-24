@@ -9,7 +9,6 @@
 #include <limits>
 #include <vector>
 #include <array>
-#include <omp.h>
 
 #include "libqhullcpp/QhullFacet.h"
 #include "libqhullcpp/QhullError.h"
@@ -27,6 +26,12 @@ using namespace orgQhull;
 #ifndef M_PI
 #define M_PI 3.141592653589793
 #endif
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+
 
 
 
@@ -946,7 +951,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    if (verbose>=1){
 	 printf("non-maximum suppression ++++ \n");
 	 printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
-	 printf("NMS: using %d thread(s)\n", omp_get_max_threads());
+#ifdef _OPENMP
+	 printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
+#endif
    }
 
 
