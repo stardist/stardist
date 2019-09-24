@@ -4,6 +4,7 @@ image: Visual Studio 2019
 branches:
   only:
     - master
+    - dev
 
 environment:
   matrix:
