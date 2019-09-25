@@ -39,10 +39,10 @@ class build_ext_openmp(build_ext):
 # cf. https://github.com/mkleehammer/pyodbc/issues/82#issuecomment-231561240
 _dir = path.dirname(__file__)
 
-with open(path.join(_dir,'stardist','version.py')) as f:
+with open(path.join(_dir,'stardist','version.py'), encoding="utf-8") as f:
     exec(f.read())
 
-with open(path.join(_dir,'README.md')) as f:
+with open(path.join(_dir,'README.md'), encoding="utf-8") as f:
     long_description = f.read()
 
 qhull_root = path.join(_dir, 'stardist', 'lib', 'qhull_src', 'src')
