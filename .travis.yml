@@ -32,14 +32,12 @@ matrix:
 install:
   - pip install $TENSORFLOW $KERAS
   - if [ -z $ONLY_INSTALL ]; then
-       pip install stardist;
-    else
        pip install .;
+    else
+       pip install stardist;
     fi;
 
 script:
   - if [ -z $ONLY_INSTALL ]; then
-       echo "only installing";
-    else
-       pytest -v -s --durations=50 -m "not gpu;
+       pytest -v -s --durations=50 -m "not gpu";
     fi;
