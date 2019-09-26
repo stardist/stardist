@@ -66,9 +66,9 @@ matrix:
 install: 
   - pip install $TENSORFLOW $KERAS
   - if [ $ONLY_INSTALL == true ]; then
-       pip install stardist
+       pip install stardist;
     else
-       pip install .
+       pip install .;
     fi
 
 script:
