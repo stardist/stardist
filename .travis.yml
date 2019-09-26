@@ -68,9 +68,9 @@ install:
   - if [ $ONLY_INSTALL == true ]; then
        pip install stardist
     else
-	   pip install .
-	fi
-	
+       pip install .
+    fi
+
 script:
   - if [ $ONLY_INSTALL == false ]; then
       pytest -v -s --durations=50 -m "not gpu";
