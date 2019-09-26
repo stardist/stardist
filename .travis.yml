@@ -13,18 +13,7 @@ branches:
     - dev
 
 env:
-  - TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=true
-  - TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=false
-
-# compiler: gcc
-# addons:
-#   apt:
-#     sources:
-#       - ubuntu-toolchain-r-test
-#     packages:
-#       - g++-6
-# env:
-#   - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
+  - TENSORFLOW='tensorflow' KERAS='keras'
 
 matrix:
   include:
@@ -35,43 +24,22 @@ matrix:
       python: 3.5
     - os: linux
       python: 3.6
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   env: TENSORFLOW='tensorflow<1.12'   KERAS='keras'
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   env: TENSORFLOW='tensorflow<1.11'   KERAS='keras'
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   env: TENSORFLOW='tensorflow<1.10'   KERAS='keras==2.2.2'
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   # env: TENSORFLOW='tensorflow<1.9'    KERAS='keras==2.2.0' # causes segmentation fault, why?
-    #   env: TENSORFLOW='tensorflow<1.8'    KERAS='keras==2.2.0'
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   env: TENSORFLOW='tensorflow<1.8'    KERAS='keras==2.1.6'
-    # - os: linux
-    #   python: 3.6
-    #   if: branch = master
-    #   # lowest supported keras version, last tensorflow release that supports CUDA 8
-    #   env: TENSORFLOW='tensorflow==1.4.1' KERAS='keras==2.1.2'
-    #   ###########
+    - os: linux
+      python: 3.7
+      dist: xenial
+      env: TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=1
 
-install: 
+install:
   - pip install $TENSORFLOW $KERAS
-  - if [ $ONLY_INSTALL == true ]; then
+  - if [ -z $ONLY_INSTALL ]; then
        pip install stardist;
     else
        pip install .;
-    fi
+    fi;
 
 script:
-  - if [ $ONLY_INSTALL == false ]; then
-      pytest -v -s --durations=50 -m "not gpu";
-    fi
+  - if [ -z $ONLY_INSTALL ]; then
+       echo "only installing"
+    else
+       echo "haha";
+    fi;
