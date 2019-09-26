@@ -13,7 +13,8 @@ branches:
     - dev
 
 env:
-  - TENSORFLOW='tensorflow' KERAS='keras'
+  - TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=true
+  - TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=false
 
 # compiler: gcc
 # addons:
@@ -64,10 +65,13 @@ matrix:
 
 install: 
   - pip install $TENSORFLOW $KERAS
-  - pip install --no-cache-dir stardist
-  - pip uninstall -y stardist
-  - pip install --no-cache-dir .
-
+  - if [ $ONLY_INSTALL == true ]; then
+       pip install stardist
+    else
+	   pip install .
+	fi
+	
 script:
-  # - echo `which gcc`
-  - pytest -v -s --durations=50 -m "not gpu"
+  - if [ $ONLY_INSTALL == false ]; then
+      pytest -v -s --durations=50 -m "not gpu";
+    fi
