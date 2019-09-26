@@ -64,7 +64,9 @@ matrix:
 
 install: 
   - pip install $TENSORFLOW $KERAS
-  - pip install .
+  - pip install --no-cache-dir stardist
+  - pip uninstall -y stardist
+  - pip install --no-cache-dir .
 
 script:
   # - echo `which gcc`
