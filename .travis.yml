@@ -39,7 +39,7 @@ install:
 
 script:
   - if [ -z $ONLY_INSTALL ]; then
-       echo "only installing"
+       echo "only installing";
     else
        pytest -v -s --durations=50 -m "not gpu;
     fi;
