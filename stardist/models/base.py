@@ -382,7 +382,7 @@ class StarDistBase(BaseModel):
         return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
 
 
-    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None):
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
         Note that the default thresholds yield good results in many cases, but optimizing
@@ -407,7 +407,8 @@ class StarDistBase(BaseModel):
             the (average) matching performance is considered to tune the thresholds.
         predict_kwargs: dict
             Keyword arguments for ``predict`` function of this class.
-        predict_kwargs: dict
+            (If not provided, will guess value for `n_tiles` to prevent out of memory errors.)
+        optimize_kwargs: dict
             Keyword arguments for ``utils.optimize_threshold`` function.
 
         """
@@ -416,7 +417,13 @@ class StarDistBase(BaseModel):
         if optimize_kwargs is None:
             optimize_kwargs = {}
 
-        Yhat_val = [self.predict(x, **predict_kwargs) for x in X_val]
+        def _predict_kwargs(x):
+            if 'n_tiles' in predict_kwargs:
+                return predict_kwargs
+            else:
+                return {**predict_kwargs, 'n_tiles': self._guess_n_tiles(x), 'show_tile_progress': False}
+
+        Yhat_val = [self.predict(x, **_predict_kwargs(x)) for x in X_val]
 
         opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
         for _opt_nms_thresh in nms_threshs:
@@ -428,9 +435,18 @@ class StarDistBase(BaseModel):
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
         print("Using optimized values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
-        if self.basedir is not None:
+        if save_to_json and self.basedir is not None:
             print("Saving to 'thresholds.json'.")
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
+        return opt_threshs
+
+    def _guess_n_tiles(self, img):
+        axes = self._normalize_axes(img, axes=None)
+        shape = list(img.shape)
+        if 'C' in axes:
+            del shape[axes_dict(axes)['C']]
+        b = self.config.train_batch_size**(1.0/self.config.n_dim)
+        return tuple(int(np.ceil(s/(p*b))) for s,p in zip(shape,self.config.train_patch_size))
 
 
     def _normalize_axes(self, img, axes):
