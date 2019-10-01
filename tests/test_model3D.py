@@ -49,8 +49,28 @@ def test_load_and_predict():
     assert labels.shape == img.shape[:3]
     stats = matching(mask, labels, thresh=0.5)
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
+    return model
 
+def test_optimize_thresholds():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+    def _opt(model):
+        return model.optimize_thresholds([x],[mask],
+                                    nms_threshs = [.3,.5],
+                                    iou_threshs = [.3,.5],
+                                    optimize_kwargs = dict(tol=1e-1),
+                                    save_to_json = False)
 
-
+    t1 = _opt(model)
+    # enforce implicit tiling 
+    model.config.train_batch_size = 1
+    model.config.train_patch_size = tuple(s-1 for s in x.shape)
+    t2 = _opt(model)
+    assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())         
+    return model
+    
+    
 if __name__ == '__main__':
-    test_model()
+    model = test_optimize_thresholds()
