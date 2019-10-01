@@ -13,7 +13,7 @@ branches:
     - dev
 
 env:
-  - TENSORFLOW='tensorflow' KERAS='keras'
+  - TENSORFLOW='tensorflow<2' KERAS='keras'
 
 matrix:
   include:
@@ -27,7 +27,7 @@ matrix:
     - os: linux
       python: 3.7
       dist: xenial
-      env: TENSORFLOW='tensorflow' KERAS='keras' ONLY_INSTALL=1
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' ONLY_INSTALL=1
 
 install:
   - pip install $TENSORFLOW $KERAS
