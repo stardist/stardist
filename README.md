@@ -71,10 +71,10 @@ If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wi
 
 
 ### macOS
-Although Apple provides the Clang C/C++ compiler via [Xcode](https://developer.apple.com/xcode/), it does not come with OpenMP support.
-Hence, we suggest to install the OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc`. After that, you can install the package like this (adjust names/paths as necessary):
+The default Apple C/C++ compiler (`clang`) does not come with OpenMP support and the package build will likely fail.
+To properly build `stardist` you need to install a OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (which will currently install `gcc-9`/`g++-9`). After that, you can build the package like this (adjust compiler names/paths as necessary):
 
-    CC=/usr/local/bin/gcc-9 CXX=/usr/local/bin/g++-9 pip install stardist
+    CC=gcc-9 CXX=g++-9 pip install stardist
 
 
 ### Windows
