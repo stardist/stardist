@@ -482,7 +482,18 @@ class StarDist3D(StarDistBase):
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
         labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
-        labels = relabel_sequential(labels)[0]
+
+        # map the overlap_label to something positive and back
+        # (as relabel_sequential doesn't like negative values)
+        if overlap_label is not None and overlap_label<0:
+            overlap_mask = (labels == overlap_label)
+            overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
+            labels[overlap_mask] = overlap_label2
+            labels, fwd, bwd = relabel_sequential(labels)
+            labels[labels == fwd[overlap_label2]] = overlap_label
+        else:
+            labels, _,_ = relabel_sequential(labels)
+            
         # TODO: convert to polyhedra faces?
         return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
 

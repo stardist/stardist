@@ -51,6 +51,20 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
     return model, labels
 
+def test_load_and_predict_with_overlap():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+    prob, dist = model.predict(x, n_tiles=(1,2,2))
+    assert prob.shape == dist.shape[:3]
+    assert model.config.n_rays == dist.shape[-1]
+    labels, _ = model.predict_instances(x, nms_thresh = .5,
+                                        overlap_label = -3)
+    assert np.min(labels) == -3
+    return model, labels
+
+
 def test_optimize_thresholds():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
@@ -72,4 +86,4 @@ def test_optimize_thresholds():
     return model
 
 if __name__ == '__main__':
-    model, lbl = test_load_and_predict()
+    model, lbl = test_load_and_predict_with_overlap()
