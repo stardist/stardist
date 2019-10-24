@@ -1304,8 +1304,10 @@ static PyObject* c_polyhedron_to_label(PyObject *self, PyObject *args) {
   int nz,ny,nx;
   int render_mode;
   int verbose;
-
-   if (!PyArg_ParseTuple(args, "O!O!O!O!O!ii(iii)",
+  int use_overlap_label;
+  int overlap_label;
+  
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiii(iii)",
 						 &PyArray_Type, &arr_dist,
 						 &PyArray_Type, &arr_points,
 						 &PyArray_Type, &arr_verts,
@@ -1313,6 +1315,8 @@ static PyObject* c_polyhedron_to_label(PyObject *self, PyObject *args) {
 						 &PyArray_Type, &arr_labels,
 						 &render_mode,
 						 &verbose,
+                         &use_overlap_label,
+                         &overlap_label,
 						 &nz,&ny,&nx))
        return NULL;
 
@@ -1337,8 +1341,13 @@ static PyObject* c_polyhedron_to_label(PyObject *self, PyObject *args) {
    arr_result = (PyArrayObject*)PyArray_ZEROS(3,dims_result,NPY_INT32,0);
 
    if (verbose>=1){
-	 printf("polyhedra to label ++++ \n");
-	 printf("n_polys  = %d \nn_rays   = %d  \nn_faces  = %d \nshape   = %d %d %d\nrender_mode = %d\n", n_polys, n_rays, n_faces,nz,ny,nx, render_mode);
+	 printf("+++++++++++++++ polyhedra to label +++++++++++++++ \n");
+     printf("n_polys           = %d \n", n_polys);
+     printf("n_rays            = %d \n", n_rays);
+     printf("n_faces           = %d \n", n_faces);
+     printf("nz, ny, nx        = %d %d %d \n", nz,ny,nx);
+     printf("use_overlap_label = %d \n", use_overlap_label);
+     printf("overlap_label     = %d \n", overlap_label);
    }
 
    float * polyverts = new float[3*n_rays];
@@ -1387,70 +1396,62 @@ static PyObject* c_polyhedron_to_label(PyObject *self, PyObject *args) {
 
 		   int * pval = (int *)PyArray_GETPTR3(arr_result,z,y,x);
 
-		   // only label pixel if it hasn't been labeled yet
-		   if (*pval==0){
-			 bool inside = false;
-		   	 switch(render_mode){
-		   	 case 0:
-			   // render_mode "full"
+           bool inside = false;
 
-			   // inside = inside_polyhedron(z,y,x,
-			   // 							  curr_center, polyverts,
-			   // 							  faces, n_rays, n_faces);
-
-
-			   // kernel and convex hull is fast, so we can formulate the condition
-			   // such that it can benefit from short-circuiting
-			   // inside  = in kernel OR (in convex hull AND in rendered)
-			   inside = (
-						 point_in_halfspaces(z,y,x,hs_kernel) ||
-						 (point_in_halfspaces(z,y,x,hs_convex) &&
-						  inside_polyhedron(z,y,x, curr_center, polyverts, faces, n_rays, n_faces)));
+           switch(render_mode){
+           case 0:
+             // render_mode "full"
+             // kernel and convex hull is fast, so we can formulate the condition
+             // such that it can benefit from short-circuiting
+             // inside  = in kernel OR (in convex hull AND in rendered)
+             inside = (
+                       point_in_halfspaces(z,y,x,hs_kernel) ||
+                       (point_in_halfspaces(z,y,x,hs_convex) &&
+                        inside_polyhedron(z,y,x, curr_center, polyverts, faces, n_rays, n_faces)));
 
 
-		   	   break;
-		   	 case 1:
-			   // render_mode "kernel"
-			   inside = point_in_halfspaces(z,y,x,hs_kernel);
+             break;
+           case 1:
+             // render_mode "kernel"
+             inside = point_in_halfspaces(z,y,x,hs_kernel);
 
-		   	   break;
-		   	 case 2:
-			   // render_mode "convex"
-			   inside = point_in_halfspaces(z,y,x,hs_convex);
-		   	   break;
-		   	 case 3:
-			   // render_mode "bbox"
-			   inside = true;
-		   	   break;
-		   	 case 4:
-			   // render_mode "debug"
-			   bool error = false;
-		   	   if ((inside_polyhedron_kernel(z,y,x,
-											curr_center, polyverts,
-											faces, n_rays, n_faces)) &&
-				   !(inside_polyhedron(z,y,x,
-											curr_center, polyverts,
-											faces, n_rays, n_faces)))
-				 error = true;
+             break;
+           case 2:
+             // render_mode "convex"
+             inside = point_in_halfspaces(z,y,x,hs_convex);
+             break;
+           case 3:
+             // render_mode "bbox"
+             inside = true;
+             break;
+           case 4:
+             // render_mode "debug"
+             bool error = false;
+             if ((inside_polyhedron_kernel(z,y,x,
+                                           curr_center, polyverts,
+                                           faces, n_rays, n_faces)) &&
+                 !(inside_polyhedron(z,y,x,
+                                     curr_center, polyverts,
+                                     faces, n_rays, n_faces)))
+               error = true;
 
-			   if (error){
-				 *pval = -1;
-				 continue;
-			   }
-		   	   break;
-		   	 }
+             if (error){
+               *pval = -1;
+               continue;
+             }
+             break;
+           }
 
-			 if (inside)
-			   *pval = labels[i];
-		   }
+           if (inside){
+             // if pixel is already labeled use this as the new label 
+             int new_label_if_labeled = use_overlap_label?overlap_label:(*pval);
 
-
-
-		 }
-	   }
-	 }
-
-
+             *pval = (*pval)==0?labels[i]:new_label_if_labeled;
+             
+           }
+         }
+       }
+     }
    }
 
 

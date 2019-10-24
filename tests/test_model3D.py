@@ -49,7 +49,7 @@ def test_load_and_predict():
     assert labels.shape == img.shape[:3]
     stats = matching(mask, labels, thresh=0.5)
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
-    return model
+    return model, labels
 
 def test_optimize_thresholds():
     model_path = path_model3d()
@@ -70,7 +70,6 @@ def test_optimize_thresholds():
     t2 = _opt(model)
     assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())         
     return model
-    
-    
+
 if __name__ == '__main__':
-    model = test_optimize_thresholds()
+    model, lbl = test_load_and_predict()

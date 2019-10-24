@@ -94,21 +94,33 @@ def star_dist3D(lbl, rays, grid=(1,1,1), mode='cpp'):
         _raise(ValueError("Unknown mode %s" % mode))
 
 
-def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, labels=None, mode="full", verbose=True):
+def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, labels=None, mode="full", verbose=True, overlap_label = None):
     """
     creates labeled image from stardist representations
 
-    mode can be "full", "kernel", or "bbox"
-
-    :param dist: (n_points,n_rays)
-    :param points: (n_points, 3)
-    :param rays: RaysSphere objects with vertices and faces
-    :param prob: (n_points,)
-    :shape :
-
-
-    :param thr:
-    :return:
+    :param dist: array of shape (n_points,n_rays)
+        the list of distances for each point and ray
+    :param points: array of shape (n_points, 3)
+        the list of center points
+    :param rays: Rays object
+        Ray object (e.g. `stardist.Rays_GoldenSpiral`) defining
+        vertices and faces
+    :param shape: (nz,ny,nx)
+        output shape of the image
+    :param prob: array of length/shape (n_points,) or None
+        probability per polyhedron
+    :param thr: scalar
+        probability threshold (only polyhedra with prob>thr are labeled)
+    :param labels: array of length/shape (n_points,) or None
+        labels to use
+    :param mode: str
+        labeling mode, can be "full", "kernel", "hull", "bbox" or  "debug"
+    :param verbose: bool
+        enable to print some debug messages
+    :param overlap_label: scalar or None
+        if given, will label each pixel that belongs ot more than one polyhedron with that label
+    :return: array of given shape
+        labeled image
     """
     if len(points) == 0:
         if verbose:
@@ -175,8 +187,10 @@ def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, label
                                  _prep(rays.vertices, np.float32),
                                  _prep(rays.faces, np.int32),
                                  _prep(labels, np.int32),
-                                 np.int(modes[mode]),
-                                 np.int(verbose),
+                                 np.int32(modes[mode]),
+                                 np.int32(verbose),
+                                 np.int32(overlap_label is not None),
+                                 np.int32(0 if overlap_label is None else overlap_label),
                                  shape
                                  )
 
