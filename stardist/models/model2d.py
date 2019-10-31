@@ -391,9 +391,9 @@ class StarDist2D(StarDistBase):
                                       grid = self.config.grid,
                                       normed=True, verbose = True);
 
-            ws_potential = zoom(np.mean(aff,-1)-np.mean(aff_neg,-1),
+            ws_potential = zoom(np.mean(aff,-1)*prob,
                                 zoom_factor, order=1)
-            mask         = zoom(prob,zoom_factor, order=1)>=affinity_thresh
+            mask         = ws_potential>affinity_thresh
             markers      = np.zeros(img_shape, np.int32)
             markers[self.config.grid[0]*points[:,0],
                     self.config.grid[1]*points[:,1]] = np.arange(len(points))+1    

@@ -28,10 +28,11 @@ if __name__ == '__main__':
                                       normed=True, verbose = True);
 
     factor = tuple(s1/s2 for s1, s2 in zip(img.shape, prob.shape))
-    
-    potential = zoom(np.mean(aff,-1)-np.mean(aff_neg,-1), factor, order=1)
+
+    potential = (np.mean(aff,-1))*prob
+    potential = zoom(potential, factor, order=1)
 
     markers = np.zeros(img.shape, np.int32)
     markers[grid[0]*points[:,0],grid[1]*points[:,1]] = np.arange(len(points))+1
     
-    labels = watershed(-potential, markers=markers,mask = zoom(prob,factor, order=1)>0.01)
+    labels = watershed(-potential, markers=markers,mask = potential>0.01)
