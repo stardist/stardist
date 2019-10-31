@@ -3,8 +3,9 @@ import numpy as np
 import pytest
 from stardist.models import Config2D, StarDist2D
 from stardist.matching import matching
+from tifffile import imread
 from csbdeep.utils import normalize
-from utils import circle_image, real_image2d, path_model2d
+from utils import circle_image, real_image2d, path_model2d, prob_dist_image2d
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel', [(17,(1,1),None), (32,(2,4),1), (4,(8,2),2)])
@@ -53,5 +54,20 @@ def test_load_and_predict():
 
 
 
+def test_affinity():
+    img, prob, dist = prob_dist_image2d()
+    
+    conf = Config2D (n_rays = dist.shape[-1], grid =(2,2))
+    
+    model = StarDist2D(conf, name=None, basedir=None)
+
+    labels0, _ = model._instances_from_prediction(img.shape, prob, dist,
+                                                 affinity=False, affinity_thresh=.01)
+
+    labels, _ = model._instances_from_prediction(img.shape, prob, dist,
+                                                 affinity=True, affinity_thresh=.01)
+    
+    return labels0, labels
+
 if __name__ == '__main__':
-    test_model("tmpdir",32,(1,1),1)
+    labels0, labels = test_affinity()

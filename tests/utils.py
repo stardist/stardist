@@ -45,6 +45,13 @@ def real_image2d():
     return img, mask
 
 
+def prob_dist_image2d():
+    img  = imread(os.path.join(_root_dir(), 'data', 'dic_img.tif'))
+    prob = imread(os.path.join(_root_dir(), 'data', 'dic_prob.tif'))
+    dist = imread(os.path.join(_root_dir(), 'data', 'dic_dist.tif'))
+    return img, prob, dist
+
+
 def real_image3d():
     img  = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
     mask = imread(os.path.join(_root_dir(), 'data', 'mask3d.tif'))

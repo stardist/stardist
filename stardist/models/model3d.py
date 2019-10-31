@@ -472,13 +472,18 @@ class StarDist3D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, affinity=False, affinity_thresh=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
-
+        if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
+        if affinity: raise NotImplementedError("not yet implemented")
+        
         rays = rays_from_json(self.config.rays_json)
-        points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, grid=self.config.grid,
-                                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+        points, probi, disti = non_maximum_suppression_3d(dist, prob, rays,
+                                                          grid=self.config.grid,
+                                                          prob_thresh=prob_thresh,
+                                                          nms_thresh=nms_thresh,
+                                                          **nms_kwargs)
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
         labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)

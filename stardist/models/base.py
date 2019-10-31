@@ -143,7 +143,7 @@ class StarDistBase(BaseModel):
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)
-        threshs = dict(prob=None, nms=None)
+        threshs = dict(prob=None, nms=None, affinity=None)
         if basedir is not None:
             try:
                 threshs = load_json(str(self.logdir / 'thresholds.json'))
@@ -154,16 +154,21 @@ class StarDistBase(BaseModel):
                 if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
                     print("- Invalid 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
                     threshs['nms'] = None
+                if threshs.get('affinity') is None :
+                    print("- Invalid 'affinity' threshold (%s), using default value." % str(threshs.get('affinity')))
+                    threshs['affinity'] = None
+                    
             except FileNotFoundError:
                 if config is None and len(tuple(self.logdir.glob('*.h5'))) > 0:
                     print("Couldn't load thresholds from 'thresholds.json', using default values. "
                           "(Call 'optimize_thresholds' to change that.)")
 
         self.thresholds = dict (
-            prob = 0.5 if threshs['prob'] is None else threshs['prob'],
-            nms  = 0.4 if threshs['nms']  is None else threshs['nms'],
+            prob     = 0.5 if threshs['prob'] is None else threshs['prob'],
+            nms      = 0.4 if threshs['nms']  is None else threshs['nms'],
+            affinity = 0.1 if threshs['affinity'] is None else threshs['affinity'],
         )
-        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms, affinity=self.thresholds.affinity))
 
 
     @property
@@ -328,8 +333,11 @@ class StarDistBase(BaseModel):
         return prob, dist
 
 
-    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
-                          n_tiles=None, show_tile_progress=True, predict_kwargs=None, nms_kwargs=None, overlap_label = None):
+    def predict_instances(self, img, axes=None, normalizer=None,
+                          prob_thresh=None, nms_thresh=None,
+                          n_tiles=None, show_tile_progress=True,
+                          affinity=False, affinity_thresh=None,
+                          predict_kwargs=None, nms_kwargs=None, overlap_label = None):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -381,7 +389,13 @@ class StarDistBase(BaseModel):
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
         prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label = overlap_label, **nms_kwargs)
+        return self._instances_from_prediction(_shape_inst, prob, dist,
+                                               prob_thresh=prob_thresh,
+                                               nms_thresh=nms_thresh,
+                                               overlap_label=overlap_label,
+                                               affinity=affinity,
+                                               affinity_thresh=affinity_thresh,
+                                               **nms_kwargs)
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
