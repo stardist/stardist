@@ -433,7 +433,7 @@ class StarDistBase(BaseModel):
         if optimize_kwargs is None:
             optimize_kwargs = {}
 
-        predict_kwargs["affinity"] = predict_kwargs=.get("affinity",affinity)
+        predict_kwargs["affinity"] = predict_kwargs.get("affinity",affinity)
         
         def _predict_kwargs(x):
             if 'n_tiles' in predict_kwargs:
