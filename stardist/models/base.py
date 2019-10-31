@@ -166,9 +166,9 @@ class StarDistBase(BaseModel):
         self.thresholds = dict (
             prob     = 0.5 if threshs['prob'] is None else threshs['prob'],
             nms      = 0.4 if threshs['nms']  is None else threshs['nms'],
-            affinity = 0.1 if threshs['affinity'] is None else threshs['affinity'],
+            affinity = 0.05 if threshs['affinity'] is None else threshs['affinity'],
         )
-        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms, affinity=self.thresholds.affinity))
+        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}, affinity_thresh={affinity}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms, affinity=self.thresholds.affinity))
 
 
     @property
@@ -398,7 +398,7 @@ class StarDistBase(BaseModel):
                                                **nms_kwargs)
 
 
-    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], affinity = False, predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
         Note that the default thresholds yield good results in many cases, but optimizing
@@ -433,6 +433,8 @@ class StarDistBase(BaseModel):
         if optimize_kwargs is None:
             optimize_kwargs = {}
 
+        predict_kwargs["affinity"] = predict_kwargs=.get("affinity",affinity)
+        
         def _predict_kwargs(x):
             if 'n_tiles' in predict_kwargs:
                 return predict_kwargs
