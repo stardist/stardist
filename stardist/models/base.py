@@ -433,8 +433,6 @@ class StarDistBase(BaseModel):
         if optimize_kwargs is None:
             optimize_kwargs = {}
 
-        predict_kwargs["affinity"] = predict_kwargs.get("affinity",affinity)
-        
         def _predict_kwargs(x):
             if 'n_tiles' in predict_kwargs:
                 return predict_kwargs
@@ -445,7 +443,7 @@ class StarDistBase(BaseModel):
 
         opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
         for _opt_nms_thresh in nms_threshs:
-            _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, iou_threshs=iou_threshs, **optimize_kwargs)
+            _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, affinity = affinity, iou_threshs=iou_threshs, **optimize_kwargs)
             if _opt_measure > opt_measure:
                 opt_prob_thresh, opt_measure, opt_nms_thresh = _opt_prob_thresh, _opt_measure, _opt_nms_thresh
         opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)

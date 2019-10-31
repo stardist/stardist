@@ -216,7 +216,7 @@ def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLA
                 roizip.writestr('{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i), roi)
 
 
-def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_threshs=[0.3,0.5,0.7], bracket=None, tol=1e-2, maxiter=20, verbose=1):
+def optimize_threshold(Y, Yhat, model, nms_thresh, affinity = False,  measure='accuracy', iou_threshs=[0.3,0.5,0.7], bracket=None, tol=1e-2, maxiter=20, verbose=1):
     """ Tune prob_thresh for provided (fixed) nms_thresh to maximize matching score (for given measure and averaged over iou_threshs). """
     np.isscalar(nms_thresh) or _raise(ValueError("nms_thresh must be a scalar"))
     iou_threshs = [iou_threshs] if np.isscalar(iou_threshs) else iou_threshs
@@ -233,7 +233,7 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
             prob_thresh = np.clip(thr, *bracket)
             value = values.get(prob_thresh)
             if value is None:
-                Y_instances = [model._instances_from_prediction(y.shape, *prob_dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh)[0] for y,prob_dist in zip(Y,Yhat)]
+                Y_instances = [model._instances_from_prediction(y.shape, *prob_dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, affinity = affinity)[0] for y,prob_dist in zip(Y,Yhat)]
                 stats = matching_dataset(Y, Y_instances, thresh=iou_threshs, show_progress=False, parallel=True)
                 values[prob_thresh] = value = np.mean([s._asdict()[measure] for s in stats])
             if verbose > 1:

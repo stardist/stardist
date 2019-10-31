@@ -51,7 +51,23 @@ def test_load_and_predict():
     assert len(polygons['coord']) == len(polygons['points']) == len(polygons['prob'])
     stats = matching(mask, labels, thresh=0.5)
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
+    return model
 
+
+
+@pytest.mark.parametrize('affinity', [False,True])
+def test_optimize_thresholds(affinity):
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image2d()
+    x = normalize(img,1,99.8)
+    model.optimize_thresholds([x],[mask],
+                                    nms_threshs = [.3,.5],
+                                    iou_threshs = [.3,.5],
+                                    affinity = affinity,
+                                    optimize_kwargs = dict(tol=1e-1),
+                                    save_to_json = False)
+    return model
 
 
 def test_affinity():

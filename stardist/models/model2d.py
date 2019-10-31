@@ -385,6 +385,7 @@ class StarDist2D(StarDistBase):
                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
         
         if affinity:
+            print("using affinity")
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
             aff, aff_neg = dist_to_affinity2D(dist,
                                       weights = prob>=affinity_thresh,
