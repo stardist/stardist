@@ -172,6 +172,8 @@ def polyroi_bytearray(x,y,pos=None):
 
     x = np.asarray(x).ravel()
     y = np.asarray(y).ravel()
+    x = np.round(x)
+    y = np.round(y)
     assert len(x) == len(y)
     top, left, bottom, right = y.min(), x.min(), y.max(), x.max() # bbox
 
@@ -207,7 +209,7 @@ def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLA
 
     fname = Path(fname)
     if fname.suffix == '.zip':
-        fname = Path(fname.stem)
+        fname = fname.with_suffix('')
 
     with ZipFile(str(fname)+'.zip', mode='w', compression=compression) as roizip:
         for pos,polygroup in enumerate(polygons,start=1):
