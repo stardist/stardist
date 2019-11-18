@@ -1062,7 +1062,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
      // if verbose, print progress bar
      int prog_len = 40;
-     int prog_percentage = 100*i/(n_polys-2);
+	 int count_suppressed_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+     int prog_percentage = 100*count_suppressed_total/n_polys;
      
      if ((verbose) &&(prog_percentage%2==0)){
        std::string s = std::string(prog_len*prog_percentage/100, '#') + std::string(prog_len-prog_len*prog_percentage/100, ' ');
