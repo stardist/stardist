@@ -1073,6 +1073,20 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
        fflush(stdout);
      }
 
+     // check signals e.g. such that the loop is interuptable 
+     if (PyErr_CheckSignals()==-1){
+       delete [] volumes;
+       delete [] curr_polyverts;
+       delete [] bbox;
+       delete [] suppressed;
+       delete [] radius_inner;
+       delete [] radius_outer;
+       delete [] radius_inner_isotropic;
+       delete [] radius_outer_isotropic;
+       PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
+       return Py_None;
+     }
+
      // skip if already suppressed
 	 if (suppressed[i])
 	   continue;
