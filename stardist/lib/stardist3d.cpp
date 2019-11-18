@@ -9,6 +9,7 @@
 #include <limits>
 #include <vector>
 #include <array>
+#include <string>
 
 #include "libqhullcpp/QhullFacet.h"
 #include "libqhullcpp/QhullError.h"
@@ -972,6 +973,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 
    // first compute volumes, bounding boxes and anisotropy factors
+   if (verbose>=1)
+     printf("NMS: precompute volumes, bounding boxes, etc\n");
 
 #pragma omp parallel for
    for (int i=0; i<n_polys; i++) {
@@ -1031,6 +1034,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 
    // +++++++  NMS starts here ++++++++
+   if (verbose>=1)
+     printf("NMS: starting actual suppression loop\n");
 
    int count_kept_pretest = 0;
    int count_kept_convex = 0;
@@ -1055,8 +1060,37 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    for (int i=0; i<n_polys-1; i++) {
 
 
+     // if verbose, print progress bar
+     if (verbose){
+       int prog_len = 40;
+       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+       float prog_percentage = 100.*count_total/n_polys;
+
+       int w = prog_len*prog_percentage/100;
+       std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
+       printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+       printf(i==n_polys-2?"\n":"\r");
+       fflush(stdout);
+     }
+
+     // check signals e.g. such that the loop is interuptable 
+     if (PyErr_CheckSignals()==-1){
+       delete [] volumes;
+       delete [] curr_polyverts;
+       delete [] bbox;
+       delete [] suppressed;
+       delete [] radius_inner;
+       delete [] radius_outer;
+       delete [] radius_inner_isotropic;
+       delete [] radius_outer_isotropic;
+       PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
+       return Py_None;
+     }
+
+     // skip if already suppressed
 	 if (suppressed[i])
 	   continue;
+
 
 	 // the size of the bbox region of interest
 
@@ -1067,7 +1101,6 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 int Nz = curr_bbox[1]-curr_bbox[0]+1;
 	 int Ny = curr_bbox[3]-curr_bbox[2]+1;
 	 int Nx = curr_bbox[5]-curr_bbox[4]+1;
-
 
 	 // compute polyverts
 	 polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
@@ -1086,10 +1119,10 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   float iou = 0;
 	   float A_min = fmin(volumes[i], volumes[j]);
 	   float A_inter = 0;
-	   const bool COND = ((i==1052)&&(j==1174));
 
 	   // --------- first check: bounding box and inner sphere intersection  (cheap)
 
+             
 	   // upper  bound of intersection and IoU
 	   A_inter = fmin(intersect_sphere_isotropic(radius_outer_isotropic[i],
 	   											 &points[3*i],
@@ -1122,8 +1155,6 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   // if lower bound is above threshold, we can safely suppress it...
 	   iou = fmax(0.f,A_inter/(A_min+1e-10));
 
-	   if (COND)
-	   	 printf("%d %d lower: %.2f\n", i,j,iou);
 
 	   if (iou>threshold){
 	   	 count_suppressed_pretest++;
@@ -1197,8 +1228,12 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 	   // ------- forth/final check  (polygon rendering, exact)
 
+
 	   // render polyhedron
 	   bool * rendered = new bool[Nz*Ny*Nx];
+
+       
+
 	   render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
 					   faces, n_rays, n_faces,  rendered, Nz, Ny, Nx);
 
