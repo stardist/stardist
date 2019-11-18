@@ -5,10 +5,10 @@ from stardist import Rays_GoldenSpiral
 from utils import random_image, check_similar
 
 @pytest.mark.parametrize('n_rays, nms_thresh, shape',
-                         [(5,0,(33,44,55)),
-                          (14,.2),(33,44,55),
-                          (22,.4,(33,44,55)),
-                          (32,.6,(33,44,55))])
+                         [(5,  0, (33,44,55)),
+                          (14,.2, (43,31,34)),
+                          (22,.4, (33,44,55)),
+                          (32,.6, (33,44,55))])
 def test_nms(n_rays, nms_thresh, shape):
     dist = 10*np.ones(shape+(n_rays,))
     prob = np.random.uniform(0,1,dist.shape[:3])
