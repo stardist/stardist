@@ -1059,20 +1059,23 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    // suppress (double loop)
    for (int i=0; i<n_polys-1; i++) {
 
-     // skip if already suppressed
-	 if (suppressed[i])
-	   continue;
 
      // if verbose, print progress bar
      if (verbose){
        int prog_len = 40;
        int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-       int prog_percentage = 100*count_total/n_polys;
+       float prog_percentage = 100.*count_total/n_polys;
 
-       std::string s = std::string(prog_len*prog_percentage/100, '#') + std::string(prog_len-prog_len*prog_percentage/100, ' ');
-       printf("|%s| [%d %%]\r",s.c_str(), (int)(prog_percentage));
+       int w = prog_len*prog_percentage/100;
+       std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
+       printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+       printf(i==n_polys-2?"\n":"\r");
        fflush(stdout);
      }
+
+     // skip if already suppressed
+	 if (suppressed[i])
+	   continue;
 
 
 	 // the size of the bbox region of interest
@@ -1232,7 +1235,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   iou = A_inter_render/(A_min+1e-10);
 
 	   if (verbose>=2){
-		 printf("\n%d %d \t %.0f < %.0f < %.0f\n",i,j, A_inter_kernel, A_inter_render, A_inter_convex);
+		 printf("%d %d \t %.0f < %.0f < %.0f\n",i,j, A_inter_kernel, A_inter_render, A_inter_convex);
 		 printf("%d %d \t %.2f < %.2f < %.2f\n",i,j, A_inter_kernel/A_min, A_inter_render/A_min, A_inter_convex/A_min);
 	   }
 
@@ -1255,7 +1258,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 
    if (verbose>=1){
-	 printf("\nNMS: Function calls:\n");
+	 printf("NMS: Function calls:\n");
 	 printf("NMS: ~ bbox+out: %8d\n", count_call_upper);
 	 printf("NMS: ~ inner:    %8d\n", count_call_lower);
 	 printf("NMS: ~ kernel:   %8d\n", count_call_kernel);

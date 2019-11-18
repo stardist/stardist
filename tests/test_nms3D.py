@@ -29,12 +29,12 @@ def test_label():
 
 
 
-def test_nms_and_label(n_rays = 32, nms_thresh=0.1):
-    points, rays, disti = test_nms(n_rays, nms_thresh, (33,44,55))
-    lbl = polyhedron_to_label(disti,points, rays, shape = (33,44,55))
+def test_nms_and_label(n_rays = 32, nms_thresh=0.1, shape = (33,44,55)):
+    points, rays, disti = test_nms(n_rays, nms_thresh, shape)
+    lbl = polyhedron_to_label(disti,points, rays, shape = shape)
     return lbl
 
 
 if __name__ == '__main__':
     np.random.seed(42)
-    lbl = test_nms_and_label()
+    lbl = test_nms_and_label(32,.2,(44,55,66))
