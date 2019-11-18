@@ -16,6 +16,8 @@ from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
+from skimage.morphology import watershed
+from scipy.ndimage import zoom
 
 from .base import StarDistBase, StarDistDataBase
 from ..utils import edt_prob, _normalize_grid
@@ -23,6 +25,7 @@ from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
 from ..nms import non_maximum_suppression_3d
+from ..affinity import dist_to_affinity3D
 
 
 
@@ -482,7 +485,7 @@ class StarDist3D(StarDistBase):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
-        if affinity: raise NotImplementedError("not yet implemented")
+        # if affinity: raise NotImplementedError("not yet implemented")
         
         rays = rays_from_json(self.config.rays_json)
         points, probi, disti = non_maximum_suppression_3d(dist, prob, rays,
@@ -492,7 +495,28 @@ class StarDist3D(StarDistBase):
                                                           **nms_kwargs)
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
-        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
+
+        if affinity:
+            print("using affinity")
+            zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
+            aff, aff_neg = dist_to_affinity3D(dist,
+                                              rays = rays, 
+                                              weights = prob>=affinity_thresh,
+                                              grid = self.config.grid,
+                                              normed=True, verbose = True);
+
+            ws_potential = zoom(np.mean(aff,-1)*prob,
+                                zoom_factor, order=1)
+            mask         = ws_potential>affinity_thresh
+            # markers      = np.zeros(img_shape, np.int32)
+            # markers[points[:,0],points[:,1],points[:,2]] = np.arange(len(points))+1
+            markers = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
+
+            labels = watershed(-ws_potential, markers=markers,mask=mask)
+            
+        else:
+            labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
+        
 
         # map the overlap_label to something positive and back
         # (as relabel_sequential doesn't like negative values)
