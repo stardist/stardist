@@ -1059,21 +1059,21 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    // suppress (double loop)
    for (int i=0; i<n_polys-1; i++) {
 
+     // skip if already suppressed
+	 if (suppressed[i])
+	   continue;
 
      // if verbose, print progress bar
-     int prog_len = 40;
-	 int count_suppressed_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-     int prog_percentage = 100*count_suppressed_total/n_polys;
-     
-     if ((verbose) &&(prog_percentage%2==0)){
+     if (verbose){
+       int prog_len = 40;
+       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+       int prog_percentage = 100*count_total/n_polys;
+
        std::string s = std::string(prog_len*prog_percentage/100, '#') + std::string(prog_len-prog_len*prog_percentage/100, ' ');
        printf("|%s| [%d %%]\r",s.c_str(), (int)(prog_percentage));
        fflush(stdout);
      }
 
-     // skip if already suppressed
-	 if (suppressed[i])
-	   continue;
 
 	 // the size of the bbox region of interest
 
