@@ -45,7 +45,21 @@ def test_nms_and_label(nms_thresh=0.1, shape = (33,44,55),noise = .1, n_rays = 3
     lbl = polyhedron_to_label(disti,points, rays, shape = shape)
     return lbl
 
+def test_speed(noises = (0,0.1,.2)):
+    from time import time
+
+    def _bench(noise):
+        t = time()
+        create_random_suppressed(.3, shape = (22,33,44), noise = noise, n_rays = 32)
+        return time()-t
+
+    ts = tuple(map(_bench, noises))
+    for t, noise in zip(ts, noises):
+        print(f"noise = {noise:.2f}\t t = {t:.2f} s")
+    return ts
+    
 
 if __name__ == '__main__':
     np.random.seed(42)
-    lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
+    # lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
+    test_speed((0.2,))
