@@ -398,7 +398,7 @@ class StarDistBase(BaseModel):
                                                **nms_kwargs)
 
 
-    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], affinity = False, predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], affinity = False, measure = "accuracy", predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
         Note that the default thresholds yield good results in many cases, but optimizing
@@ -421,6 +421,10 @@ class StarDistBase(BaseModel):
         iou_threshs : list of float
             List of intersection over union (IOU) thresholds for which
             the (average) matching performance is considered to tune the thresholds.
+        affinity : boolean
+            If true, use affinity refinement step in instance prediction 
+        measure : str
+            The quality metric measure to maximize (default: 'accuracy')
         predict_kwargs: dict
             Keyword arguments for ``predict`` function of this class.
             (If not provided, will guess value for `n_tiles` to prevent out of memory errors.)
@@ -443,7 +447,7 @@ class StarDistBase(BaseModel):
 
         opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
         for _opt_nms_thresh in nms_threshs:
-            _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, affinity = affinity, iou_threshs=iou_threshs, **optimize_kwargs)
+            _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, affinity = affinity, iou_threshs=iou_threshs, measure = measure, **optimize_kwargs)
             if _opt_measure > opt_measure:
                 opt_prob_thresh, opt_measure, opt_nms_thresh = _opt_prob_thresh, _opt_measure, _opt_nms_thresh
         opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)

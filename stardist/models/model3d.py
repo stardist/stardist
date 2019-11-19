@@ -493,9 +493,12 @@ class StarDist3D(StarDistBase):
                                                           prob_thresh=prob_thresh,
                                                           nms_thresh=nms_thresh,
                                                           **nms_kwargs)
+        # TODO: convert to polyhedra faces?
+        result_dict = dict(dist=disti, points=points, prob=probi, rays=rays)
+
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
-
+        
         if affinity:
             print("using affinity")
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
@@ -513,11 +516,13 @@ class StarDist3D(StarDistBase):
             markers = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
 
             labels = watershed(-ws_potential, markers=markers,mask=mask)
+            result_dict["affinity"] = aff
+            result_dict["markers"] = markers
             
         else:
             labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
         
-
+        
         # map the overlap_label to something positive and back
         # (as relabel_sequential doesn't like negative values)
         if overlap_label is not None and overlap_label<0:
@@ -529,8 +534,9 @@ class StarDist3D(StarDistBase):
         else:
             labels, _,_ = relabel_sequential(labels)
             
-        # TODO: convert to polyhedra faces?
-        return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
+            
+        return labels, result_dict
+            
 
 
     def _axes_div_by(self, query_axes):

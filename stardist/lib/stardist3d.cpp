@@ -1059,7 +1059,6 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    // suppress (double loop)
    for (int i=0; i<n_polys-1; i++) {
 
-
      // if verbose, print progress bar
      if (verbose){
        int prog_len = 40;
