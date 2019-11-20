@@ -10,6 +10,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <chrono>
 
 #include "libqhullcpp/QhullFacet.h"
 #include "libqhullcpp/QhullError.h"
@@ -571,7 +572,7 @@ void render_polyhedron(const float * const dist, const float * const center,
 int overlap_render_polyhedron(const float * const dist, const float * const center,
 					   const int * const bbox, const float * const polyverts,
 					   const int * const faces, const int n_rays, const int n_faces,
-					   const bool * const rendered, const int Nz, const int Ny, const int Nx){
+                              const bool * const rendered, const int Nz, const int Ny, const int Nx, const float overlap_maximal){
 
   // printf("rendering polygon of bbox size %d %d %d \n",Nz,Ny,Nx);
 
@@ -587,6 +588,9 @@ int overlap_render_polyhedron(const float * const dist, const float * const cent
 
 		res += ((rendered[x+y*Nx+z*Nx*Ny]) && (inside_polyhedron(pz, py, px ,center, polyverts, faces, n_rays, n_faces)));
 
+        if (res>overlap_maximal){
+          return res;
+        }
 	  }
 	}
   }
@@ -793,9 +797,8 @@ inline float qhull_overlap_kernel(
 	int iC = faces[3*i+2];
 
 	halfspaces.push_back(build_halfspace(&polyverts1[3*iA],
-									  &polyverts1[3*iB],
+                                         &polyverts1[3*iB],
 										 &polyverts1[3*iC]));
-
 
 	halfspaces.push_back(build_halfspace(&polyverts2[3*iA],
 										 &polyverts2[3*iB],
@@ -808,7 +811,6 @@ inline float qhull_overlap_kernel(
   interior_point[0] = .5*(center1[0]+center2[0]);
   interior_point[1] = .5*(center1[1]+center2[1]);
   interior_point[2] = .5*(center1[2]+center2[2]);
-
 
 
   return qhull_volume_halfspace_intersection(
@@ -908,7 +910,11 @@ inline float qhull_overlap_convex_hulls(
 }
 
 
-
+float diff_time(const std::chrono::time_point<std::chrono::high_resolution_clock> start){
+  auto stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = stop-start;
+  return std::chrono::duration<double>(stop-start).count();
+}
 
 // dist.shape = (n_polys, n_rays)
 // points.shape = (n_polys, 3)
@@ -1049,6 +1055,10 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    int count_call_render = 0;
    int count_call_convex = 0;
 
+   float timer_call_kernel = 0;
+   float timer_call_convex = 0;
+   float timer_call_render = 0;
+   
    //initialize indices
    for (int i=0; i<n_polys; i++) {
        suppressed[i] = false;
@@ -1056,18 +1066,21 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
    float * curr_polyverts = new float[3*n_rays];
 
+   int status_percentage = 0;
+
    // suppress (double loop)
    for (int i=0; i<n_polys-1; i++) {
 
-     // if verbose, print progress bar
-     if (verbose){
-       int prog_len = 40;
-       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-       float prog_percentage = 100.*count_total/n_polys;
+     long count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+     int status_percentage_new = 100*count_total/n_polys;
 
-       int w = prog_len*prog_percentage/100;
+     // if verbose is set print progress bar
+     if (verbose and status_percentage_new!= status_percentage){
+       status_percentage = status_percentage_new;
+       int prog_len = 40;
+       int w = prog_len*status_percentage/100;
        std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
-       printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+       printf("|%s| [%d %% suppressed]",s.c_str(), status_percentage);
        printf(i==n_polys-2?"\n":"\r");
        fflush(stdout);
      }
@@ -1097,6 +1110,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 const float * const curr_point = &points[3*i];
 	 const int *   const curr_bbox  = &bbox[6*i];
 
+     bool * curr_rendered = NULL;
+     
 	 int Nz = curr_bbox[1]-curr_bbox[0]+1;
 	 int Ny = curr_bbox[3]-curr_bbox[2]+1;
 	 int Nx = curr_bbox[5]-curr_bbox[4]+1;
@@ -1104,17 +1119,32 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 // compute polyverts
 	 polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
 
+     // bool * rendered2 = new bool[Nz*Ny*Nx];
 
+     // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
+	 //    			   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
+     // delete [] rendered2;
 
+     
 	 //  inner loop
 	 //  can be parallelized....
-#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) reduction(+:count_suppressed_rendered) reduction(+:count_call_kernel) reduction(+:count_call_render) reduction(+:count_call_lower) reduction(+:count_call_upper) reduction(+:count_call_convex) reduction(+:count_kept_pretest) reduction(+:count_kept_convex)
+#pragma omp parallel for schedule(dynamic) \
+  reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) \
+  reduction(+:count_suppressed_rendered)                                \
+  reduction(+:count_call_kernel) reduction(+:count_call_render)         \
+  reduction(+:count_call_lower)                                         \
+  reduction(+:count_call_upper) reduction(+:count_call_convex)          \
+  reduction(+:count_kept_pretest) reduction(+:count_kept_convex)        \
+  reduction(+:timer_call_kernel) reduction(+:timer_call_convex)        \
+  reduction(+:timer_call_render) \
+  shared(curr_rendered)
 
 	 for (int j=i+1; j<n_polys; j++) {
 
 	   if (suppressed[j])
 		 continue;
 
+       std::chrono::time_point<std::chrono::high_resolution_clock> time_start;
 	   float iou = 0;
 	   float A_min = fmin(volumes[i], volumes[j]);
 	   float A_inter = 0;
@@ -1131,7 +1161,6 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   											 ),
 	   				  intersect_bbox(&bbox[6*i],&bbox[6*j]));
 	   count_call_upper++;
-
 
 	   // if it doesn't intersect at all, we can move on...
 	   iou = fmin(1.f,A_inter/(A_min+1e-10));
@@ -1171,32 +1200,17 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   // ------- second check: kernel intersection (lower bound)
 
 
-	   // // // compute overlap with rendered kernel
-	   // bool * rendered2 = new bool[Nz*Ny*Nx];
-	   // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-	   // 				   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
-
-	   // float A_inter_kernel_old = overlap_render_polyhedron_kernel(&dist[j*n_rays],
-	   // 											 &points[3*j],
-	   // 											 curr_bbox,
-	   // 											 polyverts,
-	   // 											 faces, n_rays, n_faces,
-	   // 											 rendered2, Nz, Ny, Nx);
-	   // delete [] rendered2;
-
-	   // kernel intersection via qhull (lower bound)
-
+       time_start = std::chrono::high_resolution_clock::now();
+       
 	   float A_inter_kernel = qhull_overlap_kernel(
 	   								  curr_polyverts, curr_point,
 	   								  polyverts, &points[3*j],
 	   								  faces, n_rays, n_faces);
+
 	   count_call_kernel++;
-
-
+       timer_call_kernel += diff_time(time_start);
+       
 	   iou = A_inter_kernel/(A_min+1e-10);
-
-	   // printf("%d %d A_kernel:\t %.0f \t %.2f\n",i,j, A_inter_kernel_old, A_inter_kernel);
-
 
 	   if (iou>threshold){
 	   	 count_suppressed_kernel++;
@@ -1206,17 +1220,17 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	   }
 
 	   // ------- third check: intersection of convex hull (upper bound)
+       time_start = std::chrono::high_resolution_clock::now();
 
 	   float A_inter_convex = qhull_overlap_convex_hulls(
 	   								  curr_polyverts, curr_point,
 	   								  polyverts, &points[3*j],
 	   								  faces, n_rays, n_faces);
 	   count_call_convex++;
+       timer_call_convex += diff_time(time_start);
 
 
 	   iou = A_inter_convex/(A_min+1e-10);
-
-	   // printf("%d %d A_convex:\t %.0f \t %.2f\n",i,j, A_inter, iou);
 
 	   if (iou<=threshold){
 	   	 count_kept_convex++;
@@ -1226,24 +1240,32 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 
 	   // ------- forth/final check  (polygon rendering, exact)
-
-
-	   // render polyhedron
-	   bool * rendered = new bool[Nz*Ny*Nx];
-
        
+	   // render polyhedron
+       time_start = std::chrono::high_resolution_clock::now();
 
-	   render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-					   faces, n_rays, n_faces,  rendered, Nz, Ny, Nx);
-
+       // check whether render buffer was already created 
+       // if not, create it in a critical section  
+#pragma omp critical
+       if (!curr_rendered){
+         {
+           curr_rendered = new bool[Nz*Ny*Nx];
+           render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
+	    			   faces, n_rays, n_faces,  curr_rendered, Nz, Ny, Nx);
+           
+         }
+       }
+       
 	   float A_inter_render = overlap_render_polyhedron(&dist[j*n_rays],
-										   &points[3*j],
-										   curr_bbox,
-										   polyverts,
-										   faces, n_rays, n_faces,
-										   rendered, Nz, Ny, Nx);
+                                                        &points[3*j],
+                                                        curr_bbox,
+                                                        polyverts,
+                                                        faces, n_rays, n_faces,
+                                                        curr_rendered, Nz, Ny, Nx,
+                                                        (A_min+1e-10)*threshold
+                                                        );
 	   count_call_render++;
-
+       timer_call_render += diff_time(time_start);
 
 	   iou = A_inter_render/(A_min+1e-10);
 
@@ -1252,20 +1274,18 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 		 printf("%d %d \t %.2f < %.2f < %.2f\n",i,j, A_inter_kernel/A_min, A_inter_render/A_min, A_inter_convex/A_min);
 	   }
 
-	   // printf("%d %d A_render:\t %.0f \t %.2f\n",i,j, A_inter, iou);
-
 	   if (iou>threshold){
 	   	 count_suppressed_rendered++;
 	   	 suppressed[j] = true;
 		 delete[] polyverts;
-		 delete [] rendered;
 	   	 continue;
 	   }
 
 	   delete[] polyverts;
-	   delete [] rendered;
 
 	 }
+
+     delete [] curr_rendered;
 
    }
 
@@ -1277,6 +1297,11 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 printf("NMS: ~ kernel:   %8d\n", count_call_kernel);
 	 printf("NMS: ~ convex:   %8d\n", count_call_convex);
 	 printf("NMS: ~ render:   %8d\n", count_call_render);
+
+	 printf("NMS: Function calls timing:\n");
+	 printf("NMS: / kernel:   %.2f s  (%.2f ms per call)\n", timer_call_kernel, 1000*timer_call_kernel/(1e-10+count_call_kernel));
+     printf("NMS: / convex:   %.2f s  (%.2f ms per call)\n", timer_call_convex, 1000*timer_call_convex/(1e-10+count_call_convex));
+	 printf("NMS: / render:   %.2f s  (%.2f ms per call)\n", timer_call_render, 1000*timer_call_render/(1e-10+count_call_render));
 
 	 printf("NMS: Excluded intersection:\n");
 	 printf("NMS: + pretest:  %8d\n", count_kept_pretest);
