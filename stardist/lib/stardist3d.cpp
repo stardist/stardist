@@ -1075,7 +1075,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
      int status_percentage_new = 100*count_total/n_polys;
 
      // if verbose is set print progress bar
-     if (verbose and status_percentage_new!= status_percentage){
+     if ((verbose) and (status_percentage_new!= status_percentage)){
        status_percentage = status_percentage_new;
        int prog_len = 40;
        int w = prog_len*status_percentage/100;
