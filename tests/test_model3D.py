@@ -85,5 +85,26 @@ def test_optimize_thresholds():
     assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())         
     return model
 
+
+@pytest.mark.parametrize('n_tiles',((1,1,1),(2,2,2)))
+def test_dense_sparse(n_tiles):
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+
+    label1,_ = model.predict_instances(x,
+                                       n_tiles = n_tiles,
+                                     nms_kwargs = dict(verbose=True))
+    
+    label2,_ = model.predict_instances(x, sparse = True,
+                                       n_tiles = n_tiles,
+                                     nms_kwargs = dict(verbose=True))
+
+    assert np.allclose(label1, label2)
+    return label1, label2
+
+
 if __name__ == '__main__':
-    model, lbl = test_load_and_predict_with_overlap()
+    # model, lbl = test_load_and_predict_with_overlap()
+    p1,p2 = test_dense_sparse((1,1,1))

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from stardist import non_maximum_suppression_3d, polyhedron_to_label
+from stardist import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse, polyhedron_to_label
 from stardist import Rays_GoldenSpiral
 from utils import random_image, check_similar
 
@@ -57,9 +57,43 @@ def test_speed(noises = (0,0.1,.2)):
     for t, noise in zip(ts, noises):
         print(f"noise = {noise:.2f}\t t = {t:.2f} s")
     return ts
+
+@pytest.mark.parametrize('b', (None,2))
+@pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
+def test_dense_sparse(b, grid):
+    from stardist.nms import _ind_prob_thresh
     
+    prob, dist, rays  = create_random_data(shape = (22,33,44), noise = .2, n_rays = 32)
+
+    nms_thresh  = 0.3
+    prob_thresh = 0.9
+    
+    points1, probi1, disti1 = non_maximum_suppression_3d(dist, prob, rays,
+                                                         prob_thresh=prob_thresh,
+                                                         grid = grid,
+                                                         b = b, 
+                                                         nms_thresh = nms_thresh,
+                                                         verbose=True)
+
+    inds   = _ind_prob_thresh(prob, prob_thresh, b=b)
+    points = np.stack(np.where(inds), axis=1)
+    points = (points * np.array(grid).reshape((1,3)))
+
+    
+    points2, probi2, disti2 = non_maximum_suppression_3d_sparse(dist[inds], prob[inds],
+                                                    points, 
+                                                    rays,
+                                                    nms_thresh = nms_thresh,
+                                                    verbose=True)
+    assert np.allclose(points1, points2)
+    assert np.allclose(probi1, probi2)
+    assert np.allclose(disti1, disti2)
+    return points1, points2
+
 
 if __name__ == '__main__':
     np.random.seed(42)
     # lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
-    test_speed((0.2,))
+    # test_speed((0.2,))
+
+    p1, p2 = test_dense_sparse(b=None, grid = (1,1,1))
