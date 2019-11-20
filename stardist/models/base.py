@@ -477,10 +477,10 @@ class StarDistBase(BaseModel):
 
     def predict_instances(self, img, axes=None, normalizer=None,
                           prob_thresh=None, nms_thresh=None,
+                          sparse = False, affinity=False, affinity_thresh=None,
                           n_tiles=None, show_tile_progress=True,
-                          sparse = False, 
-                          affinity=False, affinity_thresh=None,
-                          predict_kwargs=None, nms_kwargs=None, overlap_label = None):
+                          verbose = 0, predict_kwargs=None, nms_kwargs=None,
+                          overlap_label = None):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -499,6 +499,13 @@ class StarDistBase(BaseModel):
         nms_thresh : float or None
             Perform non-maximum suppression that considers two objects to be the same
             when their area/surface overlap exceeds this threshold (also see `optimize_thresholds`).
+        sparse: bool 
+            If set, aggregate probabilities/distances sparsely during tiled 
+            prediction to save memory (recommended)
+        affinity: bool
+            If set, refine output labels with affinity 
+        affinity_thresh: float
+            Threshold parameter for refinement (affinity watershed threshold)
         n_tiles : iterable or None
             Out of memory (OOM) errors can occur if the input image is too large.
             To avoid this problem, the input image is broken up into (overlapping) tiles
@@ -526,6 +533,8 @@ class StarDistBase(BaseModel):
         if nms_kwargs is None:
             nms_kwargs = {}
 
+        nms_kwargs.setdefault("verbose", verbose)
+        
         _axes         = self._normalize_axes(img, axes)
         _axes_net     = self.config.axes
         _permute_axes = self._make_permute_axes(_axes, _axes_net)

@@ -94,12 +94,14 @@ def test_dense_sparse(n_tiles):
     x = normalize(img,1,99.8)
 
     label1,_ = model.predict_instances(x,
+                                       sparse = False,
                                        n_tiles = n_tiles,
-                                     nms_kwargs = dict(verbose=True))
+                                       nms_kwargs = dict(verbose=True))
     
-    label2,_ = model.predict_instances(x, sparse = True,
+    label2,_ = model.predict_instances(x,
+                                       sparse = True,
                                        n_tiles = n_tiles,
-                                     nms_kwargs = dict(verbose=True))
+                                       nms_kwargs = dict(verbose=True))
 
     assert np.allclose(label1, label2)
     return label1, label2
