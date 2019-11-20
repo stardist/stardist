@@ -55,7 +55,7 @@ def test_speed(noises = (0,0.1,.2)):
 
     ts = tuple(map(_bench, noises))
     for t, noise in zip(ts, noises):
-        print(f"noise = {noise:.2f}\t t = {t:.2f} s")
+        print("noise = {noise:.2f}\t t = {t:.2f} s".format(noise=noise,t=t))        
     return ts
 
 @pytest.mark.parametrize('b', (None,2))
