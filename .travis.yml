@@ -11,6 +11,7 @@ branches:
   only:
     - master
     - dev
+    - refinement
 
 env:
   - TENSORFLOW='tensorflow<2' KERAS='keras'
