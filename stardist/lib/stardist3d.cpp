@@ -1066,19 +1066,21 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
    float * curr_polyverts = new float[3*n_rays];
 
+   int status_percentage = 0;
+
    // suppress (double loop)
    for (int i=0; i<n_polys-1; i++) {
 
+     long count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+     int status_percentage_new = 100*count_total/n_polys;
 
-     // if verbose, print progress bar
-     if (verbose){
+     // if verbose is set print progress bar
+     if (verbose and status_percentage_new!= status_percentage){
+       status_percentage = status_percentage_new;
        int prog_len = 40;
-       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-       float prog_percentage = 100.*count_total/n_polys;
-
-       int w = prog_len*prog_percentage/100;
+       int w = prog_len*status_percentage/100;
        std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
-       printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+       printf("|%s| [%d %% suppressed]",s.c_str(), status_percentage);
        printf(i==n_polys-2?"\n":"\r");
        fflush(stdout);
      }
