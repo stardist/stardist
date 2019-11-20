@@ -1134,7 +1134,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
   reduction(+:count_call_upper) reduction(+:count_call_convex)          \
   reduction(+:count_kept_pretest) reduction(+:count_kept_convex)        \
   reduction(+:timer_call_kernel) reduction(+:timer_call_convex)        \
-  reduction(+:timer_call_render) 
+  reduction(+:timer_call_render) \
+  shared(curr_rendered)
 
 	 for (int j=i+1; j<n_polys; j++) {
 
@@ -1243,8 +1244,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
        // check whether render buffer was already created 
        // if not, create it in a critical section  
-       if (!curr_rendered){
 #pragma omp critical
+       if (!curr_rendered){
          {
            curr_rendered = new bool[Nz*Ny*Nx];
            render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
@@ -1282,7 +1283,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 	 }
 
-     delete curr_rendered;
+     delete [] curr_rendered;
 
    }
 
