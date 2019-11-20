@@ -166,7 +166,7 @@ class StarDistBase(BaseModel):
         self.thresholds = dict (
             prob     = 0.5 if threshs['prob'] is None else threshs['prob'],
             nms      = 0.4 if threshs['nms']  is None else threshs['nms'],
-            affinity = 0.05 if threshs['affinity'] is None else threshs['affinity'],
+            affinity = 0.1 if threshs['affinity'] is None else threshs['affinity'],
         )
         print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}, affinity_thresh={affinity}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms, affinity=self.thresholds.affinity))
 
@@ -622,11 +622,12 @@ class StarDistBase(BaseModel):
             _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, affinity = affinity, iou_threshs=iou_threshs, measure = measure, **optimize_kwargs)
             if _opt_measure > opt_measure:
                 opt_prob_thresh, opt_measure, opt_nms_thresh = _opt_prob_thresh, _opt_measure, _opt_nms_thresh
-        opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)
+        opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh,
+                           affinity=self.thresholds.affinity)
 
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
-        print("Using optimized values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+        print("Using optimized values: prob_thresh={prob:g}, nms_thresh={nms:g}, affinity_thresh={affinity:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms, affinity= self.thresholds.affinity))
         if save_to_json and self.basedir is not None:
             print("Saving to 'thresholds.json'.")
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))

@@ -71,9 +71,14 @@ def test_optimize_thresholds():
     img, mask = real_image3d()
     x = normalize(img,1,99.8)
     def _opt(model):
+        # return model.optimize_thresholds([x],[mask],
+        #                             nms_threshs = [.3,.5],
+        #                             iou_threshs = [.3,.5],
+        #                             optimize_kwargs = dict(tol=1e-1),
+        #                             save_to_json = False)
         return model.optimize_thresholds([x],[mask],
-                                    nms_threshs = [.3,.5],
-                                    iou_threshs = [.3,.5],
+                                    nms_threshs = [.3],
+                                    iou_threshs = [.3],
                                     optimize_kwargs = dict(tol=1e-1),
                                     save_to_json = False)
 
