@@ -883,36 +883,6 @@ inline float qhull_overlap_convex_hulls(
                                              1.e10 // err_value
                                                );
 
-	// // intersect all halfspaces
-    // std::vector<double> interior_point = {.5*(pcenter1[0]+pcenter2[0]),
-	// 									  .5*(pcenter1[1]+pcenter2[1]),
-	// 									  .5*(pcenter1[2]+pcenter2[2])};
-
-    // Qhull qhalf;
-    // qhalf.setFeasiblePoint(Coordinates(interior_point));
-    // qhalf.runQhull("halfspaces", DIM+1, halfspaces.size()/(DIM+1), halfspaces.data(), "H");
-
-    // // reconstruct convex hull and return volume
-
-    // std::vector<std::array<double,DIM>> intersections;
-
-
-    // auto facetlist = qhalf.facetList();
-    // for (auto itr = facetlist.begin(); itr != facetlist.end(); ++itr){
-    //   std::array<coordT,DIM> inter;
-    //   QhullHyperplane plane = (*itr).hyperplane();
-
-    //   for (int i = 0; i < DIM; ++i)
-    // 	inter[i] = -plane[i]/plane.offset() + interior_point[i];
-
-    //   intersections.push_back(inter);
-    // }
-
-    // Qhull qvert("convex hull", DIM, intersections.size(), intersections[0].data(), "");
-
-
-    // return qvert.volume();
-
     
   }
 
