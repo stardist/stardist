@@ -485,7 +485,7 @@ class StarDist3D(StarDistBase):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
-        # if affinity: raise NotImplementedError("not yet implemented")
+        if affinity and points is not None: raise NotImplementedError("sparse and affinity not yet implemented")
         
         rays = rays_from_json(self.config.rays_json)
 

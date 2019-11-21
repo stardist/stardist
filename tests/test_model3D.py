@@ -51,6 +51,19 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
     return model, labels
 
+@pytest.mark.parametrize()
+def test_load_and_predict_instances(affinity,sparse):
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+    labels, _ = model.predict_instances(x, affinity = affinity, sparse = sparse)
+    assert labels.shape == img.shape[:3]
+    stats = matching(mask, labels, thresh=0.5)
+    assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
+    return model, labels
+
+
 def test_load_and_predict_with_overlap():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
