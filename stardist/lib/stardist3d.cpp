@@ -822,7 +822,7 @@ inline float qhull_overlap_kernel(
   return qhull_volume_halfspace_intersection(
   											 (double *)&halfspaces[0],
   											 interior_point,
-  											 halfspaces.size()/4,
+  											 halfspaces.size(),
                                              0.f // err_value
                                              );
 

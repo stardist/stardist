@@ -54,7 +54,7 @@ def test_nms_accuracy(noise, n_rays):
     shape = (40,55,66)
     rays = Rays_GoldenSpiral(n_rays)
     dist = 10*(1+noise*np.sin(2*np.pi*rays.vertices[:,:2].T))
-    points = [(20,20,20),(20+dx,20+2*dx,20-dx)]
+    points = [(20,20,20),(20,20,20+dx)]
     mask1 = polyhedron_to_label([dist[0]],[points[0]], rays, shape =shape)
     mask2 = polyhedron_to_label([dist[1]],[points[1]], rays, shape =shape)
     iou = np.count_nonzero(mask1*mask2)/min(np.count_nonzero(mask1), np.count_nonzero(mask2)+1e-10)
@@ -66,9 +66,8 @@ def test_nms_accuracy(noise, n_rays):
                                                    verbose = True)
     sup2, _,_  = non_maximum_suppression_3d_sparse(dist,prob,points,
                                                    rays = rays,
-                                                   nms_thresh = 1.15*iou,
+                                                   nms_thresh = 1.05*iou,
                                                    verbose = True)
-    print(len(sup1),len(sup2))
     assert len(sup1)==1 and len(sup2)==2
     return mask1, mask2
 
@@ -136,9 +135,8 @@ def test_special_case(noise=.4, dx = 9):
     return mask1, mask2
 
 if __name__ == '__main__':
-    np.random.seed(42)
-    lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
-    # test_speed((0.4,))
+    # lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
+    test_speed((0.2,))
 
     # p1, p2 = test_dense_sparse(b=None, grid = (1,1,1))
 
@@ -148,3 +146,4 @@ if __name__ == '__main__':
     # lbl = test_nms_and_label(noise=0.1) 
 
     # m1, m2 = test_special_case(.4,9)
+    # m1, m2 = test_nms_accuracy(noise=0, n_rays=7) 
