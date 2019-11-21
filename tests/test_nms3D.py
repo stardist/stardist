@@ -5,7 +5,8 @@ from stardist import Rays_GoldenSpiral
 from utils import random_image, check_similar
 np.random.seed(42)
 
-def create_random_data(shape = (64,65,67), noise = .1, n_rays = 32, eps = (1,.6,.8)):
+# def create_random_data(shape = (64,65,67), noise = .1, n_rays = 32, eps = (1,.6,.8)):
+def create_random_data(shape = (64,65,67), noise = .1, n_rays = 32, eps = (1,1,1)):
     prob = np.random.uniform(0,1,shape)
     rays0 = Rays_GoldenSpiral(n_rays)
     dist = 10*np.broadcast_to(np.sum((rays0.vertices**2)*np.array(eps),1),shape+(n_rays,))
@@ -24,12 +25,12 @@ def create_random_suppressed(nms_thresh = .4, shape = (33,44,55), noise = .1, n_
     return points, probi, disti, rays
     
 
-@pytest.mark.parametrize('n_rays, nms_thresh, shape',
-                         [(5,  0, (33,44,55)),
-                          (14,.2, (43,31,34)),
-                          (22,.4, (33,44,55)),
-                          (32,.6, (33,44,55))])
-def test_nms(n_rays, nms_thresh, shape):
+@pytest.mark.parametrize('n_rays, nms_thresh, shape, noise',
+                         [(5,  0, (33,44,55),  0),
+                          (14,.2, (43,31,34), .1),
+                          (22,.4, (33,44,55),  0),
+                          (32,.6, (33,44,55), .1)])
+def test_nms(n_rays, nms_thresh, shape,noise):
     points, probi, disti, rays = create_random_suppressed(nms_thresh, shape = shape, noise = 0, n_rays = n_rays)
     return points, rays, disti
 
@@ -117,12 +118,33 @@ def test_dense_sparse(b, grid):
     assert np.allclose(disti1, disti2)
     return points1, points2
 
+def test_special_case(noise=.4, dx = 9):
+    n_rays = 66
+    shape = (40,55,66)
+    rays = Rays_GoldenSpiral(n_rays)
+    # dist = 10*(1+noise*np.sin(2*np.pi*rays.vertices[:,:2].T))
+    dist = np.broadcast_to(10*(1+noise*np.sin(2*np.pi*rays.vertices[:,2])),(2,n_rays))
+    points = [(20,20,20),(20,20,20+dx)]
+    prob = (.6,.4)
+    non_maximum_suppression_3d_sparse(dist,prob,points,
+                                      rays = rays,
+                                      nms_thresh = .4,
+                                      verbose = True)
+
+    mask1 = polyhedron_to_label([dist[0]],[points[0]], rays, shape =shape)
+    mask2 = polyhedron_to_label([dist[1]],[points[1]], rays, shape =shape)
+    return mask1, mask2
 
 if __name__ == '__main__':
     np.random.seed(42)
     # lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
-    # test_speed((0.2,))
+    test_speed((0.4,))
 
     # p1, p2 = test_dense_sparse(b=None, grid = (1,1,1))
 
-    m1, m2 = test_nms_accuracy(noise=0.1, n_rays=66)
+    # m1, m2 = test_nms_accuracy(noise=0.2, n_rays=66)
+    # test_nms(20,.2,(50,50,50),0.6); 
+
+    # lbl = test_nms_and_label(noise=0.1) 
+
+    # m1, m2 = test_special_case(.4,9)

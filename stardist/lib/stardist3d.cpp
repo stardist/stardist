@@ -646,17 +646,20 @@ inline float qhull_volume_halfspace_intersection(const double * halfspaces,
   // intersect halfspaces
   Qhull q;
   q.setFeasiblePoint(Coordinates(int_point));
-
+    
   try{
   	q.runQhull("halfspaces", DIM+1, nhalfspaces, halfspaces, "H");
   }
   catch(QhullError &e){
   	// e.errorCode==6023 for not valid feasible point
-    // for (int i = 0; i < nhalfspaces; ++i)
-    //   printf("%.2f\n",halfspaces[i]);
-	// std::cout << "creation of kernel"<<std::endl;
+	// std::cout << "halfspace intersection"<<std::endl;
 	// std::cout <<e.what()<< std::endl;
-  	return err_value;
+    // for (int i = 0; i < nhalfspaces; ++i) 
+    //   printf("%.2f %.2f %.2f %.2f\n",halfspaces[4*i+0],halfspaces[4*i+1],halfspaces[4*i+2],halfspaces[4*i+3]);
+    // printf("nHalfsspaces %d\n", nhalfspaces);
+    
+    
+	return err_value;
   }
   // construct intersection points
   // see https://github.com/scipy/scipy/blob/master/scipy/spatial/qhull.pyx#L2724
@@ -819,7 +822,7 @@ inline float qhull_overlap_kernel(
   return qhull_volume_halfspace_intersection(
   											 (double *)&halfspaces[0],
   											 interior_point,
-  											 halfspaces.size(),
+  											 halfspaces.size()/4,
                                              0.f // err_value
                                              );
 
@@ -846,7 +849,7 @@ inline float qhull_overlap_convex_hulls(
 	// get pointer
 	double pcenter1[] = {center1[0], center1[1], center1[2]};
 	double pcenter2[] = {center2[0], center2[1], center2[2]};
-
+    
 	// build convex hulls of the polygon
 	Qhull qvert1("convex hull", DIM, n_rays, (double *)&verts1[0], "");
 	Qhull qvert2("convex hull", DIM, n_rays, (double *)&verts2[0], "");
@@ -872,6 +875,7 @@ inline float qhull_overlap_convex_hulls(
 	  halfspaces.push_back(plane.offset());
 	}
 
+
     double interior_point[DIM] = {.5*(pcenter1[0]+pcenter2[0]),
 										  .5*(pcenter1[1]+pcenter2[1]),
 										  .5*(pcenter1[2]+pcenter2[2])};
@@ -879,7 +883,7 @@ inline float qhull_overlap_convex_hulls(
     return qhull_volume_halfspace_intersection(
   											 (double *)&halfspaces[0],
   											 interior_point,
-  											 halfspaces.size(),
+  											 halfspaces.size()/4,
                                              1.e10 // err_value
                                                );
 
@@ -1104,11 +1108,15 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 // compute polyverts
 	 polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
 
-     // bool * rendered2 = new bool[Nz*Ny*Nx];
-
-     // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-	 //    			   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
-     // delete [] rendered2;
+     
+     // printf("kernel volume: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+	 //   								  faces, n_rays, n_faces));
+     // printf("convex volume: %.2f\n", qhull_overlap_convex_hulls(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+	 //   								  faces, n_rays, n_faces));
 
      
 	 //  inner loop
