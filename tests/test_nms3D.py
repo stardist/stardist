@@ -137,8 +137,8 @@ def test_special_case(noise=.4, dx = 9):
 
 if __name__ == '__main__':
     np.random.seed(42)
-    # lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
-    test_speed((0.4,))
+    lbl = test_nms_and_label(.2,shape = (44,55,66), noise = .2)
+    # test_speed((0.4,))
 
     # p1, p2 = test_dense_sparse(b=None, grid = (1,1,1))
 

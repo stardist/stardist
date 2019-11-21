@@ -691,8 +691,8 @@ inline float qhull_volume_halfspace_intersection(const double * halfspaces,
   	return qvert.volume();
   }
   catch(QhullError &e){
-	std::cout << "convex hull of kernel intersection"<<std::endl;
-	std::cout << e.what()<<std::endl;
+	// std::cout << "convex hull of kernel intersection"<<std::endl;
+	// std::cout << e.what()<<std::endl;
   	return err_value;
   }
 
