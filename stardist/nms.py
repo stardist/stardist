@@ -137,7 +137,7 @@ def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=
     points = np.asarray(points)
 
     assert dist.ndim == 2 and prob.ndim == 1 and points.ndim == 2 and \
-        dist.shape[-1] == len(rays) and points.shape[-1]==3 and len(prob) == len(dist) == len(prob)
+        dist.shape[-1] == len(rays) and points.shape[-1]==3 and len(prob) == len(dist) == len(points)
     
     verbose and print("predicting instances with nms_thresh = {nms_thresh}".format(nms_thresh=nms_thresh), flush=True)
 
