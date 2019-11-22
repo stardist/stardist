@@ -26,8 +26,7 @@ from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
 from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
 from ..affinity import dist_to_affinity3D
-
-
+from .sample_patches import sample_patches
 
 class StarDistData3D(StarDistDataBase):
 
@@ -53,9 +52,10 @@ class StarDistData3D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
-                                                      patch_size=self.patch_size, n_samples=1,
-                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                 patch_size=self.patch_size, n_samples=1,
+                                 valid_inds = self.get_valid_inds(k)) for k in idx]
+        
         if self.n_channel is None:
             X, Y = list(zip(*[(x[0],y[0]) for y,x in arrays]))
         else:
@@ -456,7 +456,8 @@ class StarDist3D(StarDistBase):
         Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,Dv]]
 
-        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
+        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, sample_ind_cache=True, **data_kwargs)
+        self.data_train = data_train
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
@@ -510,7 +511,6 @@ class StarDist3D(StarDistBase):
         verbose and print("render polygons...")
         
         if affinity:
-            print("using affinity")
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
             aff, aff_neg = dist_to_affinity3D(dist,
                                               rays = rays, 

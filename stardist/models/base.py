@@ -17,6 +17,8 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
+from .sample_patches import get_valid_inds
+
 from ..utils import _is_power_of_2, optimize_threshold
 from ..nms import _ind_prob_thresh
 
@@ -65,9 +67,11 @@ def kld(y_true, y_pred):
 
 
 
+
+
 class StarDistDataBase(Sequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None):
 
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
@@ -106,10 +110,8 @@ class StarDistDataBase(Sequence):
 
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
-        if maxfilter_cache:
-            self.R = [self.no_background_patches((y,x)) for x,y in zip(self.X,self.Y)]
-        else:
-            self.R = None
+        self.sample_ind_cache = sample_ind_cache
+        self._ind_cache = {}
 
 
     def __len__(self):
@@ -119,17 +121,18 @@ class StarDistDataBase(Sequence):
     def on_epoch_end(self):
         self.perm = np.random.permutation(len(self.X))
 
-
-    def no_background_patches(self, arrays, *args):
-        y = arrays[0]
-        return self.max_filter(y, self.maxfilter_patch_size) > 0
-
-
-    def no_background_patches_cached(self, k):
-        if self.R is None:
-            return self.no_background_patches
+    
+    def get_valid_inds(self, k):
+        if k in self._ind_cache:
+            inds = self._ind_cache[k]
         else:
-            return lambda *args: self.R[k]
+            inds = get_valid_inds((self.Y[k],self.X[k]),
+                              self.patch_size,
+                            patch_filter=lambda y,p:self.max_filter(y, self.maxfilter_patch_size) > 0)
+        if self.sample_ind_cache:
+            self._ind_cache[k] = inds
+        return inds
+            
 
     def channels_as_tuple(self, x):
         if self.n_channel is None:
