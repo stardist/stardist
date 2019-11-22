@@ -107,7 +107,6 @@ class StarDistDataBase(Sequence):
         else:
             from scipy.ndimage.filters import maximum_filter
             self.max_filter = lambda y, patch_size: maximum_filter(y, patch_size, mode='constant')
-
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
         self.sample_ind_cache = sample_ind_cache
@@ -126,9 +125,9 @@ class StarDistDataBase(Sequence):
         if k in self._ind_cache:
             inds = self._ind_cache[k]
         else:
-            inds = get_valid_inds((self.Y[k],self.X[k]),
-                              self.patch_size,
-                            patch_filter=lambda y,p:self.max_filter(y, self.maxfilter_patch_size) > 0)
+            inds = get_valid_inds((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                  self.patch_size,
+                                  patch_filter=lambda y,p:self.max_filter(y, self.maxfilter_patch_size) > 0)
         if self.sample_ind_cache:
             self._ind_cache[k] = inds
         return inds

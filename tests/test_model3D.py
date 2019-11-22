@@ -51,6 +51,17 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
     return model, labels
 
+@pytest.mark.parametrize("affinity",((True, False)))
+def test_load_and_predict_instances(affinity):
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img,1,99.8)
+    labels, _ = model.predict_instances(x, affinity = affinity)
+    assert labels.shape == img.shape[:3]
+    return model, labels
+
+
 def test_load_and_predict_with_overlap():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
@@ -111,10 +122,15 @@ def test_dense_sparse(n_tiles):
     assert np.allclose(label1, label2)
     return label1, label2
 
-def test_stardistdata():
+@pytest.mark.parametrize('n_channel', (None,2))
+def test_stardistdata(n_channel):
     from stardist.models import StarDistData3D                                      
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
+    
+    if n_channel is not None:
+        img = np.repeat(img[...,np.newaxis], n_channel, axis=-1)
+
     s = StarDistData3D([img, img],[mask, mask], batch_size = 1, patch_size=(30,40,50),rays =Rays_GoldenSpiral(64))
     (img,mask),(prob, dist) = s[0]
     return (img,mask),(prob, dist), s
@@ -123,4 +139,4 @@ def test_stardistdata():
 if __name__ == '__main__':
     # model, lbl = test_load_and_predict_with_overlap()
     # p1,p2 = test_dense_sparse((1,1,1))
-    (img,mask),(prob, dist),s = test_stardistdata()
+    (img,mask),(prob, dist),s = test_stardistdata(2)

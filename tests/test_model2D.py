@@ -85,5 +85,20 @@ def test_affinity():
     
     return labels0, labels
 
+@pytest.mark.parametrize('n_channel', (None,2))
+def test_stardistdata(n_channel):
+    from stardist.models import StarDistData2D
+    img, mask = real_image2d()
+
+    if n_channel is not None:
+        img = np.repeat(img[...,np.newaxis], n_channel, axis=-1)
+
+    s = StarDistData2D([img, img],[mask, mask], batch_size = 2, patch_size=(30,40),
+                       n_rays =22)
+    (img,mask),(prob, dist) = s[0]
+    return (img,mask),(prob, dist), s
+     
+
 if __name__ == '__main__':
-    labels0, labels = test_affinity()
+    # labels0, labels = test_affinity()
+    (img,mask),(prob, dist), s = test_stardistdata(2)

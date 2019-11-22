@@ -32,6 +32,7 @@ def sample_patches(datas, patch_size, n_samples, valid_inds= None, verbose=False
 
 def get_valid_inds(datas, patch_size, patch_filter = None):
     # TODO: some of these checks are already required in 'create_patches'
+
     len(patch_size)==datas[0].ndim or _raise(ValueError())
 
     if not all(( a.shape == datas[0].shape for a in datas )):
