@@ -597,10 +597,14 @@ int overlap_render_polyhedron(const float * const dist, const float * const cent
   return res;
 }
 
-int overlap_render_polyhedron_kernel(const float * const dist, const float * const center,
-					   const int * const bbox, const float * const polyverts,
-					   const int * const faces, const int n_rays, const int n_faces,
-					   const bool * const rendered, const int Nz, const int Ny, const int Nx){
+int overlap_render_polyhedron_kernel(const float * const dist,
+                                     const float * const center,
+                                     const int * const bbox,
+                                     const float * const polyverts,
+                                     const int * const faces, const int n_rays,
+                                     const int n_faces,
+                                     const bool * const rendered,
+                                     const int Nz, const int Ny, const int Nx){
 
 
   // printf("bbox %d %d   %d %d  %d %d \n",bbox[0],bbox[1],bbox[2],bbox[3],bbox[4],bbox[5]);
@@ -789,15 +793,14 @@ inline int point_in_halfspaces(const float z, const float y, const float x,
 inline float qhull_overlap_kernel(
 						 const float * const polyverts1, const float * const center1,
 						 const float * const polyverts2, const float * const center2,
-					   const int * const faces, const int n_rays, const int n_faces){
+                         const int * const faces,
+                         const int n_rays,
+                         const int n_faces, const int n_step=1){
 
   // build halfspaces
   std::vector<std::array<double,DIM+1>> halfspaces;
 
-  // printf("center 1:  %.2f %.2f %.2f\n", center1[0],center1[1],center1[2]);
-  // printf("center 2:  %.2f %.2f %.2f\n", center2[0],center2[1],center2[2]);
-
-  for (int i = 0; i < n_faces; ++i) {
+  for (int i = 0; i < n_faces; i+=n_step) {
 	int iA = faces[3*i];
 	int iB = faces[3*i+1];
 	int iC = faces[3*i+2];
@@ -1108,6 +1111,18 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 	 // compute polyverts
 	 polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
 
+     // printf("kernel volume step 1: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces, 1));
+     // printf("kernel volume step 2: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces,2));
+     // printf("kernel volume step 4: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces,4));
      
      // printf("kernel volume: %.2f\n", qhull_overlap_kernel(
      //                               curr_polyverts, curr_point,
