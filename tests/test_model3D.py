@@ -117,7 +117,21 @@ def test_dense_sparse(n_tiles):
     assert np.allclose(label1, label2)
     return label1, label2
 
+@pytest.mark.parametrize('n_channel', (None,2))
+def test_stardistdata(n_channel):
+    from stardist.models import StarDistData3D                                      
+    from stardist import Rays_GoldenSpiral
+    img, mask = real_image3d()
+    
+    if n_channel is not None:
+        img = np.repeat(img[...,np.newaxis], n_channel, axis=-1)
+
+    s = StarDistData3D([img, img],[mask, mask], batch_size = 1, patch_size=(30,40,50),rays =Rays_GoldenSpiral(64))
+    (img,mask),(prob, dist) = s[0]
+    return (img,mask),(prob, dist), s
+     
 
 if __name__ == '__main__':
     # model, lbl = test_load_and_predict_with_overlap()
-    p1,p2 = test_dense_sparse((1,1,1))
+    # p1,p2 = test_dense_sparse((1,1,1))
+    (img,mask),(prob, dist),s = test_stardistdata(2)
