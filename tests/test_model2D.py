@@ -34,6 +34,9 @@ def test_model(tmpdir, n_rays, grid, n_channel):
 
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
+    ref = model.predict(X[0])
+    res = model.predict(X[0], n_tiles=((2,3) if X[0].ndim==2 else (2,3,1)))
+    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
 
 
 def test_load_and_predict():
