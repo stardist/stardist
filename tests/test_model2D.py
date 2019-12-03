@@ -55,6 +55,13 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
 
 
+def test_stardistdata():
+    from stardist.models import StarDistData2D
+    img, mask = real_image2d()
+    s = StarDistData2D([img,img], [mask,mask], batch_size=1, patch_size=(30,40), n_rays=32)
+    (img,mask), (prob,dist) = s[0]
+    return (img,mask), (prob,dist), s
+
 
 if __name__ == '__main__':
     test_model("tmpdir",32,(1,1),1)

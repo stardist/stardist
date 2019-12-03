@@ -15,9 +15,9 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
-from csbdeep.data import sample_patches_from_multiple_stacks
 
 from .base import StarDistBase, StarDistDataBase
+from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
@@ -50,9 +50,10 @@ class StarDistData3D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
-                                                      patch_size=self.patch_size, n_samples=1,
-                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                 patch_size=self.patch_size, n_samples=1,
+                                 valid_inds=self.get_valid_inds(k)) for k in idx]
+
         if self.n_channel is None:
             X, Y = list(zip(*[(x[0],y[0]) for y,x in arrays]))
         else:
@@ -392,10 +393,10 @@ class StarDist3D(StarDistBase):
             that takes in a single pair of input/label image (x,y) and returns
             the transformed images (xt, yt) for the purpose of data augmentation
             during training. Not applied to validation images.
-            Example: 
+            Example:
             def simple_augmenter(x,y):
                 x = x + 0.05*np.random.normal(0,1,x.shape)
-                return x,y 
+                return x,y
         seed : int
             Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
@@ -499,7 +500,7 @@ class StarDist3D(StarDistBase):
             labels[labels == fwd[overlap_label2]] = overlap_label
         else:
             labels, _,_ = relabel_sequential(labels)
-            
+
         # TODO: convert to polyhedra faces?
         return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
 

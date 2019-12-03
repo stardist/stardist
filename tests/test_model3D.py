@@ -54,6 +54,7 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
     return model, labels
 
+
 def test_load_and_predict_with_overlap():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
@@ -87,6 +88,16 @@ def test_optimize_thresholds():
     t2 = _opt(model)
     assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())
     return model
+
+
+def test_stardistdata():
+    from stardist.models import StarDistData3D
+    from stardist import Rays_GoldenSpiral
+    img, mask = real_image3d()
+    s = StarDistData3D([img, img],[mask, mask], batch_size = 1, patch_size=(30,40,50), rays=Rays_GoldenSpiral(64))
+    (img,mask),(prob, dist) = s[0]
+    return (img,mask),(prob, dist), s
+
 
 if __name__ == '__main__':
     model, lbl = test_load_and_predict_with_overlap()

@@ -15,10 +15,10 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
-from csbdeep.data import sample_patches_from_multiple_stacks
 from skimage.segmentation import clear_border
 
 from .base import StarDistBase, StarDistDataBase
+from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
@@ -46,15 +46,16 @@ class StarDistData2D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
-                                                      patch_size=self.patch_size, n_samples=1,
-                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                 patch_size=self.patch_size, n_samples=1,
+                                 valid_inds=self.get_valid_inds(k)) for k in idx]
+
         if self.n_channel is None:
             X, Y = list(zip(*[(x[0][self.b],y[0]) for y,x in arrays]))
         else:
             X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1)[self.b], y[0]) for y,*x in arrays]))
 
-        X, Y = self.augmenter(X, Y)
+        X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
 
