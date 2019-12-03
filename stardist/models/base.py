@@ -472,11 +472,12 @@ class StarDistBase(BaseModel):
         # print(img_size)
         assert all(_is_power_of_2(s) for s in img_size)
         mid = tuple(s//2 for s in img_size)
-        x = np.zeros((1,)+img_size+(1,), dtype=np.float32)
+        dummy = np.empty((1,)+img_size+(1,), dtype=np.float32)
+        x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
-        x[(0,)+mid+(0,)] = 1
-        y  = self.keras_model.predict([x,x])[0][0,...,0]
-        y0 = self.keras_model.predict([z,z])[0][0,...,0]
+        x[(0,)+mid+(slice(None),)] = 1
+        y  = self.keras_model.predict([x,dummy])[0][0,...,0]
+        y0 = self.keras_model.predict([z,dummy])[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)

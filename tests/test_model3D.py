@@ -35,6 +35,9 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
+    ref = model.predict(X[0])
+    res = model.predict(X[0], n_tiles=((1,2,3) if X[0].ndim==3 else (1,2,3,1)))
+    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
 
 
 def test_load_and_predict():
@@ -78,11 +81,11 @@ def test_optimize_thresholds():
                                     save_to_json = False)
 
     t1 = _opt(model)
-    # enforce implicit tiling 
+    # enforce implicit tiling
     model.config.train_batch_size = 1
     model.config.train_patch_size = tuple(s-1 for s in x.shape)
     t2 = _opt(model)
-    assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())         
+    assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())
     return model
 
 if __name__ == '__main__':
