@@ -28,12 +28,12 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         augmenter=augmenter, **kwargs)
+                         augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.rays = rays
         self.anisotropy = anisotropy
@@ -146,6 +146,8 @@ class Config3D(BaseConfig):
         Size of patches to be cropped from provided training images.
     train_background_reg : float
         Regularizer to encourage distance predictions on background regions to be 0.
+    train_foreground_only : float
+        Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
@@ -234,6 +236,7 @@ class Config3D(BaseConfig):
         # self.train_completion_crop     = 32
         self.train_patch_size          = 128,128,128
         self.train_background_reg      = 1e-4
+        self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,0.2
@@ -435,11 +438,12 @@ class StarDist3D(StarDistBase):
             self.prepare_for_training()
 
         data_kwargs = dict (
-            rays                  = rays_from_json(self.config.rays_json),
-            grid                  = self.config.grid,
-            patch_size            = self.config.train_patch_size,
-            anisotropy            = self.config.anisotropy,
-            use_gpu               = self.config.use_gpu,
+            rays            = rays_from_json(self.config.rays_json),
+            grid            = self.config.grid,
+            patch_size      = self.config.train_patch_size,
+            anisotropy      = self.config.anisotropy,
+            use_gpu         = self.config.use_gpu,
+            foreground_prob = self.config.train_foreground_only,
         )
 
         # generate validation data and store in numpy arrays

@@ -68,7 +68,7 @@ def kld(y_true, y_pred):
 
 class StarDistDataBase(Sequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
@@ -85,6 +85,7 @@ class StarDistDataBase(Sequence):
         else:
             self.n_channel = X[0].shape[-1]
             assert all(x.shape[-1]==self.n_channel for x in X)
+        assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
         self.batch_size = batch_size
@@ -97,6 +98,7 @@ class StarDistDataBase(Sequence):
             augmenter = lambda *args: args
         callable(augmenter) or _raise(ValueError("augmenter must be None or callable"))
         self.augmenter = augmenter
+        self.foreground_prob = foreground_prob
 
         if self.use_gpu:
             from gputools import max_filter
@@ -108,7 +110,8 @@ class StarDistDataBase(Sequence):
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
         self.sample_ind_cache = sample_ind_cache
-        self._ind_cache = {}
+        self._ind_cache_fg  = {}
+        self._ind_cache_all = {}
 
 
     def __len__(self):
@@ -119,14 +122,21 @@ class StarDistDataBase(Sequence):
         self.perm = np.random.permutation(len(self.X))
 
 
-    def get_valid_inds(self, k):
-        if k in self._ind_cache:
-            inds = self._ind_cache[k]
+    def get_valid_inds(self, k, foreground_prob=None):
+        if foreground_prob is None:
+            foreground_prob = self.foreground_prob
+        foreground_only = np.random.uniform() < foreground_prob
+        _ind_cache = self._ind_cache_fg if foreground_only else self._ind_cache_all
+        if k in _ind_cache:
+            inds = _ind_cache[k]
         else:
-            inds = get_valid_inds((self.Y[k],self.X[k]), self.patch_size,
-                                  patch_filter=(lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0))
+            patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
+            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
             if self.sample_ind_cache:
-                self._ind_cache[k] = inds
+                _ind_cache[k] = inds
+        if foreground_only and len(inds[0])==0:
+            # no foreground pixels available
+            return self.get_valid_inds(k, foreground_prob=0)
         return inds
 
 

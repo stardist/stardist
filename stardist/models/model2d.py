@@ -27,11 +27,11 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         augmenter=augmenter, **kwargs)
+                         augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.shape_completion = bool(shape_completion)
         if self.shape_completion and b > 0:
@@ -127,6 +127,8 @@ class Config2D(BaseConfig):
         Size of patches to be cropped from provided training images.
     train_background_reg : float
         Regularizer to encourage distance predictions on background regions to be 0.
+    train_foreground_only : float
+        Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
@@ -189,6 +191,7 @@ class Config2D(BaseConfig):
         self.train_completion_crop     = 32
         self.train_patch_size          = 256,256
         self.train_background_reg      = 1e-4
+        self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,0.2
@@ -343,6 +346,7 @@ class StarDist2D(StarDistBase):
             shape_completion = self.config.train_shape_completion,
             b                = self.config.train_completion_crop,
             use_gpu          = self.config.use_gpu,
+            foreground_prob  = self.config.train_foreground_only,
         )
 
         # generate validation data and store in numpy arrays
