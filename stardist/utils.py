@@ -81,7 +81,7 @@ def edt_prob(lbl_img, anisotropy=None):
         return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
     if constant_img:
-        lbl_img = np.pad(lbl_img, ((1,)*lbl_img.ndim,)*lbl_img.ndim, mode='constant')
+        lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
     dist_func = _edt_dist_func(anisotropy)
     objects = find_objects(lbl_img)

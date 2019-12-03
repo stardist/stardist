@@ -39,6 +39,15 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
     res = model.predict(X[0], n_tiles=((1,2,3) if X[0].ndim==3 else (1,2,3,1)))
     # assert all(np.allclose(u,v) for u,v in zip(ref,res))
 
+    # ask to train only with foreground patches when there are none
+    # include a constant label image that must trigger a warning
+    conf.train_foreground_only = 1
+    conf.train_steps_per_epoch = 1
+    _X = X[:2]
+    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
+    with pytest.warns(UserWarning):
+        StarDist3D(conf, name='stardist', basedir=None).train(_X, _Y, validation_data=(X[-1:],Y[-1:]))
+
 
 def test_load_and_predict():
     model_path = path_model3d()
