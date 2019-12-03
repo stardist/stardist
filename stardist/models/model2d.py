@@ -298,10 +298,14 @@ class StarDist2D(StarDistBase):
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable
-            Function with expected signature ``Xbt, Ybt = augmenter(Xb, Yb)``
-            that takes in batch input/label images (Xb,Yb) and returns
-            transformed images (Xbt, Ybt) for the purpose of data augmentation
+            Function with expected signature ``xt, yt = augmenter(x, y)``
+            that takes in a single pair of input/label image (x,y) and returns
+            the transformed images (xt, yt) for the purpose of data augmentation
             during training. Not applied to validation images.
+            Example:
+            def simple_augmenter(x,y):
+                x = x + 0.05*np.random.normal(0,1,x.shape)
+                return x,y
         seed : int
             Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
