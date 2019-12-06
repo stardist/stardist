@@ -393,7 +393,7 @@ class StarDistBase(BaseModel):
         return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label = overlap_label, **nms_kwargs)
 
 
-    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json=True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
         Note that the default thresholds yield good results in many cases, but optimizing
@@ -451,13 +451,17 @@ class StarDistBase(BaseModel):
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
         return opt_threshs
 
+
     def _guess_n_tiles(self, img):
         axes = self._normalize_axes(img, axes=None)
         shape = list(img.shape)
         if 'C' in axes:
             del shape[axes_dict(axes)['C']]
         b = self.config.train_batch_size**(1.0/self.config.n_dim)
-        return tuple(int(np.ceil(s/(p*b))) for s,p in zip(shape,self.config.train_patch_size))
+        n_tiles = [int(np.ceil(s/(p*b))) for s,p in zip(shape,self.config.train_patch_size)]
+        if 'C' in axes:
+            n_tiles.insert(axes_dict(axes)['C'],1)
+        return tuple(n_tiles)
 
 
     def _normalize_axes(self, img, axes):
