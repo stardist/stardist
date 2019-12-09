@@ -60,7 +60,7 @@ def _edt_dist_func(anisotropy):
 def _edt_prob(lbl_img, anisotropy=None):
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
     if constant_img:
-        lbl_img = np.pad(lbl_img, ((1,)*lbl_img.ndim,)*lbl_img.ndim, mode='constant')
+        lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
     dist_func = _edt_dist_func(anisotropy)
     prob = np.zeros(lbl_img.shape,np.float32)
