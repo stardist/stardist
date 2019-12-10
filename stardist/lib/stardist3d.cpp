@@ -33,11 +33,8 @@ using namespace orgQhull;
 #endif
 
 
-
-
-
 inline int round_to_int(float r) {
-    return (int)lrint(r);
+  return (int)lrint(r);
 }
 
 int _sum_buffer(const bool * const buffer, const int N){
@@ -90,24 +87,24 @@ inline unsigned char inside_tetrahedron(float z, float y, float x,
   // if inside the bounding box, do a proper check
 
   return (inside_halfspace(z,y,x,
-					  Az,Ay,Ax,
-					  Bz,By,Bx,
-					  Cz,Cy,Cx)
-	  &&
-	  inside_halfspace(z,y,x,
-                        Rz,Ry,Rx,
-                        Bz,By,Bx,
-                        Az,Ay,Ax)
-	  &&
-	  inside_halfspace(z,y,x,
-                        Rz,Ry,Rx,
-                        Cz,Cy,Cx,
-                        Bz,By,Bx)
-	  &&
-	  inside_halfspace(z,y,x,
-                        Rz,Ry,Rx,
-                        Az,Ay,Ax,
-					   Cz,Cy,Cx));
+                           Az,Ay,Ax,
+                           Bz,By,Bx,
+                           Cz,Cy,Cx)
+          &&
+          inside_halfspace(z,y,x,
+                           Rz,Ry,Rx,
+                           Bz,By,Bx,
+                           Az,Ay,Ax)
+          &&
+          inside_halfspace(z,y,x,
+                           Rz,Ry,Rx,
+                           Cz,Cy,Cx,
+                           Bz,By,Bx)
+          &&
+          inside_halfspace(z,y,x,
+                           Rz,Ry,Rx,
+                           Az,Ay,Ax,
+                           Cz,Cy,Cx));
 }
 
 
@@ -183,9 +180,9 @@ inline unsigned char inside_polyhedron_kernel(const float z,
 	float Cx = polyverts[3*iC+2];
 
 	if (!inside_halfspace(z, y, x,
-						 Az,  Ay,  Ax,
-						 Bz,  By,  Bx,
-						 Cz,  Cy,  Cx))
+                          Az,  Ay,  Ax,
+                          Bz,  By,  Bx,
+                          Cz,  Cy,  Cx))
 	  return 0;
 
   }
@@ -218,9 +215,9 @@ inline float tetrahedron_volume(float Rz, float Ry, float Rx,
 
 
 inline float polyhedron_volume(const float * const dist,
-						 const float * const verts,
-						 const int * const faces,
-						 const int n_rays, const int n_faces){
+                               const float * const verts,
+                               const int * const faces,
+                               const int n_rays, const int n_faces){
 
 
   float vol = 0.f;
@@ -284,9 +281,9 @@ inline void polyhedron_centroid(const float * const dist,
 	float Cx = dist[iC]*verts[3*iC+2];
 
 	float curr_vol = tetrahedron_volume(0, 0, 0,
-							  Az, Ay, Ax,
-							  Bz, By, Bx,
-							  Cz, Cy, Cx);
+                                        Az, Ay, Ax,
+                                        Bz, By, Bx,
+                                        Cz, Cy, Cx);
     Rz += .25 * (Az+Bz+Cz)*curr_vol;
     Ry += .25 * (Ay+By+Cy)*curr_vol;
     Rx += .25 * (Ax+Bx+Cx)*curr_vol;
@@ -313,9 +310,9 @@ inline float bounding_radius_outer(const float * const dist, const int n_rays){
 }
 
 inline float bounding_radius_inner(const float * const dist,
-							const float * const verts,
-							const int * const faces,
-							const int n_rays, const int n_faces){
+                                   const float * const verts,
+                                   const int * const faces,
+                                   const int n_rays, const int n_faces){
 
   float r = INFINITY;
 
@@ -430,7 +427,7 @@ inline float bounding_radius_inner_isotropic(const float * const dist,
 }
 
 inline float intersect_sphere(const float r1, const float * const p1,
-					   const float r2, const float * const p2){
+                              const float r2, const float * const p2){
 
   float dz = (p1[0]-p2[0]);
   float dy = (p1[1]-p2[1]);
@@ -455,7 +452,7 @@ inline float intersect_sphere(const float r1, const float * const p1,
 
 
 inline float intersect_sphere_isotropic(const float r1, const float * const p1,
-									   const float r2, const float * const p2, const float * const anisotropy){
+                                        const float r2, const float * const p2, const float * const anisotropy){
 
   float dz = anisotropy[0]*(p1[0]-p2[0]);
   float dy = anisotropy[1]*(p1[1]-p2[1]);
@@ -501,39 +498,39 @@ inline void polyhedron_bbox(const float * const dist,
 							const float * const verts,
 							const int n_rays, int * bbox){
 
-	 int z1 = std::numeric_limits<int>::max(),z2 = -1;
-	 int y1 = std::numeric_limits<int>::max(),y2 = -1;
-	 int x1 = std::numeric_limits<int>::max(),x2 = -1;
+  int z1 = std::numeric_limits<int>::max(),z2 = -1;
+  int y1 = std::numeric_limits<int>::max(),y2 = -1;
+  int x1 = std::numeric_limits<int>::max(),x2 = -1;
 
 
-	 for (int j = 0; j < n_rays; ++j) {
-	   float z = center[0] + dist[j]*verts[3*j];
-	   float y = center[1] + dist[j]*verts[3*j+1];
-	   float x = center[2] + dist[j]*verts[3*j+2];
+  for (int j = 0; j < n_rays; ++j) {
+    float z = center[0] + dist[j]*verts[3*j];
+    float y = center[1] + dist[j]*verts[3*j+1];
+    float x = center[2] + dist[j]*verts[3*j+2];
 
-	   z1 = std::min(z1,round_to_int(z));
-	   z2 = std::max(z2,round_to_int(z));
+    z1 = std::min(z1,round_to_int(z));
+    z2 = std::max(z2,round_to_int(z));
 
-	   y1 = std::min(y1,round_to_int(y));
-	   y2 = std::max(y2,round_to_int(y));
+    y1 = std::min(y1,round_to_int(y));
+    y2 = std::max(y2,round_to_int(y));
 
-	   x1 = std::min(x1,round_to_int(x));
-	   x2 = std::max(x2,round_to_int(x));
+    x1 = std::min(x1,round_to_int(x));
+    x2 = std::max(x2,round_to_int(x));
 
-	 }
-	 bbox[0] = z1;
-	 bbox[1] = z2;
-	 bbox[2] = y1;
-	 bbox[3] = y2;
-	 bbox[4] = x1;
-	 bbox[5] = x2;
+  }
+  bbox[0] = z1;
+  bbox[1] = z2;
+  bbox[2] = y1;
+  bbox[3] = y2;
+  bbox[4] = x1;
+  bbox[5] = x2;
 }
 
 // computes the polyhedron vertices
 inline void polyhedron_polyverts(const float * const dist,
-							const float * const center,
-							const float * const verts,
-							const int n_rays, float * polyverts){
+                                 const float * const center,
+                                 const float * const verts,
+                                 const int n_rays, float * polyverts){
 
 
   for (int j = 0; j < n_rays; ++j) {
@@ -554,7 +551,7 @@ void render_polyhedron(const float * const dist, const float * const center,
 
   // printf("rendering polygon of bbox size %d %d %d \n",Nz,Ny,Nx);
 
-// #pragma omp parallel for
+  // #pragma omp parallel for
   for (int z=0; z <Nz; ++z) {
 	for (int y=0; y <Ny; ++y) {
 	  for (int x=0; x <Nx; ++x) {
@@ -569,15 +566,15 @@ void render_polyhedron(const float * const dist, const float * const center,
 }
 
 int overlap_render_polyhedron(const float * const dist, const float * const center,
-					   const int * const bbox, const float * const polyverts,
-					   const int * const faces, const int n_rays, const int n_faces,
-					   const bool * const rendered, const int Nz, const int Ny, const int Nx){
+                              const int * const bbox, const float * const polyverts,
+                              const int * const faces, const int n_rays, const int n_faces,
+                              const bool * const rendered, const int Nz, const int Ny, const int Nx){
 
   // printf("rendering polygon of bbox size %d %d %d \n",Nz,Ny,Nx);
 
   int res = 0;
 
-// #pragma omp parallel for reduction(+:res)
+  // #pragma omp parallel for reduction(+:res)
   for (int z=0; z <Nz; ++z) {
 	for (int y=0; y <Ny; ++y) {
 	  for (int x=0; x <Nx; ++x) {
@@ -594,9 +591,9 @@ int overlap_render_polyhedron(const float * const dist, const float * const cent
 }
 
 int overlap_render_polyhedron_kernel(const float * const dist, const float * const center,
-					   const int * const bbox, const float * const polyverts,
-					   const int * const faces, const int n_rays, const int n_faces,
-					   const bool * const rendered, const int Nz, const int Ny, const int Nx){
+                                     const int * const bbox, const float * const polyverts,
+                                     const int * const faces, const int n_rays, const int n_faces,
+                                     const bool * const rendered, const int Nz, const int Ny, const int Nx){
 
 
   // printf("bbox %d %d   %d %d  %d %d \n",bbox[0],bbox[1],bbox[2],bbox[3],bbox[4],bbox[5]);
@@ -608,7 +605,7 @@ int overlap_render_polyhedron_kernel(const float * const dist, const float * con
 
   int res = 0;
 
-// #pragma omp parallel for reduction(+:res)
+  // #pragma omp parallel for reduction(+:res)
   for (int z=0; z <Nz; ++z) {
 	for (int y=0; y <Ny; ++y) {
 	  for (int x=0; x <Nx; ++x) {
@@ -632,8 +629,8 @@ int overlap_render_polyhedron_kernel(const float * const dist, const float * con
 
 // volume of intersection of halfspaces via Qhull
 inline float qhull_volume_halfspace_intersection(const double * halfspaces,
-									const double * interior_point,
-									const int nhalfspaces){
+                                                 const double * interior_point,
+                                                 const int nhalfspaces){
 
   // convert to std::vector which is what qhull expects
   std::vector<double> int_point(interior_point, interior_point+DIM);
@@ -777,9 +774,9 @@ inline int point_in_halfspaces(const float z, const float y, const float x,
 
 
 inline float qhull_overlap_kernel(
-						 const float * const polyverts1, const float * const center1,
-						 const float * const polyverts2, const float * const center2,
-					   const int * const faces, const int n_rays, const int n_faces){
+                                  const float * const polyverts1, const float * const center1,
+                                  const float * const polyverts2, const float * const center2,
+                                  const int * const faces, const int n_rays, const int n_faces){
 
   // build halfspaces
   std::vector<std::array<double,DIM+1>> halfspaces;
@@ -793,7 +790,7 @@ inline float qhull_overlap_kernel(
 	int iC = faces[3*i+2];
 
 	halfspaces.push_back(build_halfspace(&polyverts1[3*iA],
-									  &polyverts1[3*iB],
+                                         &polyverts1[3*iB],
 										 &polyverts1[3*iC]));
 
 
@@ -820,9 +817,9 @@ inline float qhull_overlap_kernel(
 
 
 inline float qhull_overlap_convex_hulls(
-						 const float * const polyverts1, const float * const center1,
-						 const float * const polyverts2, const float * const center2,
-					   const int * const faces, const int n_rays, const int n_faces){
+                                        const float * const polyverts1, const float * const center1,
+                                        const float * const polyverts2, const float * const center2,
+                                        const int * const faces, const int n_rays, const int n_faces){
 
 
   try{
@@ -927,389 +924,389 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
   int verbose;
 
   if (!PyArg_ParseTuple(args, "O!O!O!O!O!iif",
-						 &PyArray_Type, &arr_dist,
-						 &PyArray_Type, &arr_points,
-						 &PyArray_Type, &arr_verts,
-						 &PyArray_Type, &arr_faces,
-						 &PyArray_Type, &arr_scores,
-						 &use_bbox,
-						 &verbose,
-						 &threshold))
-       return NULL;
+                        &PyArray_Type, &arr_dist,
+                        &PyArray_Type, &arr_points,
+                        &PyArray_Type, &arr_verts,
+                        &PyArray_Type, &arr_faces,
+                        &PyArray_Type, &arr_scores,
+                        &use_bbox,
+                        &verbose,
+                        &threshold))
+    return NULL;
 
 
-   const int n_polys = PyArray_DIMS(arr_dist)[0];
-   const int n_rays = PyArray_DIMS(arr_dist)[1];
-   const int n_faces = PyArray_DIMS(arr_faces)[0];
+  const int n_polys = PyArray_DIMS(arr_dist)[0];
+  const int n_rays = PyArray_DIMS(arr_dist)[1];
+  const int n_faces = PyArray_DIMS(arr_faces)[0];
 
 
-   const float * const dist = (float*) PyArray_DATA(arr_dist);
-   const float * const points = (float*) PyArray_DATA(arr_points);
-   const float * const verts = (float*) PyArray_DATA(arr_verts);
-   const int * const faces = (int*) PyArray_DATA(arr_faces);
-   const float * const scores = (float*) PyArray_DATA(arr_scores);
+  const float * const dist = (float*) PyArray_DATA(arr_dist);
+  const float * const points = (float*) PyArray_DATA(arr_points);
+  const float * const verts = (float*) PyArray_DATA(arr_verts);
+  const int * const faces = (int*) PyArray_DATA(arr_faces);
+  const float * const scores = (float*) PyArray_DATA(arr_scores);
 
-   if (verbose){
-	 printf("Non Maximum Suppression (3D) ++++ \n");
-	 printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
+  if (verbose){
+    printf("Non Maximum Suppression (3D) ++++ \n");
+    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
 #ifdef _OPENMP
-	 printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
+    printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif
-   }
+  }
 
 
-   float * volumes = new float[n_polys];
-   float * radius_inner = new float[n_polys];
-   float * radius_outer = new float[n_polys];
+  float * volumes = new float[n_polys];
+  float * radius_inner = new float[n_polys];
+  float * radius_outer = new float[n_polys];
 
-   float * radius_inner_isotropic = new float[n_polys];
-   float * radius_outer_isotropic = new float[n_polys];
-
-
-   int * bbox = new int[6*n_polys];
-   bool * suppressed = new bool[n_polys];
-   float anisotropy[3] = {0.,0.,0};
+  float * radius_inner_isotropic = new float[n_polys];
+  float * radius_outer_isotropic = new float[n_polys];
 
 
-   // first compute volumes, bounding boxes and anisotropy factors
-   if (verbose)
-     printf("NMS: precompute volumes, bounding boxes, etc\n");
+  int * bbox = new int[6*n_polys];
+  bool * suppressed = new bool[n_polys];
+  float anisotropy[3] = {0.,0.,0};
+
+
+  // first compute volumes, bounding boxes and anisotropy factors
+  if (verbose)
+    printf("NMS: precompute volumes, bounding boxes, etc\n");
 
 #pragma omp parallel for
-   for (int i=0; i<n_polys; i++) {
+  for (int i=0; i<n_polys; i++) {
 
-	 const float * const curr_dist = &dist[i*n_rays];
-	 const float * const curr_point = &points[3*i];
-	 int * curr_bbox = &bbox[6*i];
+    const float * const curr_dist = &dist[i*n_rays];
+    const float * const curr_point = &points[3*i];
+    int * curr_bbox = &bbox[6*i];
 
-	 volumes[i] = polyhedron_volume(curr_dist, verts, faces, n_rays, n_faces);
+    volumes[i] = polyhedron_volume(curr_dist, verts, faces, n_rays, n_faces);
 
-	 // // outer and inner bounding radius
-	 // radius_outer[i] = bounding_radius_outer(curr_dist, n_rays);
-	 // radius_inner[i] = bounding_radius_inner(curr_dist, verts, faces, n_rays, n_faces);
+    // // outer and inner bounding radius
+    // radius_outer[i] = bounding_radius_outer(curr_dist, n_rays);
+    // radius_inner[i] = bounding_radius_inner(curr_dist, verts, faces, n_rays, n_faces);
 
-	 // bounding boxes
-	 polyhedron_bbox(curr_dist, curr_point, verts, n_rays, curr_bbox);
+    // bounding boxes
+    polyhedron_bbox(curr_dist, curr_point, verts, n_rays, curr_bbox);
 
-	 // running average of bbox anisotropies
-	 anisotropy[0] += (float)(curr_bbox[1]-curr_bbox[0])/n_polys;
-	 anisotropy[1] += (float)(curr_bbox[3]-curr_bbox[2])/n_polys;
-	 anisotropy[2] += (float)(curr_bbox[5]-curr_bbox[4])/n_polys;
-   }
+    // running average of bbox anisotropies
+    anisotropy[0] += (float)(curr_bbox[1]-curr_bbox[0])/n_polys;
+    anisotropy[1] += (float)(curr_bbox[3]-curr_bbox[2])/n_polys;
+    anisotropy[2] += (float)(curr_bbox[5]-curr_bbox[4])/n_polys;
+  }
 
-   // normalize and invert anisotropy (to resemble pixelsizes)
-   // we would like to have anisotropy = (7,1,1) for highly axially anisotropic data
-   float _tmp = fmax(fmax(anisotropy[0],anisotropy[1]),anisotropy[2]);
-   anisotropy[0] = _tmp/anisotropy[0];
-   anisotropy[1] = _tmp/anisotropy[1] ;
-   anisotropy[2] = _tmp/anisotropy[2] ;
+  // normalize and invert anisotropy (to resemble pixelsizes)
+  // we would like to have anisotropy = (7,1,1) for highly axially anisotropic data
+  float _tmp = fmax(fmax(anisotropy[0],anisotropy[1]),anisotropy[2]);
+  anisotropy[0] = _tmp/anisotropy[0];
+  anisotropy[1] = _tmp/anisotropy[1] ;
+  anisotropy[2] = _tmp/anisotropy[2] ;
 
-   if (verbose>=1)
-	 printf("NMS: calculated anisotropy: %.2f \t %.2f \t %.2f \n",anisotropy[0],anisotropy[1],anisotropy[2]);
+  if (verbose>=1)
+    printf("NMS: calculated anisotropy: %.2f \t %.2f \t %.2f \n",anisotropy[0],anisotropy[1],anisotropy[2]);
 
-   // calculate  bounding circles
+  // calculate  bounding circles
 #pragma omp parallel for
-   for (int i=0; i<n_polys; i++) {
+  for (int i=0; i<n_polys; i++) {
 
-	 const float * const curr_dist = &dist[i*n_rays];
+    const float * const curr_dist = &dist[i*n_rays];
 
-	 // outer and inner bounding radius
-	 radius_outer[i] = bounding_radius_outer(curr_dist, n_rays);
-	 radius_inner[i] = bounding_radius_inner(curr_dist, verts, faces, n_rays, n_faces);
+    // outer and inner bounding radius
+    radius_outer[i] = bounding_radius_outer(curr_dist, n_rays);
+    radius_inner[i] = bounding_radius_inner(curr_dist, verts, faces, n_rays, n_faces);
 
-	 // outer and inner isotropic bounding radius
-	 radius_outer_isotropic[i] = bounding_radius_outer_isotropic(curr_dist, verts,
-																 n_rays,anisotropy);
+    // outer and inner isotropic bounding radius
+    radius_outer_isotropic[i] = bounding_radius_outer_isotropic(curr_dist, verts,
+                                                                n_rays,anisotropy);
 
-	 radius_inner_isotropic[i] = bounding_radius_inner_isotropic(curr_dist, verts,
-																 faces, n_rays,
-																 n_faces, anisotropy);
+    radius_inner_isotropic[i] = bounding_radius_inner_isotropic(curr_dist, verts,
+                                                                faces, n_rays,
+                                                                n_faces, anisotropy);
 
-	 // printf("r    : %.2f \t %.2f \n",radius_inner[i], radius_outer[i]);
-	 // printf("r_iso: %.2f \t %.2f \n",radius_inner_isotropic[i], radius_outer_isotropic[i]);
+    // printf("r    : %.2f \t %.2f \n",radius_inner[i], radius_outer[i]);
+    // printf("r_iso: %.2f \t %.2f \n",radius_inner_isotropic[i], radius_outer_isotropic[i]);
 
-   }
-
-
-
-   // +++++++  NMS starts here ++++++++
-   if (verbose)
-     printf("NMS: starting suppression loop\n");
-
-   int count_kept_pretest = 0;
-   int count_kept_convex = 0;
-   int count_suppressed_pretest = 0;
-   int count_suppressed_kernel = 0;
-   int count_suppressed_rendered = 0;
-
-   int count_call_upper = 0;
-   int count_call_lower = 0;
-   int count_call_kernel = 0;
-   int count_call_render = 0;
-   int count_call_convex = 0;
-
-   //initialize indices
-   for (int i=0; i<n_polys; i++) {
-       suppressed[i] = false;
-   }
-
-   float * curr_polyverts = new float[3*n_rays];
-
-   // suppress (double loop)
-   for (int i=0; i<n_polys-1; i++) {
-
-
-     // if verbose, print progress bar
-     if (verbose){
-       int prog_len = 40;
-       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-       float prog_percentage = 100.*count_total/n_polys;
-
-       int w = prog_len*prog_percentage/100;
-       std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
-       printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
-       printf(i==n_polys-2?"\n":"\r");
-       fflush(stdout);
-     }
-
-     // check signals e.g. such that the loop is interuptable 
-     if (PyErr_CheckSignals()==-1){
-       delete [] volumes;
-       delete [] curr_polyverts;
-       delete [] bbox;
-       delete [] suppressed;
-       delete [] radius_inner;
-       delete [] radius_outer;
-       delete [] radius_inner_isotropic;
-       delete [] radius_outer_isotropic;
-       PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
-       return Py_None;
-     }
-
-     // skip if already suppressed
-	 if (suppressed[i])
-	   continue;
-
-
-	 // the size of the bbox region of interest
-
-	 const float * const curr_dist  = &dist[i*n_rays];
-	 const float * const curr_point = &points[3*i];
-	 const int *   const curr_bbox  = &bbox[6*i];
-
-	 int Nz = curr_bbox[1]-curr_bbox[0]+1;
-	 int Ny = curr_bbox[3]-curr_bbox[2]+1;
-	 int Nx = curr_bbox[5]-curr_bbox[4]+1;
-
-	 // compute polyverts
-	 polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
+  }
 
 
 
-	 //  inner loop
-	 //  can be parallelized....
+  // +++++++  NMS starts here ++++++++
+  if (verbose)
+    printf("NMS: starting suppression loop\n");
+
+  int count_kept_pretest = 0;
+  int count_kept_convex = 0;
+  int count_suppressed_pretest = 0;
+  int count_suppressed_kernel = 0;
+  int count_suppressed_rendered = 0;
+
+  int count_call_upper = 0;
+  int count_call_lower = 0;
+  int count_call_kernel = 0;
+  int count_call_render = 0;
+  int count_call_convex = 0;
+
+  //initialize indices
+  for (int i=0; i<n_polys; i++) {
+    suppressed[i] = false;
+  }
+
+  float * curr_polyverts = new float[3*n_rays];
+
+  // suppress (double loop)
+  for (int i=0; i<n_polys-1; i++) {
+
+
+    // if verbose, print progress bar
+    if (verbose){
+      int prog_len = 40;
+      int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+      float prog_percentage = 100.*count_total/n_polys;
+
+      int w = prog_len*prog_percentage/100;
+      std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
+      printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+      printf(i==n_polys-2?"\n":"\r");
+      fflush(stdout);
+    }
+
+    // check signals e.g. such that the loop is interuptable 
+    if (PyErr_CheckSignals()==-1){
+      delete [] volumes;
+      delete [] curr_polyverts;
+      delete [] bbox;
+      delete [] suppressed;
+      delete [] radius_inner;
+      delete [] radius_outer;
+      delete [] radius_inner_isotropic;
+      delete [] radius_outer_isotropic;
+      PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
+      return Py_None;
+    }
+
+    // skip if already suppressed
+    if (suppressed[i])
+      continue;
+
+
+    // the size of the bbox region of interest
+
+    const float * const curr_dist  = &dist[i*n_rays];
+    const float * const curr_point = &points[3*i];
+    const int *   const curr_bbox  = &bbox[6*i];
+
+    int Nz = curr_bbox[1]-curr_bbox[0]+1;
+    int Ny = curr_bbox[3]-curr_bbox[2]+1;
+    int Nx = curr_bbox[5]-curr_bbox[4]+1;
+
+    // compute polyverts
+    polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
+
+
+
+    //  inner loop
+    //  can be parallelized....
 #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) reduction(+:count_suppressed_rendered) reduction(+:count_call_kernel) reduction(+:count_call_render) reduction(+:count_call_lower) reduction(+:count_call_upper) reduction(+:count_call_convex) reduction(+:count_kept_pretest) reduction(+:count_kept_convex)
 
-	 for (int j=i+1; j<n_polys; j++) {
+    for (int j=i+1; j<n_polys; j++) {
 
-	   if (suppressed[j])
-		 continue;
+      if (suppressed[j])
+        continue;
 
-	   float iou = 0;
-	   float A_min = fmin(volumes[i], volumes[j]);
-	   float A_inter = 0;
+      float iou = 0;
+      float A_min = fmin(volumes[i], volumes[j]);
+      float A_inter = 0;
 
-	   // --------- first check: bounding box and inner sphere intersection  (cheap)
+      // --------- first check: bounding box and inner sphere intersection  (cheap)
 
              
-	   // upper  bound of intersection and IoU
-	   A_inter = fmin(intersect_sphere_isotropic(radius_outer_isotropic[i],
-	   											 &points[3*i],
-	   											 radius_outer_isotropic[j],
-	   											 &points[3*j],
-	   											 anisotropy
-	   											 ),
-	   				  intersect_bbox(&bbox[6*i],&bbox[6*j]));
-	   count_call_upper++;
+      // upper  bound of intersection and IoU
+      A_inter = fmin(intersect_sphere_isotropic(radius_outer_isotropic[i],
+                                                &points[3*i],
+                                                radius_outer_isotropic[j],
+                                                &points[3*j],
+                                                anisotropy
+                                                ),
+                     intersect_bbox(&bbox[6*i],&bbox[6*j]));
+      count_call_upper++;
 
 
-	   // if it doesn't intersect at all, we can move on...
-	   iou = fmin(1.f,A_inter/(A_min+1e-10));
+      // if it doesn't intersect at all, we can move on...
+      iou = fmin(1.f,A_inter/(A_min+1e-10));
 
-	   if ((A_inter<1.e-10)||(iou<=threshold)){
-		 count_kept_pretest++;
-	   	 continue;
-	   }
-
-
-	   // lower bound of intersection and IoU
-	   A_inter = intersect_sphere_isotropic(radius_inner_isotropic[i],
-	   										&points[3*i],
-	   										radius_inner_isotropic[j],
-	   										&points[3*j],
-	   										anisotropy
-	   										);
-	   count_call_lower++;
-
-	   // if lower bound is above threshold, we can safely suppress it...
-	   iou = fmax(0.f,A_inter/(A_min+1e-10));
+      if ((A_inter<1.e-10)||(iou<=threshold)){
+        count_kept_pretest++;
+        continue;
+      }
 
 
-	   if (iou>threshold){
-	   	 count_suppressed_pretest++;
-	   	 suppressed[j] = true;
-	   	 continue;
-	   }
+      // lower bound of intersection and IoU
+      A_inter = intersect_sphere_isotropic(radius_inner_isotropic[i],
+                                           &points[3*i],
+                                           radius_inner_isotropic[j],
+                                           &points[3*j],
+                                           anisotropy
+                                           );
+      count_call_lower++;
 
-	   float * polyverts = new float[3*n_rays];
-
-	   // compute polyverts of the second polyhedron
-	   polyhedron_polyverts(&dist[j*n_rays], &points[3*j],
-	   						verts,n_rays, polyverts);
-
-
-	   // ------- second check: kernel intersection (lower bound)
+      // if lower bound is above threshold, we can safely suppress it...
+      iou = fmax(0.f,A_inter/(A_min+1e-10));
 
 
-	   // // // compute overlap with rendered kernel
-	   // bool * rendered2 = new bool[Nz*Ny*Nx];
-	   // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-	   // 				   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
+      if (iou>threshold){
+        count_suppressed_pretest++;
+        suppressed[j] = true;
+        continue;
+      }
 
-	   // float A_inter_kernel_old = overlap_render_polyhedron_kernel(&dist[j*n_rays],
-	   // 											 &points[3*j],
-	   // 											 curr_bbox,
-	   // 											 polyverts,
-	   // 											 faces, n_rays, n_faces,
-	   // 											 rendered2, Nz, Ny, Nx);
-	   // delete [] rendered2;
+      float * polyverts = new float[3*n_rays];
 
-	   // kernel intersection via qhull (lower bound)
-
-	   float A_inter_kernel = qhull_overlap_kernel(
-	   								  curr_polyverts, curr_point,
-	   								  polyverts, &points[3*j],
-	   								  faces, n_rays, n_faces);
-	   count_call_kernel++;
+      // compute polyverts of the second polyhedron
+      polyhedron_polyverts(&dist[j*n_rays], &points[3*j],
+                           verts,n_rays, polyverts);
 
 
-	   iou = A_inter_kernel/(A_min+1e-10);
-
-	   // printf("%d %d A_kernel:\t %.0f \t %.2f\n",i,j, A_inter_kernel_old, A_inter_kernel);
+      // ------- second check: kernel intersection (lower bound)
 
 
-	   if (iou>threshold){
-	   	 count_suppressed_kernel++;
-	   	 suppressed[j] = true;
-	   	 delete[] polyverts;
-	   	 continue;
-	   }
+      // // // compute overlap with rendered kernel
+      // bool * rendered2 = new bool[Nz*Ny*Nx];
+      // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
+      // 				   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
 
-	   // ------- third check: intersection of convex hull (upper bound)
+      // float A_inter_kernel_old = overlap_render_polyhedron_kernel(&dist[j*n_rays],
+      // 											 &points[3*j],
+      // 											 curr_bbox,
+      // 											 polyverts,
+      // 											 faces, n_rays, n_faces,
+      // 											 rendered2, Nz, Ny, Nx);
+      // delete [] rendered2;
 
-	   float A_inter_convex = qhull_overlap_convex_hulls(
-	   								  curr_polyverts, curr_point,
-	   								  polyverts, &points[3*j],
-	   								  faces, n_rays, n_faces);
-	   count_call_convex++;
+      // kernel intersection via qhull (lower bound)
 
-
-	   iou = A_inter_convex/(A_min+1e-10);
-
-	   // printf("%d %d A_convex:\t %.0f \t %.2f\n",i,j, A_inter, iou);
-
-	   if (iou<=threshold){
-	   	 count_kept_convex++;
-	   	 delete[] polyverts;
-	   	 continue;
-	   }
+      float A_inter_kernel = qhull_overlap_kernel(
+                                                  curr_polyverts, curr_point,
+                                                  polyverts, &points[3*j],
+                                                  faces, n_rays, n_faces);
+      count_call_kernel++;
 
 
-	   // ------- forth/final check  (polygon rendering, exact)
+      iou = A_inter_kernel/(A_min+1e-10);
+
+      // printf("%d %d A_kernel:\t %.0f \t %.2f\n",i,j, A_inter_kernel_old, A_inter_kernel);
 
 
-	   // render polyhedron
-	   bool * rendered = new bool[Nz*Ny*Nx];
+      if (iou>threshold){
+        count_suppressed_kernel++;
+        suppressed[j] = true;
+        delete[] polyverts;
+        continue;
+      }
+
+      // ------- third check: intersection of convex hull (upper bound)
+
+      float A_inter_convex = qhull_overlap_convex_hulls(
+                                                        curr_polyverts, curr_point,
+                                                        polyverts, &points[3*j],
+                                                        faces, n_rays, n_faces);
+      count_call_convex++;
+
+
+      iou = A_inter_convex/(A_min+1e-10);
+
+      // printf("%d %d A_convex:\t %.0f \t %.2f\n",i,j, A_inter, iou);
+
+      if (iou<=threshold){
+        count_kept_convex++;
+        delete[] polyverts;
+        continue;
+      }
+
+
+      // ------- forth/final check  (polygon rendering, exact)
+
+
+      // render polyhedron
+      bool * rendered = new bool[Nz*Ny*Nx];
 
        
 
-	   render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-					   faces, n_rays, n_faces,  rendered, Nz, Ny, Nx);
+      render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
+                        faces, n_rays, n_faces,  rendered, Nz, Ny, Nx);
 
-	   float A_inter_render = overlap_render_polyhedron(&dist[j*n_rays],
-										   &points[3*j],
-										   curr_bbox,
-										   polyverts,
-										   faces, n_rays, n_faces,
-										   rendered, Nz, Ny, Nx);
-	   count_call_render++;
-
-
-	   iou = A_inter_render/(A_min+1e-10);
-
-	   if (verbose>=2){
-		 printf("%d %d \t %.0f < %.0f < %.0f\n",i,j, A_inter_kernel, A_inter_render, A_inter_convex);
-		 printf("%d %d \t %.2f < %.2f < %.2f\n",i,j, A_inter_kernel/A_min, A_inter_render/A_min, A_inter_convex/A_min);
-	   }
-
-	   // printf("%d %d A_render:\t %.0f \t %.2f\n",i,j, A_inter, iou);
-
-	   if (iou>threshold){
-	   	 count_suppressed_rendered++;
-	   	 suppressed[j] = true;
-		 delete[] polyverts;
-		 delete [] rendered;
-	   	 continue;
-	   }
-
-	   delete[] polyverts;
-	   delete [] rendered;
-
-	 }
-
-   }
+      float A_inter_render = overlap_render_polyhedron(&dist[j*n_rays],
+                                                       &points[3*j],
+                                                       curr_bbox,
+                                                       polyverts,
+                                                       faces, n_rays, n_faces,
+                                                       rendered, Nz, Ny, Nx);
+      count_call_render++;
 
 
-   if (verbose>=1){
-	 printf("NMS: Function calls:\n");
-	 printf("NMS: ~ bbox+out: %8d\n", count_call_upper);
-	 printf("NMS: ~ inner:    %8d\n", count_call_lower);
-	 printf("NMS: ~ kernel:   %8d\n", count_call_kernel);
-	 printf("NMS: ~ convex:   %8d\n", count_call_convex);
-	 printf("NMS: ~ render:   %8d\n", count_call_render);
+      iou = A_inter_render/(A_min+1e-10);
 
-	 printf("NMS: Excluded intersection:\n");
-	 printf("NMS: + pretest:  %8d\n", count_kept_pretest);
-	 printf("NMS: + convex:   %8d\n", count_kept_convex);
+      if (verbose>=2){
+        printf("%d %d \t %.0f < %.0f < %.0f\n",i,j, A_inter_kernel, A_inter_render, A_inter_convex);
+        printf("%d %d \t %.2f < %.2f < %.2f\n",i,j, A_inter_kernel/A_min, A_inter_render/A_min, A_inter_convex/A_min);
+      }
 
-	 printf("NMS: Suppressed polyhedra:\n");
-	 printf("NMS: # inner:    %8d / %d  (%.2f %%)\n", count_suppressed_pretest,n_polys,100*(float)count_suppressed_pretest/n_polys);
-	 printf("NMS: # kernel:   %8d / %d  (%.2f %%)\n", count_suppressed_kernel,n_polys,100*(float)count_suppressed_kernel/n_polys);
-	 printf("NMS: # render:   %8d / %d  (%.2f %%)\n", count_suppressed_rendered,n_polys,100*(float)count_suppressed_rendered/n_polys);
-	 int count_suppressed_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-	 printf("NMS: # total:    %8d / %d  (%.2f %%)\n", count_suppressed_total,n_polys,100*(float)count_suppressed_total/n_polys);
-   }
+      // printf("%d %d A_render:\t %.0f \t %.2f\n",i,j, A_inter, iou);
 
+      if (iou>threshold){
+        count_suppressed_rendered++;
+        suppressed[j] = true;
+        delete[] polyverts;
+        delete [] rendered;
+        continue;
+      }
 
+      delete[] polyverts;
+      delete [] rendered;
 
-   npy_intp dims_result[1];
-   dims_result[0] = n_polys;
-   arr_result = (PyArrayObject*)PyArray_SimpleNew(1,dims_result,NPY_BOOL);
+    }
+
+  }
 
 
-   for (int i=0; i<n_polys;i++)
-       *(bool *)PyArray_GETPTR1(arr_result,i) = !suppressed[i];
+  if (verbose){
+    printf("NMS: Function calls:\n");
+    printf("NMS: ~ bbox+out: %8d\n", count_call_upper);
+    printf("NMS: ~ inner:    %8d\n", count_call_lower);
+    printf("NMS: ~ kernel:   %8d\n", count_call_kernel);
+    printf("NMS: ~ convex:   %8d\n", count_call_convex);
+    printf("NMS: ~ render:   %8d\n", count_call_render);
 
-   delete [] volumes;
-   delete [] curr_polyverts;
-   delete [] bbox;
-   delete [] suppressed;
-   delete [] radius_inner;
-   delete [] radius_outer;
-   delete [] radius_inner_isotropic;
-   delete [] radius_outer_isotropic;
+    printf("NMS: Excluded intersection:\n");
+    printf("NMS: + pretest:  %8d\n", count_kept_pretest);
+    printf("NMS: + convex:   %8d\n", count_kept_convex);
 
-   return PyArray_Return(arr_result);
+    printf("NMS: Suppressed polyhedra:\n");
+    printf("NMS: # inner:    %8d / %d  (%.2f %%)\n", count_suppressed_pretest,n_polys,100*(float)count_suppressed_pretest/n_polys);
+    printf("NMS: # kernel:   %8d / %d  (%.2f %%)\n", count_suppressed_kernel,n_polys,100*(float)count_suppressed_kernel/n_polys);
+    printf("NMS: # render:   %8d / %d  (%.2f %%)\n", count_suppressed_rendered,n_polys,100*(float)count_suppressed_rendered/n_polys);
+    int count_suppressed_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+    printf("NMS: # total:    %8d / %d  (%.2f %%)\n", count_suppressed_total,n_polys,100*(float)count_suppressed_total/n_polys);
+  }
+
+
+
+  npy_intp dims_result[1];
+  dims_result[0] = n_polys;
+  arr_result = (PyArrayObject*)PyArray_SimpleNew(1,dims_result,NPY_BOOL);
+
+
+  for (int i=0; i<n_polys;i++)
+    *(bool *)PyArray_GETPTR1(arr_result,i) = !suppressed[i];
+
+  delete [] volumes;
+  delete [] curr_polyverts;
+  delete [] bbox;
+  delete [] suppressed;
+  delete [] radius_inner;
+  delete [] radius_outer;
+  delete [] radius_inner_isotropic;
+  delete [] radius_outer_isotropic;
+
+  return PyArray_Return(arr_result);
 }
 
 
@@ -1342,156 +1339,156 @@ static PyObject* c_polyhedron_to_label(PyObject *self, PyObject *args) {
   int overlap_label;
   
   if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiii(iii)",
-						 &PyArray_Type, &arr_dist,
-						 &PyArray_Type, &arr_points,
-						 &PyArray_Type, &arr_verts,
-						 &PyArray_Type, &arr_faces,
-						 &PyArray_Type, &arr_labels,
-						 &render_mode,
-						 &verbose,
-                         &use_overlap_label,
-                         &overlap_label,
-						 &nz,&ny,&nx))
-       return NULL;
+                        &PyArray_Type, &arr_dist,
+                        &PyArray_Type, &arr_points,
+                        &PyArray_Type, &arr_verts,
+                        &PyArray_Type, &arr_faces,
+                        &PyArray_Type, &arr_labels,
+                        &render_mode,
+                        &verbose,
+                        &use_overlap_label,
+                        &overlap_label,
+                        &nz,&ny,&nx))
+    return NULL;
 
 
-   const int n_polys = PyArray_DIMS(arr_dist)[0];
-   const int n_rays = PyArray_DIMS(arr_dist)[1];
-   const int n_faces = PyArray_DIMS(arr_faces)[0];
+  const int n_polys = PyArray_DIMS(arr_dist)[0];
+  const int n_rays = PyArray_DIMS(arr_dist)[1];
+  const int n_faces = PyArray_DIMS(arr_faces)[0];
 
 
-   const float * const dist = (float*) PyArray_DATA(arr_dist);
-   const float * const points = (float*) PyArray_DATA(arr_points);
-   const float * const verts = (float*) PyArray_DATA(arr_verts);
-   const int * const faces = (int*) PyArray_DATA(arr_faces);
-   const int * const labels = (int*) PyArray_DATA(arr_labels);
+  const float * const dist = (float*) PyArray_DATA(arr_dist);
+  const float * const points = (float*) PyArray_DATA(arr_points);
+  const float * const verts = (float*) PyArray_DATA(arr_verts);
+  const int * const faces = (int*) PyArray_DATA(arr_faces);
+  const int * const labels = (int*) PyArray_DATA(arr_labels);
 
 
-   npy_intp dims_result[3];
-   dims_result[0] = nz;
-   dims_result[1] = ny;
-   dims_result[2] = nx;
+  npy_intp dims_result[3];
+  dims_result[0] = nz;
+  dims_result[1] = ny;
+  dims_result[2] = nx;
 
-   arr_result = (PyArrayObject*)PyArray_ZEROS(3,dims_result,NPY_INT32,0);
+  arr_result = (PyArrayObject*)PyArray_ZEROS(3,dims_result,NPY_INT32,0);
 
-   if (verbose>=1){
-	 printf("+++++++++++++++ polyhedra to label +++++++++++++++ \n");
-     printf("n_polys           = %d \n", n_polys);
-     printf("n_rays            = %d \n", n_rays);
-     printf("n_faces           = %d \n", n_faces);
-     printf("nz, ny, nx        = %d %d %d \n", nz,ny,nx);
-     printf("use_overlap_label = %d \n", use_overlap_label);
-     printf("overlap_label     = %d \n", overlap_label);
-   }
+  if (verbose>=1){
+    printf("+++++++++++++++ polyhedra to label +++++++++++++++ \n");
+    printf("n_polys           = %d \n", n_polys);
+    printf("n_rays            = %d \n", n_rays);
+    printf("n_faces           = %d \n", n_faces);
+    printf("nz, ny, nx        = %d %d %d \n", nz,ny,nx);
+    printf("use_overlap_label = %d \n", use_overlap_label);
+    printf("overlap_label     = %d \n", overlap_label);
+  }
 
-   float * polyverts = new float[3*n_rays];
-   int bbox[6];
+  float * polyverts = new float[3*n_rays];
+  int bbox[6];
 
 
-   for (int i = 0; i < n_polys; ++i) {
+  for (int i = 0; i < n_polys; ++i) {
 
-	 const float * const curr_dist = &dist[i*n_rays];
-	 const float * const curr_center = &points[i*3];
+    const float * const curr_dist = &dist[i*n_rays];
+    const float * const curr_center = &points[i*3];
 
-	 // calculate the actual vertices and the bounding box
-	 polyhedron_bbox(curr_dist, curr_center, verts, n_rays, bbox);
-	 polyhedron_polyverts(curr_dist, curr_center, verts, n_rays, polyverts);
+    // calculate the actual vertices and the bounding box
+    polyhedron_bbox(curr_dist, curr_center, verts, n_rays, bbox);
+    polyhedron_polyverts(curr_dist, curr_center, verts, n_rays, polyverts);
 
-	 // get halfspaces of convex hull and of kernel
-	 std::vector<std::array<double,DIM+1>> hs_convex;
-	 std::vector<std::array<double,DIM+1>> hs_kernel;
+    // get halfspaces of convex hull and of kernel
+    std::vector<std::array<double,DIM+1>> hs_convex;
+    std::vector<std::array<double,DIM+1>> hs_kernel;
 
-	 hs_convex = halfspaces_convex(polyverts, n_rays);
-	 hs_kernel = halfspaces_kernel(polyverts, faces, n_faces);
+    hs_convex = halfspaces_convex(polyverts, n_rays);
+    hs_kernel = halfspaces_kernel(polyverts, faces, n_faces);
 
-	 // std::cout<<"halfspace convex "<<std::endl;
-	 // for(auto hs= hs_convex.begin();hs != hs_convex.end();hs++){
-	 //   for(int i = 0; i < DIM+1; ++i) {
-	 // 	 std::cout<< (*hs)[i] << " ";
-	 //   }
-	 //   std::cout<<std::endl;
-	 // }
-	 // std::cout<<"halfspace kernel "<<std::endl;
-	 // for(auto hs= hs_kernel.begin();hs != hs_kernel.end();hs++){
-	 //   for(int i = 0; i < DIM+1; ++i) {
-	 // 	 std::cout<< (*hs)[i] << " ";
-	 //   }
-	 //   std::cout<<std::endl;
-	 // }
+    // std::cout<<"halfspace convex "<<std::endl;
+    // for(auto hs= hs_convex.begin();hs != hs_convex.end();hs++){
+    //   for(int i = 0; i < DIM+1; ++i) {
+    // 	 std::cout<< (*hs)[i] << " ";
+    //   }
+    //   std::cout<<std::endl;
+    // }
+    // std::cout<<"halfspace kernel "<<std::endl;
+    // for(auto hs= hs_kernel.begin();hs != hs_kernel.end();hs++){
+    //   for(int i = 0; i < DIM+1; ++i) {
+    // 	 std::cout<< (*hs)[i] << " ";
+    //   }
+    //   std::cout<<std::endl;
+    // }
 
-	 // loop over bounding box and label pixel if inside of the polyhedron
+    // loop over bounding box and label pixel if inside of the polyhedron
 #pragma omp parallel for schedule(dynamic)
-	 for (int z = std::max(0,bbox[0]); z <= std::min(nz-1,bbox[1]); ++z) {
-	   for (int y = std::max(0,bbox[2]); y <= std::min(ny-1,bbox[3]); ++y) {
-		 for (int x = std::max(0,bbox[4]); x <= std::min(nx-1,bbox[5]); ++x) {
+    for (int z = std::max(0,bbox[0]); z <= std::min(nz-1,bbox[1]); ++z) {
+      for (int y = std::max(0,bbox[2]); y <= std::min(ny-1,bbox[3]); ++y) {
+        for (int x = std::max(0,bbox[4]); x <= std::min(nx-1,bbox[5]); ++x) {
 
-		   // if ((*(int *)PyArray_GETPTR3(arr_result,z,y,x)==0) && (inside_polyhedron(z,y,x,center, polyverts, faces, n_rays, n_faces)))
-		   //   *(int *)PyArray_GETPTR3(arr_result,z,y,x) = labels[i];
+          // if ((*(int *)PyArray_GETPTR3(arr_result,z,y,x)==0) && (inside_polyhedron(z,y,x,center, polyverts, faces, n_rays, n_faces)))
+          //   *(int *)PyArray_GETPTR3(arr_result,z,y,x) = labels[i];
 
-		   int * pval = (int *)PyArray_GETPTR3(arr_result,z,y,x);
+          int * pval = (int *)PyArray_GETPTR3(arr_result,z,y,x);
 
-           bool inside = false;
+          bool inside = false;
 
-           switch(render_mode){
-           case 0:
-             // render_mode "full"
-             // kernel and convex hull is fast, so we can formulate the condition
-             // such that it can benefit from short-circuiting
-             // inside  = in kernel OR (in convex hull AND in rendered)
-             inside = (
-                       point_in_halfspaces(z,y,x,hs_kernel) ||
-                       (point_in_halfspaces(z,y,x,hs_convex) &&
-                        inside_polyhedron(z,y,x, curr_center, polyverts, faces, n_rays, n_faces)));
+          switch(render_mode){
+          case 0:
+            // render_mode "full"
+            // kernel and convex hull is fast, so we can formulate the condition
+            // such that it can benefit from short-circuiting
+            // inside  = in kernel OR (in convex hull AND in rendered)
+            inside = (
+                      point_in_halfspaces(z,y,x,hs_kernel) ||
+                      (point_in_halfspaces(z,y,x,hs_convex) &&
+                       inside_polyhedron(z,y,x, curr_center, polyverts, faces, n_rays, n_faces)));
 
 
-             break;
-           case 1:
-             // render_mode "kernel"
-             inside = point_in_halfspaces(z,y,x,hs_kernel);
+            break;
+          case 1:
+            // render_mode "kernel"
+            inside = point_in_halfspaces(z,y,x,hs_kernel);
 
-             break;
-           case 2:
-             // render_mode "convex"
-             inside = point_in_halfspaces(z,y,x,hs_convex);
-             break;
-           case 3:
-             // render_mode "bbox"
-             inside = true;
-             break;
-           case 4:
-             // render_mode "debug"
-             bool error = false;
-             if ((inside_polyhedron_kernel(z,y,x,
-                                           curr_center, polyverts,
-                                           faces, n_rays, n_faces)) &&
-                 !(inside_polyhedron(z,y,x,
-                                     curr_center, polyverts,
-                                     faces, n_rays, n_faces)))
-               error = true;
+            break;
+          case 2:
+            // render_mode "convex"
+            inside = point_in_halfspaces(z,y,x,hs_convex);
+            break;
+          case 3:
+            // render_mode "bbox"
+            inside = true;
+            break;
+          case 4:
+            // render_mode "debug"
+            bool error = false;
+            if ((inside_polyhedron_kernel(z,y,x,
+                                          curr_center, polyverts,
+                                          faces, n_rays, n_faces)) &&
+                !(inside_polyhedron(z,y,x,
+                                    curr_center, polyverts,
+                                    faces, n_rays, n_faces)))
+              error = true;
 
-             if (error){
-               *pval = -1;
-               continue;
-             }
-             break;
-           }
+            if (error){
+              *pval = -1;
+              continue;
+            }
+            break;
+          }
 
-           if (inside){
-             // if pixel is already labeled use this as the new label 
-             int new_label_if_labeled = use_overlap_label?overlap_label:(*pval);
+          if (inside){
+            // if pixel is already labeled use this as the new label 
+            int new_label_if_labeled = use_overlap_label?overlap_label:(*pval);
 
-             *pval = (*pval)==0?labels[i]:new_label_if_labeled;
+            *pval = (*pval)==0?labels[i]:new_label_if_labeled;
              
-           }
-         }
-       }
-     }
-   }
+          }
+        }
+      }
+    }
+  }
 
 
-   delete [] polyverts;
+  delete [] polyverts;
 
-   return PyArray_Return(arr_result);
+  return PyArray_Return(arr_result);
 }
 
 //------------------------------------------------------------------------
@@ -1504,10 +1501,10 @@ static PyObject* c_dist_to_volume(PyObject *self, PyObject *args) {
 
 
   if (!PyArg_ParseTuple(args, "O!O!O!",
-						 &PyArray_Type, &arr_dist,
-						 &PyArray_Type, &arr_verts,
-						 &PyArray_Type, &arr_faces))
-       return NULL;
+                        &PyArray_Type, &arr_dist,
+                        &PyArray_Type, &arr_verts,
+                        &PyArray_Type, &arr_faces))
+    return NULL;
 
 
   const int nz = PyArray_DIMS(arr_dist)[0];
@@ -1564,11 +1561,11 @@ static PyObject* c_dist_to_centroid(PyObject *self, PyObject *args) {
   int absolute;
 
   if (!PyArg_ParseTuple(args, "O!O!O!i",
-						 &PyArray_Type, &arr_dist,
-						 &PyArray_Type, &arr_verts,
+                        &PyArray_Type, &arr_dist,
+                        &PyArray_Type, &arr_verts,
 						&PyArray_Type, &arr_faces,
 						&absolute))
-       return NULL;
+    return NULL;
 
 
   const int nz = PyArray_DIMS(arr_dist)[0];
@@ -1629,108 +1626,127 @@ static PyObject* c_dist_to_centroid(PyObject *self, PyObject *args) {
 
 static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
 
-    PyArrayObject *src = NULL;
-    PyArrayObject *dst = NULL;
+  PyArrayObject *src = NULL;
+  PyArrayObject *dst = NULL;
 
-    PyArrayObject *pdx = NULL;
-    PyArrayObject *pdy = NULL;
-    PyArrayObject *pdz = NULL;
-
-
-    int n_rays;
-    int grid_x, grid_y, grid_z;
+  PyArrayObject *pdx = NULL;
+  PyArrayObject *pdy = NULL;
+  PyArrayObject *pdz = NULL;
 
 
-    if (!PyArg_ParseTuple(args, "O!O!O!O!iiii", &PyArray_Type, &src, &PyArray_Type, &pdz ,&PyArray_Type, &pdy,&PyArray_Type, &pdx, &n_rays,&grid_z,&grid_y,&grid_x))
-        return NULL;
+  int n_rays;
+  int grid_x, grid_y, grid_z;
 
-    npy_intp *dims = PyArray_DIMS(src);
 
-    npy_intp dims_dst[4];
-    dims_dst[0] = dims[0]/grid_z;
-    dims_dst[1] = dims[1]/grid_y;
-    dims_dst[2] = dims[2]/grid_x;
-    dims_dst[3] = n_rays;
+  if (!PyArg_ParseTuple(args, "O!O!O!O!iiii", &PyArray_Type, &src, &PyArray_Type, &pdz ,&PyArray_Type, &pdy,&PyArray_Type, &pdx, &n_rays,&grid_z,&grid_y,&grid_x))
+    return NULL;
 
-    dst = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_FLOAT32);
+  npy_intp *dims = PyArray_DIMS(src);
 
-    # pragma omp parallel for schedule(dynamic)
-    for (int i=0; i<dims_dst[0]; i++) {
-        for (int j=0; j<dims_dst[1]; j++) {
-            for (int k=0; k<dims_dst[2]; k++) {
-                const unsigned short value = *(unsigned short *)PyArray_GETPTR3(src,i*grid_z,j*grid_y,k*grid_x);
-                // background pixel
-                if (value == 0) {
-                    for (int n = 0; n < n_rays; n++) {
-                        *(float *)PyArray_GETPTR4(dst,i,j,k,n) = 0;
-                    }
-                // foreground pixel
-                } else {
+  npy_intp dims_dst[4];
+  dims_dst[0] = dims[0]/grid_z;
+  dims_dst[1] = dims[1]/grid_y;
+  dims_dst[2] = dims[2]/grid_x;
+  dims_dst[3] = n_rays;
 
-                    for (int n = 0; n < n_rays; n++) {
+  dst = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_FLOAT32);
 
-                        float dx = *(float *)PyArray_GETPTR1(pdx,n);
-                        float dy = *(float *)PyArray_GETPTR1(pdy,n);
-                        float dz = *(float *)PyArray_GETPTR1(pdz,n);
+# pragma omp parallel for schedule(dynamic)
+  for (int i=0; i<dims_dst[0]; i++) {
+    for (int j=0; j<dims_dst[1]; j++) {
+      for (int k=0; k<dims_dst[2]; k++) {
+        const unsigned short value = *(unsigned short *)PyArray_GETPTR3(src,i*grid_z,j*grid_y,k*grid_x);
+        // background pixel
+        if (value == 0) {
+          for (int n = 0; n < n_rays; n++) {
+            *(float *)PyArray_GETPTR4(dst,i,j,k,n) = 0;
+          }
+          // foreground pixel
+        } else {
 
-                        float x = 0, y = 0, z=0;
-                        // move along ray
-                        while (1) {
-                            x += dx;
-                            y += dy;
-                            z += dz;
-                            const int ii = round_to_int(i*grid_z+z), jj = round_to_int(j*grid_y+y), kk = round_to_int(k*grid_x+x);
+          for (int n = 0; n < n_rays; n++) {
 
-                            //std::cout<<"ii: "<<ii<<" vs  "<<i*grid_z+z<<std::endl;
+            float dx = *(float *)PyArray_GETPTR1(pdx,n);
+            float dy = *(float *)PyArray_GETPTR1(pdy,n);
+            float dz = *(float *)PyArray_GETPTR1(pdz,n);
 
-                            // stop if out of bounds or reaching a pixel with a different value/id
-                            if (ii < 0 || ii >= dims[0] ||
-                                jj < 0 || jj >= dims[1] ||
-                                kk < 0 || kk >= dims[2] ||
-                                value != *(unsigned short *)PyArray_GETPTR3(src,ii,jj,kk))
-                            {
-                              const float dist = sqrt(x*x + y*y + z*z);
+            float x = 0, y = 0, z=0;
+            // move along ray
+            while (1) {
+              x += dx;
+              y += dy;
+              z += dz;
+              const int ii = round_to_int(i*grid_z+z), jj = round_to_int(j*grid_y+y), kk = round_to_int(k*grid_x+x);
 
-                               // const int x2 = round_to_int(x);
-                               // const int y2 = round_to_int(y);
-                               // const int z2 = round_to_int(z);
-                               // const float dist = sqrt(x2*x2 + y2*y2 + z2*z2);
+              //std::cout<<"ii: "<<ii<<" vs  "<<i*grid_z+z<<std::endl;
 
-                                *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
-                                break;
-                            }
-                        }
-                    }
+              // stop if out of bounds or reaching a pixel with a different value/id
+              if (ii < 0 || ii >= dims[0] ||
+                  jj < 0 || jj >= dims[1] ||
+                  kk < 0 || kk >= dims[2] ||
+                  value != *(unsigned short *)PyArray_GETPTR3(src,ii,jj,kk))
+                {
+                  const float dist = sqrt(x*x + y*y + z*z);
+
+                  // const int x2 = round_to_int(x);
+                  // const int y2 = round_to_int(y);
+                  // const int z2 = round_to_int(z);
+                  // const float dist = sqrt(x2*x2 + y2*y2 + z2*z2);
+
+                  *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
+                  break;
                 }
-
             }
+          }
         }
-     }
 
-    return PyArray_Return(dst);
+      }
+    }
+  }
+
+  return PyArray_Return(dst);
 }
 
 //------------------------------------------------------------------------
 
 static struct PyMethodDef methods[] = {
-    {"c_star_dist3d", c_star_dist3d, METH_VARARGS, "star dist 3d calculation"},
-    {"c_non_max_suppression_inds", c_non_max_suppression_inds, METH_VARARGS, "non-maximum suppression"},
-    {"c_polyhedron_to_label", c_polyhedron_to_label, METH_VARARGS, "polyhedron to label"},
-    {"c_dist_to_volume", c_dist_to_volume, METH_VARARGS, "distance to volume"},
-    {"c_dist_to_centroid", c_dist_to_centroid, METH_VARARGS, "distance to centroids"},
-    {NULL, NULL, 0, NULL}
+                                       {"c_star_dist3d",
+                                        c_star_dist3d,
+                                        METH_VARARGS,
+                                        "star dist 3d calculation"},
+                                       
+                                       {"c_non_max_suppression_inds",
+                                        c_non_max_suppression_inds,
+                                        METH_VARARGS,
+                                        "non-maximum suppression"},
+                                       
+                                       {"c_polyhedron_to_label",
+                                        c_polyhedron_to_label,
+                                        METH_VARARGS,
+                                        "polyhedron to label"},
+                                       
+                                       {"c_dist_to_volume",
+                                        c_dist_to_volume,
+                                        METH_VARARGS,
+                                        "distance to volume"},
+                                       
+                                       {"c_dist_to_centroid",
+                                        c_dist_to_centroid,
+                                        METH_VARARGS,
+                                        "distance to centroids"},
+                                       {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef moduledef = {
-    PyModuleDef_HEAD_INIT,
-    "stardist3d", /* name of module */
-    NULL,         /* module documentation, may be NULL */
-    -1,           /* size of per-interpreter state of the module, or -1 if the module keeps state in global variables. */
-    methods,
-    NULL,NULL,NULL,NULL
+                                       PyModuleDef_HEAD_INIT,
+                                       "stardist3d", 
+                                       NULL,         
+                                       -1,           
+                                       methods,
+                                       NULL,NULL,NULL,NULL
 };
 
 PyMODINIT_FUNC PyInit_stardist3d(void) {
-    import_array();
-    return PyModule_Create(&moduledef);
+  import_array();
+  return PyModule_Create(&moduledef);
 }

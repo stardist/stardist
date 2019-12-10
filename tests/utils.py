@@ -5,6 +5,7 @@ from skimage.measure import label
 from scipy.ndimage.filters import gaussian_filter
 from pathlib import Path
 
+
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
     img = img > np.percentile(img, 80)
@@ -40,20 +41,21 @@ def _root_dir():
 
 
 def real_image2d():
-    img  = imread(os.path.join(_root_dir(), 'data', 'img2d.tif'))
+    img = imread(os.path.join(_root_dir(), 'data', 'img2d.tif'))
     mask = imread(os.path.join(_root_dir(), 'data', 'mask2d.tif'))
     return img, mask
 
 
 def real_image3d():
-    img  = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
+    img = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
     mask = imread(os.path.join(_root_dir(), 'data', 'mask3d.tif'))
     return img, mask
 
 
 def check_similar(x, y):
     delta = np.abs(x - y)
-    debug = 'avg abs err = %.10f, max abs err = %.10f' % (np.mean(delta), np.max(delta))
+    debug = 'avg abs err = %.10f, max abs err = %.10f' % (
+        np.mean(delta), np.max(delta))
     assert np.allclose(x, y), debug
 
 

@@ -12,7 +12,8 @@ def test_types(img, n_rays):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist(img.astype(dtype), n_rays=n_rays, mode=mode)
-        print("test_stardist2D (mode {mode}) for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
+        print("test_stardist2D (mode {mode}) for shape {img.shape} and type {dtype}".format(
+            mode=mode, img=img, dtype=dtype))
         check_similar(gt, x)
 
 
@@ -25,7 +26,8 @@ def test_types_gpu(img, n_rays):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist(img.astype(dtype), n_rays=n_rays, mode=mode)
-        print("test_stardist2D with mode {mode} for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
+        print("test_stardist2D with mode {mode} for shape {img.shape} and type {dtype}".format(
+            mode=mode, img=img, dtype=dtype))
         check_similar(gt, x)
 
 
@@ -36,8 +38,6 @@ def test_cpu_gpu(img, n_rays):
     s_cpp = star_dist(img, n_rays=n_rays, mode="cpp")
     s_ocl = star_dist(img, n_rays=n_rays, mode="opencl")
     check_similar(s_cpp, s_ocl)
-
-
 
 
 if __name__ == '__main__':

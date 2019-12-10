@@ -6,7 +6,7 @@ from utils import random_image, real_image3d, check_similar
 
 @pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
-@pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
+@pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
 def test_types(img, n_rays, grid):
     mode = "cpp"
     rays = Rays_GoldenSpiral(n_rays)
@@ -14,14 +14,15 @@ def test_types(img, n_rays, grid):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist3D(img.astype(dtype), rays=rays, grid=grid, mode=mode)
-        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
+        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(
+            mode=mode, img=img, dtype=dtype))
         check_similar(gt, x)
 
 
 @pytest.mark.gpu
 @pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
-@pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
+@pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
 def test_types_gpu(img, n_rays, grid):
     mode = "opencl"
     rays = Rays_GoldenSpiral(n_rays)
@@ -29,14 +30,15 @@ def test_types_gpu(img, n_rays, grid):
     for dtype in (np.int8, np.int16, np.int32,
                   np.uint8, np.uint16, np.uint32):
         x = star_dist3D(img.astype(dtype), rays=rays, grid=grid, mode=mode)
-        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(mode =mode, img = img, dtype = dtype))
+        print("test_stardist3D (mode {mode}) for shape {img.shape} and type {dtype}".format(
+            mode=mode, img=img, dtype=dtype))
         check_similar(gt, x)
 
 
 @pytest.mark.gpu
 @pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
-@pytest.mark.parametrize('grid', ((1,1,1),(1,2,4)))
+@pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
 def test_cpu_gpu(img, n_rays, grid):
     rays = Rays_GoldenSpiral(n_rays)
     s_cpp = star_dist3D(img, rays=rays, grid=grid, mode="cpp")
