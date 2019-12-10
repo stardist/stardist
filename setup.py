@@ -47,7 +47,7 @@ with open(path.join(_dir,'README.md'), encoding="utf-8") as f:
 
 qhull_root = path.join(_dir, 'stardist', 'lib', 'qhull_src', 'src')
 qhull_src = sorted(glob(path.join(qhull_root, '*', '*.c*')))[::-1]
-
+common_src = ['stardist/lib/utils.cpp']
 
 setup(
     name='stardist',
@@ -66,13 +66,13 @@ setup(
     ext_modules=[
         Extension(
             'stardist.lib.stardist2d',
-            sources=['stardist/lib/stardist2d.cpp','stardist/lib/clipper.cpp'],
+            sources=['stardist/lib/stardist2d.cpp','stardist/lib/clipper.cpp'] + common_src,
             extra_compile_args = ['-std=c++11'],
             include_dirs=get_numpy_include_dirs(),
         ),
         Extension(
             'stardist.lib.stardist3d',
-            sources=['stardist/lib/stardist3d.cpp'] + qhull_src,
+            sources=['stardist/lib/stardist3d.cpp'] + common_src + qhull_src,
             extra_compile_args = ['-std=c++11'],
             include_dirs=get_numpy_include_dirs() + [qhull_root],
         ),

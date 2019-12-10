@@ -20,6 +20,9 @@
 #include "libqhullcpp/QhullPointSet.h"
 #include "libqhullcpp/QhullRidge.h"
 #include "libqhullcpp/Qhull.h"
+
+#include "utils.h"
+
 using namespace orgQhull;
 
 #define DIM 3
@@ -1052,22 +1055,18 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
   float * curr_polyverts = new float[3*n_rays];
 
+  ProgressBar prog("suppressed");
+  
   // suppress (double loop)
   for (int i=0; i<n_polys-1; i++) {
 
 
     // if verbose, print progress bar
     if (verbose){
-      int prog_len = 40;
       int count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
-      float prog_percentage = 100.*count_total/n_polys;
-
-      int w = prog_len*prog_percentage/100;
-      std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
-      printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
-      printf(i==n_polys-2?"\n":"\r");
-      fflush(stdout);
+      prog.update(100.*count_total/n_polys);
     }
+
 
     // check signals e.g. such that the loop is interuptable 
     if (PyErr_CheckSignals()==-1){
@@ -1198,7 +1197,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
       if (iou>threshold){
         count_suppressed_kernel++;
         suppressed[j] = true;
-        delete[] polyverts;
+        delete [] polyverts;
         continue;
       }
 
@@ -1217,7 +1216,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
       if (iou<=threshold){
         count_kept_convex++;
-        delete[] polyverts;
+        delete [] polyverts;
         continue;
       }
 
@@ -1254,19 +1253,20 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
       if (iou>threshold){
         count_suppressed_rendered++;
         suppressed[j] = true;
-        delete[] polyverts;
+        delete [] polyverts;
         delete [] rendered;
         continue;
       }
 
-      delete[] polyverts;
+      delete [] polyverts;
       delete [] rendered;
 
     }
 
   }
 
-
+  prog.finish();
+  
   if (verbose){
     printf("NMS: Function calls:\n");
     printf("NMS: ~ bbox+out: %8d\n", count_call_upper);

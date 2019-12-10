@@ -7,6 +7,7 @@
 
 #include "numpy/arrayobject.h"
 #include "clipper.hpp"
+#include "utils.h"
 
 #ifndef M_PI
 #define M_PI 3.141592653589793
@@ -221,22 +222,15 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
   if (verbose)
     printf("NMS: starting suppression loop\n");
 
+  ProgressBar prog("suppressed");
+  
   if (max_bbox_search) {
 
     // suppress (double loop)
     for (int i=0; i<n_polys-1; i++) {
 
-      // if verbose, print progress bar
-      if (verbose){
-        int prog_len = 40;
-        float prog_percentage = 100.*count_suppressed/n_polys;
-
-        int w = prog_len*prog_percentage/100;
-        std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
-        printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
-        printf(i==n_polys-2?"\n":"\r");
-        fflush(stdout);
-      }
+      if (verbose)
+        prog.update(100.*count_suppressed/n_polys);    
 
       // check signals e.g. such that the loop is interuptable 
       if (PyErr_CheckSignals()==-1){
@@ -291,6 +285,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     // suppress (double loop)
     for (int i=0; i<n_polys-1; i++) {
       if (suppressed[i]) continue;
+      
+      if (verbose)
+        prog.update(100.*count_suppressed/n_polys);    
 
       // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
 
@@ -310,6 +307,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
   }
 
+  prog.finish();
+    
   if (verbose){
     printf("NMS: Suppressed polyhedra:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
   }
