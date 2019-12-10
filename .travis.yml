@@ -39,5 +39,5 @@ install:
 
 script:
   - if [ -z $ONLY_INSTALL ]; then
-       pytest -v -s --durations=50 -m "not gpu";
+       pytest -v --durations=50 -m "not gpu";
     fi;
