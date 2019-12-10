@@ -35,6 +35,18 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
     model.train(X, Y, validation_data=(X[:2],Y[:2]))
+    ref = model.predict(X[0])
+    res = model.predict(X[0], n_tiles=((1,2,3) if X[0].ndim==3 else (1,2,3,1)))
+    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
+
+    # ask to train only with foreground patches when there are none
+    # include a constant label image that must trigger a warning
+    conf.train_foreground_only = 1
+    conf.train_steps_per_epoch = 1
+    _X = X[:2]
+    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
+    with pytest.warns(UserWarning):
+        StarDist3D(conf, name='stardist', basedir=None).train(_X, _Y, validation_data=(X[-1:],Y[-1:]))
 
 
 def test_load_and_predict():
@@ -50,6 +62,7 @@ def test_load_and_predict():
     stats = matching(mask, labels, thresh=0.5)
     assert (stats.fp, stats.tp, stats.fn) == (0, 30, 21)
     return model, labels
+
 
 def test_load_and_predict_with_overlap():
     model_path = path_model3d()
@@ -78,12 +91,22 @@ def test_optimize_thresholds():
                                     save_to_json = False)
 
     t1 = _opt(model)
-    # enforce implicit tiling 
+    # enforce implicit tiling
     model.config.train_batch_size = 1
     model.config.train_patch_size = tuple(s-1 for s in x.shape)
     t2 = _opt(model)
-    assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())         
+    assert all(np.allclose(t1[k],t2[k]) for k in t1.keys())
     return model
+
+
+def test_stardistdata():
+    from stardist.models import StarDistData3D
+    from stardist import Rays_GoldenSpiral
+    img, mask = real_image3d()
+    s = StarDistData3D([img, img],[mask, mask], batch_size = 1, patch_size=(30,40,50), rays=Rays_GoldenSpiral(64))
+    (img,mask),(prob, dist) = s[0]
+    return (img,mask),(prob, dist), s
+
 
 if __name__ == '__main__':
     model, lbl = test_load_and_predict_with_overlap()

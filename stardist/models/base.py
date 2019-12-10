@@ -17,6 +17,7 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
+from .sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
 
 
@@ -67,7 +68,7 @@ def kld(y_true, y_pred):
 
 class StarDistDataBase(Sequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
@@ -84,6 +85,7 @@ class StarDistDataBase(Sequence):
         else:
             self.n_channel = X[0].shape[-1]
             assert all(x.shape[-1]==self.n_channel for x in X)
+        assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
         self.batch_size = batch_size
@@ -96,6 +98,7 @@ class StarDistDataBase(Sequence):
             augmenter = lambda *args: args
         callable(augmenter) or _raise(ValueError("augmenter must be None or callable"))
         self.augmenter = augmenter
+        self.foreground_prob = foreground_prob
 
         if self.use_gpu:
             from gputools import max_filter
@@ -106,10 +109,9 @@ class StarDistDataBase(Sequence):
 
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
-        if maxfilter_cache:
-            self.R = [self.no_background_patches((y,x)) for x,y in zip(self.X,self.Y)]
-        else:
-            self.R = None
+        self.sample_ind_cache = sample_ind_cache
+        self._ind_cache_fg  = {}
+        self._ind_cache_all = {}
 
 
     def __len__(self):
@@ -120,16 +122,23 @@ class StarDistDataBase(Sequence):
         self.perm = np.random.permutation(len(self.X))
 
 
-    def no_background_patches(self, arrays, *args):
-        y = arrays[0]
-        return self.max_filter(y, self.maxfilter_patch_size) > 0
-
-
-    def no_background_patches_cached(self, k):
-        if self.R is None:
-            return self.no_background_patches
+    def get_valid_inds(self, k, foreground_prob=None):
+        if foreground_prob is None:
+            foreground_prob = self.foreground_prob
+        foreground_only = np.random.uniform() < foreground_prob
+        _ind_cache = self._ind_cache_fg if foreground_only else self._ind_cache_all
+        if k in _ind_cache:
+            inds = _ind_cache[k]
         else:
-            return lambda *args: self.R[k]
+            patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
+            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
+            if self.sample_ind_cache:
+                _ind_cache[k] = inds
+        if foreground_only and len(inds[0])==0:
+            # no foreground pixels available
+            return self.get_valid_inds(k, foreground_prob=0)
+        return inds
+
 
     def channels_as_tuple(self, x):
         if self.n_channel is None:
@@ -384,7 +393,7 @@ class StarDistBase(BaseModel):
         return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label = overlap_label, **nms_kwargs)
 
 
-    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
+    def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json=True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
         Note that the default thresholds yield good results in many cases, but optimizing
@@ -442,13 +451,17 @@ class StarDistBase(BaseModel):
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
         return opt_threshs
 
+
     def _guess_n_tiles(self, img):
         axes = self._normalize_axes(img, axes=None)
         shape = list(img.shape)
         if 'C' in axes:
             del shape[axes_dict(axes)['C']]
         b = self.config.train_batch_size**(1.0/self.config.n_dim)
-        return tuple(int(np.ceil(s/(p*b))) for s,p in zip(shape,self.config.train_patch_size))
+        n_tiles = [int(np.ceil(s/(p*b))) for s,p in zip(shape,self.config.train_patch_size)]
+        if 'C' in axes:
+            n_tiles.insert(axes_dict(axes)['C'],1)
+        return tuple(n_tiles)
 
 
     def _normalize_axes(self, img, axes):
@@ -472,11 +485,12 @@ class StarDistBase(BaseModel):
         # print(img_size)
         assert all(_is_power_of_2(s) for s in img_size)
         mid = tuple(s//2 for s in img_size)
-        x = np.zeros((1,)+img_size+(1,), dtype=np.float32)
+        dummy = np.empty((1,)+img_size+(1,), dtype=np.float32)
+        x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
-        x[(0,)+mid+(0,)] = 1
-        y  = self.keras_model.predict([x,x])[0][0,...,0]
-        y0 = self.keras_model.predict([z,z])[0][0,...,0]
+        x[(0,)+mid+(slice(None),)] = 1
+        y  = self.keras_model.predict([x,dummy])[0][0,...,0]
+        y0 = self.keras_model.predict([z,dummy])[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
