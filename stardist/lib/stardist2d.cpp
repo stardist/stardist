@@ -2,12 +2,19 @@
 #include <math.h>
 #include <cmath>
 #include <iostream>
+#include <stdio.h>
+#include <string>
+
 #include "numpy/arrayobject.h"
 #include "clipper.hpp"
-#include <stdio.h>
 
 #ifndef M_PI
 #define M_PI 3.141592653589793
+#endif
+
+
+#ifdef _OPENMP
+#include <omp.h>
 #endif
 
 
@@ -154,20 +161,29 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     bool * suppressed = new bool[n_polys];
     ClipperLib::Path * poly_paths = new ClipperLib::Path[n_polys];
 
+    int count_suppressed = 0;
+
     //initialize indices
     #pragma omp parallel for
     for (int i=0; i<n_polys; i++) {
         suppressed[i] = false;
     }
 
-	if (verbose)
-	  printf("build polys and areas \n");
+
+   if (verbose){
+	 printf("Non Maximum Suppression (2D) ++++ \n");
+	 printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: thresh   = %.3f \nNMS: max_bbox_search = %d \n", n_polys, n_rays, threshold, max_bbox_search);
+#ifdef _OPENMP
+	 printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
+#endif
+   }
+    
 
     // build polys and areas
 
 	// disable OpenMP  for now, as there is still a race condition (segfaults on OSX)
     // #pragma omp parallel for
-    for (int i=0; i<n_polys; i++) {
+    for (int i=0; i<n_polys; i++) {      
         ClipperLib::Path clip;
         // build clip poly and bounding boxes
         for (int k =0; k<n_rays; k++) {
@@ -203,13 +219,39 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     }
 
     // printf("max_bbox_size_x = %d, max_bbox_size_y = %d\n", max_bbox_size_x, max_bbox_size_y);
-	if (verbose)
-	  printf("starting main loop \n");
+   if (verbose)
+     printf("NMS: starting suppression loop\n");
 
     if (max_bbox_search) {
 
         // suppress (double loop)
         for (int i=0; i<n_polys-1; i++) {
+
+            // if verbose, print progress bar
+            if (verbose){
+              int prog_len = 40;
+              float prog_percentage = 100.*count_suppressed/n_polys;
+
+              int w = prog_len*prog_percentage/100;
+              std::string s = std::string(w, '#') + std::string(prog_len-w, ' ');
+              printf("|%s| [%.2f %% suppressed]",s.c_str(), prog_percentage);
+              printf(i==n_polys-2?"\n":"\r");
+              fflush(stdout);
+            }
+
+            // check signals e.g. such that the loop is interuptable 
+            if (PyErr_CheckSignals()==-1){
+              delete [] areas;
+              delete [] suppressed;
+              delete [] poly_paths;
+              delete [] bbox_x1;
+              delete [] bbox_x2;
+              delete [] bbox_y1;
+              delete [] bbox_y2;
+              PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
+              return Py_None;
+            }
+          
             if (suppressed[i]) continue;
 
             const int xs = std::max((bbox_x1[i]-max_bbox_size_x)/grid_x, 0);
@@ -222,9 +264,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
             // cf. https://github.com/peterwittek/somoclu/issues/111
             #ifdef _WIN32
-                #pragma omp parallel for schedule(dynamic)
+                #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
             #else
-                #pragma omp parallel for collapse(2) schedule(dynamic)
+                #pragma omp parallel for collapse(2) schedule(dynamic) reduction(+:count_suppressed)
             #endif
             for (int jj=ys; jj<ye; jj++) for (int ii=xs; ii<xe; ii++) {
                 // j is the id of the score-sorted polygon at coordinate (ii,jj)
@@ -238,8 +280,10 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
                 const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
                 const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
-                if (overlap > threshold)
-                    suppressed[j] = true;
+                if (overlap > threshold){
+                  count_suppressed +=1;
+                  suppressed[j] = true;
+                }
             }
         }
 
@@ -266,9 +310,11 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         }
 
     }
-	if (verbose)
-	  printf("finished main loop \n");
 
+    if (verbose){
+      printf("NMS: Suppressed polyhedra:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
+    }
+    
     npy_intp dims_result[1];
     dims_result[0] = n_polys;
 

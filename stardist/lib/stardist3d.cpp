@@ -949,8 +949,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    const int * const faces = (int*) PyArray_DATA(arr_faces);
    const float * const scores = (float*) PyArray_DATA(arr_scores);
 
-   if (verbose>=1){
-	 printf("non-maximum suppression ++++ \n");
+   if (verbose){
+	 printf("Non Maximum Suppression (3D) ++++ \n");
 	 printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
 #ifdef _OPENMP
 	 printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
@@ -971,9 +971,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
    float anisotropy[3] = {0.,0.,0};
 
 
-
    // first compute volumes, bounding boxes and anisotropy factors
-   if (verbose>=1)
+   if (verbose)
      printf("NMS: precompute volumes, bounding boxes, etc\n");
 
 #pragma omp parallel for
@@ -1034,8 +1033,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
 
    // +++++++  NMS starts here ++++++++
-   if (verbose>=1)
-     printf("NMS: starting actual suppression loop\n");
+   if (verbose)
+     printf("NMS: starting suppression loop\n");
 
    int count_kept_pretest = 0;
    int count_kept_convex = 0;
