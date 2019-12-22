@@ -51,7 +51,7 @@ def _edt_dist_func(anisotropy):
     try:
         from edt import edt as edt_func
         # raise ImportError()
-        dist_func = lambda img: edt_func(img>0, anisotropy=anisotropy)
+        dist_func = lambda img: edt_func(np.ascontiguousarray(img>0), anisotropy=anisotropy)
     except ImportError:
         dist_func = lambda img: distance_transform_edt(img, sampling=anisotropy)
     return dist_func
