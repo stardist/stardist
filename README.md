@@ -80,6 +80,11 @@ To properly build `stardist` you need to install a OpenMP-enabled GCC compiler, 
 ### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.5 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
 
+## ImageJ/Fiji Plugin
+
+We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instruction can be found at the [plugin page](https://imagej.net/StarDist).
+
+
 
 ## How to cite 
 ``` 
