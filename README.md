@@ -82,7 +82,7 @@ Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio
 
 ## ImageJ/Fiji Plugin
 
-We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instruction can be found at the [plugin page](https://imagej.net/StarDist).
+We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instructions can be found at the [plugin page](https://imagej.net/StarDist).
 
 
 
