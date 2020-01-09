@@ -102,7 +102,8 @@ def render_label_example():
     img, y_gt = real_image2d()
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
-    im =  render_label(y,img = x, alpha = 0, alpha_boundary=1, cmap = (.3,.4,0))
+    # im =  render_label(y,img = x, alpha = 0.3, alpha_boundary=1, cmap = (.3,.4,0))
+    im =  render_label(y,img = x, alpha = 0.3, alpha_boundary=1)
     import matplotlib.pyplot as plt
     plt.figure(1)
     plt.imshow(im)

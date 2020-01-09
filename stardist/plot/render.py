@@ -31,17 +31,17 @@ def plot_linearmap(cdict):
     newcmp = LinearSegmentedColormap('testCmap', segmentdata=cdict, N=256)
 
 
-def render_label(lbl, cmap = None, img = None, cmap_img = "gray", alpha = 0.5, alpha_boundary = None, normalize_img = True):
+def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, alpha_boundary = None, normalize_img = True):
     """Renders a label image and optionally overlays it with another image. Used for generating simple output images to asses the label quality
 
     Parameters
     ----------
     lbl: np.ndarray of dtype np.uint16
         The 2D label image 
-    cmap: string, tuple, or callable
-        The label colormap. If given as rgb(a)  only a single color is used, if None uses a random colormap 
     img: np.ndarray 
         The array to overlay the label image with (optional)
+    cmap: string, tuple, or callable
+        The label colormap. If given as rgb(a)  only a single color is used, if None uses a random colormap 
     cmap_img: string or callable
         The colormap of img (optional)
     alpha: float 
