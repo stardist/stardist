@@ -59,7 +59,7 @@ class StarDistData2D(StarDistDataBase):
         else:
             X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1)[self.b], y[0]) for y,*x in arrays]))
 
-        X, Y = self.augmenter(X, Y)
+        X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
 
