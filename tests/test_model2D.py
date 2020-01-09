@@ -68,6 +68,23 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
 
 
+def test_optimize_thresholds():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+
+    res = model.optimize_thresholds([x], [mask],
+                              nms_threshs=[.3, .5],
+                              iou_threshs=[.3, .5],
+                              optimize_kwargs=dict(tol=1e-1),
+                              save_to_json=False)
+
+    np.testing.assert_almost_equal(res["prob"], 0.454617141955, decimal=3)
+    np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
+
+
 def test_stardistdata():
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
@@ -78,4 +95,5 @@ def test_stardistdata():
 
 
 if __name__ == '__main__':
-    test_model("tmpdir", 32, (1, 1), 1)
+    # test_model("tmpdir", 32, (1, 1), 1)
+    test_optimize_thresholds()
