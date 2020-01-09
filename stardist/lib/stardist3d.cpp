@@ -1265,7 +1265,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
   }
 
-  prog.finish();
+  if (verbose)
+    prog.finish();
   
   if (verbose){
     printf("NMS: Function calls:\n");

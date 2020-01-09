@@ -178,7 +178,6 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 #endif
   }
     
-
   // build polys and areas
 
   // disable OpenMP  for now, as there is still a race condition (segfaults on OSX)
@@ -307,7 +306,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
   }
 
-  prog.finish();
+  if (verbose)
+    prog.finish();
     
   if (verbose){
     printf("NMS: Suppressed polyhedra:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
