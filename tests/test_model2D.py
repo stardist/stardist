@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from stardist.models import Config2D, StarDist2D
 from stardist.matching import matching
+from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d
 
@@ -94,6 +95,42 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
+def render_label_example():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, y_gt = real_image2d()
+    x = normalize(img, 1, 99.8)
+    y, _ = model.predict_instances(x)
+    im =  render_label(y,img = x, alpha = 0, alpha_boundary=1, cmap = (.3,.4,0))
+    import matplotlib.pyplot as plt
+    plt.figure(1)
+    plt.imshow(im)
+    plt.show()
+    return im
+
+def render_label_pred_example():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, y_gt = real_image2d()
+    x = normalize(img, 1, 99.8)
+    y, _ = model.predict_instances(x)
+
+    im = render_label_pred(y_gt, y , img = x)
+    import matplotlib.pyplot as plt
+    plt.figure(1, figsize = (12,4))
+    plt.subplot(1,4,1);plt.imshow(x);plt.title("img")
+    plt.subplot(1,4,2);plt.imshow(render_label(y_gt, img = x));plt.title("gt")
+    plt.subplot(1,4,3);plt.imshow(render_label(y, img = x));plt.title("pred")
+    plt.subplot(1,4,4);plt.imshow(im);plt.title("tp (green) fp (red) fn(blue)")
+    plt.tight_layout()
+    plt.show()
+    return im
+
+
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)
-    test_optimize_thresholds()
+    # im = render_label_pred_example()
+    im = render_label_example()
+
