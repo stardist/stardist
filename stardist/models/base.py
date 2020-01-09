@@ -337,8 +337,11 @@ class StarDistBase(BaseModel):
         return prob, dist
 
 
-    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
-                          n_tiles=None, show_tile_progress=True, predict_kwargs=None, nms_kwargs=None, overlap_label = None):
+    def predict_instances(self, img, axes=None, normalizer=None,
+                          prob_thresh=None, nms_thresh=None,
+                          n_tiles=None, show_tile_progress=True,
+                          verbose = False,
+                          predict_kwargs=None, nms_kwargs=None, overlap_label = None):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -383,6 +386,8 @@ class StarDistBase(BaseModel):
             predict_kwargs = {}
         if nms_kwargs is None:
             nms_kwargs = {}
+
+        nms_kwargs.setdefault("verbose", verbose)
 
         _axes         = self._normalize_axes(img, axes)
         _axes_net     = self.config.axes
