@@ -84,6 +84,8 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
     # render image if given
     if img is None:
         im_img = np.zeros(lbl.shape+(4,),np.float32)
+        im_img[...,-1] = 1
+        
     else:
         assert lbl.shape == img.shape
         img = normalize(img) if normalize_img else img
@@ -133,8 +135,9 @@ def cmap_from_hls(h,l,s):
 
 
 
-def render_label_pred(y_true, y_pred, img = None, cmap_img = "gray",
-                      tp_alpha = .4, fp_alpha = .4, fn_alpha = .4,
+def render_label_pred(y_true, y_pred,
+                      img = None, cmap_img = "gray", normalize_img = True, 
+                      tp_alpha = .6, fp_alpha = .6, fn_alpha = .6,
                       matching_kwargs = dict(thresh=0.5)):
     """Relabel arbitrary labels to {`offset`, ... `offset` + number_of_labels}.
     This function also returns the forward map (mapping the original labels to
@@ -158,11 +161,18 @@ def render_label_pred(y_true, y_pred, img = None, cmap_img = "gray",
 
     all_true = set(np.unique(y_true))-{0}
     all_pred = set(np.unique(y_pred))-{0}
-    
-    tp_true, tp_pred = tuple(zip(*res.matched_pairs))
+
+    pairs = np.array(res.matched_pairs)
+    scores = np.array(res.matched_scores)
+    ind_tp_pairs = np.where(scores>=matching_kwargs["thresh"])[0]
+    tp_true, tp_pred = tuple(zip(*pairs[ind_tp_pairs]))
     tp = tp_pred
     fn = all_true.difference(tp_true)
     fp = all_pred.difference(tp_pred)
+
+    assert res.tp == len(tp)
+    assert res.fp == len(fp)
+    assert res.fn == len(fn)
 
     mask_tp = np.isin(y_pred, tuple(tp))
     mask_fn = np.isin(y_true, tuple(fn))
@@ -173,9 +183,13 @@ def render_label_pred(y_true, y_pred, img = None, cmap_img = "gray",
         return cmap_from_hls(h,l,s), cmap_from_hls(h,1.4*l,s)
 
     n0 = np.max(y_pred)+1
-    cmap_tp, cmap_border_tp = gen_maps(n0, h0 = (.2,.4) , l0 = (.4,.6), s0 = (.5,.7))
+
+    # green
+    cmap_tp, cmap_border_tp = gen_maps(n0, h0 = (.25,.35) , l0 = (.4,.6), s0 = (.5,.7))
+    # red
     cmap_fp, cmap_border_fp = gen_maps(n0, h0 = (0,.1) , l0 = (.4,.6), s0 = (.5,.7))
-    cmap_fn, cmap_border_fn = gen_maps(n0, h0 = (6,.7) , l0 = (.4,.6), s0 = (.5,.7))
+    # blue
+    cmap_fn, cmap_border_fn = gen_maps(n0, h0 = (.6,.7) , l0 = (.4,.6), s0 = (.5,.7))
 
     im_tp = cmap_tp(y_pred)
     im_fp = cmap_fp(y_pred)
@@ -184,9 +198,10 @@ def render_label_pred(y_true, y_pred, img = None, cmap_img = "gray",
     # render image if given
     if img is None:
         im_img = np.zeros(y_true.shape+(4,),np.float32)
+        im_img[...,-1] = 1
     else:
         assert y_true.shape == img.shape
-        img = normalize(img)
+        img = normalize(img) if normalize_img else img
         cmap_img = cm.get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
         im_img = cmap_img(img)
     
