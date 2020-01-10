@@ -520,6 +520,19 @@ class StarDistBase(BaseModel):
 
     @suppress_without_basedir(warn=True)
     def export_TF(self, fname=None, single_output=True, upsample_grid=True):
+        """export model to tensorflow SavedModel format that can be used e.g. 
+        in the Fiji plugin 
+        
+        Parameters
+        ----------
+        fname : str
+            Path of the zip file to store the model 
+            If None, the default path "<modeldir>/TF_SavedModel.zip" is used
+        single_output: bool
+            If set, concatenates the two model outputs into a single output (note: this is currently mandatory for further use in Fiji)
+        upsample_grid: bool
+            If set, upsamples the output to the input shape (note: this is currently mandatory for further use in Fiji)
+        """
         from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
 
@@ -535,7 +548,8 @@ class StarDistBase(BaseModel):
             #       prob output with less candidates than with standard upsampling
             conv_transpose = Conv2DTranspose if self.config.n_dim==2 else Conv3DTranspose
             upsampling     = UpSampling2D    if self.config.n_dim==2 else UpSampling3D
-            prob = conv_transpose(1, (1,)*self.config.n_dim, strides=grid, padding='same',
+            prob = conv_transpose(1, (1,)*self.config.n_dim,
+                                  strides=grid, padding='same',
                                   kernel_initializer='ones', use_bias=False)(prob)
             dist = upsampling(grid)(dist)
 
