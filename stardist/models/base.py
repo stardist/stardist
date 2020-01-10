@@ -516,6 +516,35 @@ class StarDistBase(BaseModel):
         ))
         return tuple(overlap.get(a,0) for a in query_axes)
 
+    def export_TF(self, fname = None):
+        from csbdeep.utils.tf import export_SavedModel
+        from csbdeep.utils import Path
+        from keras.layers import Concatenate, UpSampling2D, Conv2DTranspose
+        from keras.models import Model
+        
+        grid = self.config.grid
+        prob = self.keras_model.outputs[0]
+        dist = self.keras_model.outputs[1]
+
+        # As csbdeep needs same size input/output we need to upsample
+        # the outputs if grid > (1,1)
+        # Upsampling prob with a transposed convolution creates sparse prob output
+        # with less candidates then with standard upsampling 
+        if any(g>1 for g in grid):
+            prob = Conv2DTranspose(1,(1,1), strides=grid,
+                                   kernel_initializer = "ones",
+                                   use_bias = False,padding = "same")(prob)
+            dist = UpSampling2D(grid)(dist)
+
+        csbdeep_model = Model(self.keras_model.inputs[0],Concatenate()([prob, dist]))
+
+        if fname is None:
+            fname = self.logdir / 'TF_SavedModel.zip'
+        else:
+            fname = Path(fname)
+
+        export_SavedModel(csbdeep_model, str(fname))
+        return csbdeep_model
 
 
 class StarDistPadAndCropResizer(Resizer):
