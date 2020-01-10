@@ -10,6 +10,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <chrono>
 
 #include "libqhullcpp/QhullFacet.h"
 #include "libqhullcpp/QhullError.h"
@@ -570,8 +571,10 @@ void render_polyhedron(const float * const dist, const float * const center,
 
 int overlap_render_polyhedron(const float * const dist, const float * const center,
                               const int * const bbox, const float * const polyverts,
-                              const int * const faces, const int n_rays, const int n_faces,
-                              const bool * const rendered, const int Nz, const int Ny, const int Nx){
+                              const int * const faces, const int n_rays,
+                              const int n_faces, const bool * const rendered,
+                              const int Nz, const int Ny, const int Nx,
+                              const float overlap_maximal){
 
   // printf("rendering polygon of bbox size %d %d %d \n",Nz,Ny,Nx);
 
@@ -587,17 +590,23 @@ int overlap_render_polyhedron(const float * const dist, const float * const cent
 
 		res += ((rendered[x+y*Nx+z*Nx*Ny]) && (inside_polyhedron(pz, py, px ,center, polyverts, faces, n_rays, n_faces)));
 
+        if (res>overlap_maximal){
+          return res;
+        }
 	  }
 	}
   }
   return res;
 }
 
-int overlap_render_polyhedron_kernel(const float * const dist, const float * const center,
-                                     const int * const bbox, const float * const polyverts,
-                                     const int * const faces, const int n_rays, const int n_faces,
-                                     const bool * const rendered, const int Nz, const int Ny, const int Nx){
-
+int overlap_render_polyhedron_kernel(const float * const dist,
+                                     const float * const center,
+                                     const int * const bbox,
+                                     const float * const polyverts,
+                                     const int * const faces, const int n_rays,
+                                     const int n_faces,
+                                     const bool * const rendered,
+                                     const int Nz, const int Ny, const int Nx){
 
   // printf("bbox %d %d   %d %d  %d %d \n",bbox[0],bbox[1],bbox[2],bbox[3],bbox[4],bbox[5]);
   // printf("dist %.2f %.2f %.2f \n",dist[0],dist[1],dist[2]);
@@ -632,8 +641,9 @@ int overlap_render_polyhedron_kernel(const float * const dist, const float * con
 
 // volume of intersection of halfspaces via Qhull
 inline float qhull_volume_halfspace_intersection(const double * halfspaces,
-                                                 const double * interior_point,
-                                                 const int nhalfspaces){
+									const double * interior_point,
+                                                 const int nhalfspaces,
+                                                 const float err_value){
 
   // convert to std::vector which is what qhull expects
   std::vector<double> int_point(interior_point, interior_point+DIM);
@@ -641,15 +651,20 @@ inline float qhull_volume_halfspace_intersection(const double * halfspaces,
   // intersect halfspaces
   Qhull q;
   q.setFeasiblePoint(Coordinates(int_point));
-
+    
   try{
   	q.runQhull("halfspaces", DIM+1, nhalfspaces, halfspaces, "H");
   }
   catch(QhullError &e){
   	// e.errorCode==6023 for not valid feasible point
-	// std::cout << "creation of kernel"<<std::endl;
+	// std::cout << "halfspace intersection"<<std::endl;
 	// std::cout <<e.what()<< std::endl;
-  	return 0;
+    // for (int i = 0; i < nhalfspaces; ++i) 
+    //   printf("%.2f %.2f %.2f %.2f\n",halfspaces[4*i+0],halfspaces[4*i+1],halfspaces[4*i+2],halfspaces[4*i+3]);
+    // printf("nHalfsspaces %d\n", nhalfspaces);
+    
+    
+	return err_value;
   }
   // construct intersection points
   // see https://github.com/scipy/scipy/blob/master/scipy/spatial/qhull.pyx#L2724
@@ -681,12 +696,12 @@ inline float qhull_volume_halfspace_intersection(const double * halfspaces,
   	return qvert.volume();
   }
   catch(QhullError &e){
-	std::cout << "convex hull of kernel intersection"<<std::endl;
-	std::cout << e.what()<<std::endl;
-  	return 0;
+	// std::cout << "convex hull of kernel intersection"<<std::endl;
+	// std::cout << e.what()<<std::endl;
+  	return err_value;
   }
 
-  return 0;
+  return err_value;
 }
 
 // return halfspace of a single triangle
@@ -777,17 +792,16 @@ inline int point_in_halfspaces(const float z, const float y, const float x,
 
 
 inline float qhull_overlap_kernel(
-                                  const float * const polyverts1, const float * const center1,
-                                  const float * const polyverts2, const float * const center2,
-                                  const int * const faces, const int n_rays, const int n_faces){
+						 const float * const polyverts1, const float * const center1,
+						 const float * const polyverts2, const float * const center2,
+                         const int * const faces,
+                         const int n_rays,
+                         const int n_faces, const int n_step=1){
 
   // build halfspaces
   std::vector<std::array<double,DIM+1>> halfspaces;
 
-  // printf("center 1:  %.2f %.2f %.2f\n", center1[0],center1[1],center1[2]);
-  // printf("center 2:  %.2f %.2f %.2f\n", center2[0],center2[1],center2[2]);
-
-  for (int i = 0; i < n_faces; ++i) {
+  for (int i = 0; i < n_faces; i+=n_step) {
 	int iA = faces[3*i];
 	int iB = faces[3*i+1];
 	int iC = faces[3*i+2];
@@ -795,7 +809,6 @@ inline float qhull_overlap_kernel(
 	halfspaces.push_back(build_halfspace(&polyverts1[3*iA],
                                          &polyverts1[3*iB],
 										 &polyverts1[3*iC]));
-
 
 	halfspaces.push_back(build_halfspace(&polyverts2[3*iA],
 										 &polyverts2[3*iB],
@@ -810,11 +823,12 @@ inline float qhull_overlap_kernel(
   interior_point[2] = .5*(center1[2]+center2[2]);
 
 
-
   return qhull_volume_halfspace_intersection(
   											 (double *)&halfspaces[0],
   											 interior_point,
-  											 halfspaces.size());
+  											 halfspaces.size(),
+                                             0.f // err_value
+                                             );
 
 }
 
@@ -839,7 +853,7 @@ inline float qhull_overlap_convex_hulls(
 	// get pointer
 	double pcenter1[] = {center1[0], center1[1], center1[2]};
 	double pcenter2[] = {center2[0], center2[1], center2[2]};
-
+    
 	// build convex hulls of the polygon
 	Qhull qvert1("convex hull", DIM, n_rays, (double *)&verts1[0], "");
 	Qhull qvert2("convex hull", DIM, n_rays, (double *)&verts2[0], "");
@@ -865,42 +879,23 @@ inline float qhull_overlap_convex_hulls(
 	  halfspaces.push_back(plane.offset());
 	}
 
-	std::vector<double> interior_point = {.5*(pcenter1[0]+pcenter2[0]),
+
+    double interior_point[DIM] = {.5*(pcenter1[0]+pcenter2[0]),
 										  .5*(pcenter1[1]+pcenter2[1]),
 										  .5*(pcenter1[2]+pcenter2[2])};
 
+    return qhull_volume_halfspace_intersection(
+                                               (double *)&halfspaces[0],
+                                               interior_point,
+                                               halfspaces.size()/4,
+                                               1.e10 // err_value
+                                               );
 
-	// intersect all halfspaces
-
-	Qhull qhalf;
-	qhalf.setFeasiblePoint(Coordinates(interior_point));
-	qhalf.runQhull("halfspaces", DIM+1, halfspaces.size()/(DIM+1), halfspaces.data(), "H");
-
-	// reconstruct convex hull and return volume
-
-	std::vector<std::array<double,DIM>> intersections;
-
-
-	auto facetlist = qhalf.facetList();
-	for (auto itr = facetlist.begin(); itr != facetlist.end(); ++itr){
-	  std::array<coordT,DIM> inter;
-	  QhullHyperplane plane = (*itr).hyperplane();
-
-	  for (int i = 0; i < DIM; ++i)
-		inter[i] = -plane[i]/plane.offset() + interior_point[i];
-
-	  intersections.push_back(inter);
-	}
-
-
-	Qhull qvert("convex hull", DIM, intersections.size(), intersections[0].data(), "");
-
-	return qvert.volume();
+    
   }
 
   catch(QhullError &e){
-	// std::cout <<e.what() << std::endl;
-
+    // std::cout <<e.what() << std::endl;
   	return 1.e10;
   }
 
@@ -908,7 +903,11 @@ inline float qhull_overlap_convex_hulls(
 }
 
 
-
+float diff_time(const std::chrono::time_point<std::chrono::high_resolution_clock> start){
+  auto stop = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = stop-start;
+  return std::chrono::duration<double>(stop-start).count();
+}
 
 // dist.shape = (n_polys, n_rays)
 // points.shape = (n_polys, 3)
@@ -1048,6 +1047,10 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
   int count_call_render = 0;
   int count_call_convex = 0;
 
+  float timer_call_kernel = 0;
+  float timer_call_convex = 0;
+  float timer_call_render = 0;
+   
   //initialize indices
   for (int i=0; i<n_polys; i++) {
     suppressed[i] = false;
@@ -1060,6 +1063,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
   // suppress (double loop)
   for (int i=0; i<n_polys-1; i++) {
 
+    long count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
+    int status_percentage_new = 100*count_total/n_polys;
 
     // if verbose, print progress bar
     if (verbose){
@@ -1067,8 +1072,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
       prog.update(100.*count_total/n_polys);
     }
 
-
-    // check signals e.g. such that the loop is interuptable 
+    // check signals e.g. such that the loop is interruptable 
     if (PyErr_CheckSignals()==-1){
       delete [] volumes;
       delete [] curr_polyverts;
@@ -1093,6 +1097,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     const float * const curr_point = &points[3*i];
     const int *   const curr_bbox  = &bbox[6*i];
 
+    bool * curr_rendered = NULL;
+     
     int Nz = curr_bbox[1]-curr_bbox[0]+1;
     int Ny = curr_bbox[3]-curr_bbox[2]+1;
     int Nx = curr_bbox[5]-curr_bbox[4]+1;
@@ -1100,17 +1106,48 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     // compute polyverts
     polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
 
+     // printf("kernel volume step 1: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces, 1));
+     // printf("kernel volume step 2: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces,2));
+     // printf("kernel volume step 4: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+     //                               faces, n_rays, n_faces,4));
+     
+     // printf("kernel volume: %.2f\n", qhull_overlap_kernel(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+	 //   								  faces, n_rays, n_faces));
+     // printf("convex volume: %.2f\n", qhull_overlap_convex_hulls(
+     //                               curr_polyverts, curr_point,
+     //                               curr_polyverts, curr_point,
+	 //   								  faces, n_rays, n_faces));
 
-
-    //  inner loop
-    //  can be parallelized....
-#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) reduction(+:count_suppressed_rendered) reduction(+:count_call_kernel) reduction(+:count_call_render) reduction(+:count_call_lower) reduction(+:count_call_upper) reduction(+:count_call_convex) reduction(+:count_kept_pretest) reduction(+:count_kept_convex)
+     
+	 //  inner loop
+	 //  can be parallelized....
+#pragma omp parallel for schedule(dynamic) \
+  reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) \
+  reduction(+:count_suppressed_rendered)                                \
+  reduction(+:count_call_kernel) reduction(+:count_call_render)         \
+  reduction(+:count_call_lower)                                         \
+  reduction(+:count_call_upper) reduction(+:count_call_convex)          \
+  reduction(+:count_kept_pretest) reduction(+:count_kept_convex)        \
+  reduction(+:timer_call_kernel) reduction(+:timer_call_convex)        \
+  reduction(+:timer_call_render) \
+  shared(curr_rendered)
 
     for (int j=i+1; j<n_polys; j++) {
 
       if (suppressed[j])
         continue;
 
+      std::chrono::time_point<std::chrono::high_resolution_clock> time_start;
       float iou = 0;
       float A_min = fmin(volumes[i], volumes[j]);
       float A_inter = 0;
@@ -1128,9 +1165,8 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
                      intersect_bbox(&bbox[6*i],&bbox[6*j]));
       count_call_upper++;
 
-
-      // if it doesn't intersect at all, we can move on...
-      iou = fmin(1.f,A_inter/(A_min+1e-10));
+	   // if it doesn't intersect at all, we can move on...
+	   iou = fmin(1.f,A_inter/(A_min+1e-10));
 
       if ((A_inter<1.e-10)||(iou<=threshold)){
         count_kept_pretest++;
@@ -1166,102 +1202,84 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
       // ------- second check: kernel intersection (lower bound)
 
-
-      // // // compute overlap with rendered kernel
-      // bool * rendered2 = new bool[Nz*Ny*Nx];
-      // render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-      // 				   faces, n_rays, n_faces,  rendered2, Nz, Ny, Nx);
-
-      // float A_inter_kernel_old = overlap_render_polyhedron_kernel(&dist[j*n_rays],
-      // 											 &points[3*j],
-      // 											 curr_bbox,
-      // 											 polyverts,
-      // 											 faces, n_rays, n_faces,
-      // 											 rendered2, Nz, Ny, Nx);
-      // delete [] rendered2;
-
-      // kernel intersection via qhull (lower bound)
-
+      time_start = std::chrono::high_resolution_clock::now();
+       
       float A_inter_kernel = qhull_overlap_kernel(
-                                                  curr_polyverts, curr_point,
-                                                  polyverts, &points[3*j],
-                                                  faces, n_rays, n_faces);
+	   								  curr_polyverts, curr_point,
+	   								  polyverts, &points[3*j],
+	   								  faces, n_rays, n_faces);
+
       count_call_kernel++;
-
-
+      timer_call_kernel += diff_time(time_start);
+       
       iou = A_inter_kernel/(A_min+1e-10);
 
-      // printf("%d %d A_kernel:\t %.0f \t %.2f\n",i,j, A_inter_kernel_old, A_inter_kernel);
-
-
+       
       if (iou>threshold){
         count_suppressed_kernel++;
         suppressed[j] = true;
-        delete [] polyverts;
+        delete[] polyverts;
         continue;
       }
 
       // ------- third check: intersection of convex hull (upper bound)
-
+      time_start = std::chrono::high_resolution_clock::now();
+      
       float A_inter_convex = qhull_overlap_convex_hulls(
-                                                        curr_polyverts, curr_point,
-                                                        polyverts, &points[3*j],
-                                                        faces, n_rays, n_faces);
+	   								  curr_polyverts, curr_point,
+	   								  polyverts, &points[3*j],
+	   								  faces, n_rays, n_faces);
       count_call_convex++;
-
+      timer_call_convex += diff_time(time_start);
 
       iou = A_inter_convex/(A_min+1e-10);
 
-      // printf("%d %d A_convex:\t %.0f \t %.2f\n",i,j, A_inter, iou);
-
       if (iou<=threshold){
         count_kept_convex++;
-        delete [] polyverts;
+        delete[] polyverts;
         continue;
       }
 
 
       // ------- forth/final check  (polygon rendering, exact)
-
-
-      // render polyhedron
-      bool * rendered = new bool[Nz*Ny*Nx];
-
        
+      // render polyhedron
+      time_start = std::chrono::high_resolution_clock::now();
 
-      render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
-                        faces, n_rays, n_faces,  rendered, Nz, Ny, Nx);
-
+      // check whether render buffer was already created 
+      // if not, create it in a critical section  
+#pragma omp critical
+      if (!curr_rendered){
+        {
+          curr_rendered = new bool[Nz*Ny*Nx];
+          render_polyhedron(curr_dist, curr_point, curr_bbox, curr_polyverts,
+                            faces, n_rays, n_faces,  curr_rendered, Nz, Ny, Nx);
+           
+        }
+      }
+       
       float A_inter_render = overlap_render_polyhedron(&dist[j*n_rays],
                                                        &points[3*j],
                                                        curr_bbox,
                                                        polyverts,
                                                        faces, n_rays, n_faces,
-                                                       rendered, Nz, Ny, Nx);
+                                                       curr_rendered, Nz, Ny, Nx,
+                                                       (A_min+1e-10)*threshold
+                                                       );
       count_call_render++;
-
-
+      timer_call_render += diff_time(time_start);
       iou = A_inter_render/(A_min+1e-10);
-
-      if (verbose>=2){
-        printf("%d %d \t %.0f < %.0f < %.0f\n",i,j, A_inter_kernel, A_inter_render, A_inter_convex);
-        printf("%d %d \t %.2f < %.2f < %.2f\n",i,j, A_inter_kernel/A_min, A_inter_render/A_min, A_inter_convex/A_min);
-      }
-
-      // printf("%d %d A_render:\t %.0f \t %.2f\n",i,j, A_inter, iou);
 
       if (iou>threshold){
         count_suppressed_rendered++;
         suppressed[j] = true;
-        delete [] polyverts;
-        delete [] rendered;
-        continue;
       }
 
-      delete [] polyverts;
-      delete [] rendered;
-
+      delete[] polyverts;
+      
     }
+    if (curr_rendered)
+      delete [] curr_rendered;
 
   }
 
@@ -1279,6 +1297,10 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     printf("NMS: Excluded intersection:\n");
     printf("NMS: + pretest:  %8d\n", count_kept_pretest);
     printf("NMS: + convex:   %8d\n", count_kept_convex);
+    printf("NMS: Function calls timing:\n");
+    printf("NMS: / kernel:   %.2f s  (%.2f ms per call)\n", timer_call_kernel, 1000*timer_call_kernel/(1e-10+count_call_kernel));
+    printf("NMS: / convex:   %.2f s  (%.2f ms per call)\n", timer_call_convex, 1000*timer_call_convex/(1e-10+count_call_convex));
+    printf("NMS: / render:   %.2f s  (%.2f ms per call)\n", timer_call_render, 1000*timer_call_render/(1e-10+count_call_render));
 
     printf("NMS: Suppressed polyhedra:\n");
     printf("NMS: # inner:    %8d / %d  (%.2f %%)\n", count_suppressed_pretest,n_polys,100*(float)count_suppressed_pretest/n_polys);
