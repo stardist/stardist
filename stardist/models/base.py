@@ -6,13 +6,14 @@ import warnings
 import math
 from tqdm import tqdm
 from collections import namedtuple
+from pathlib import Path
 
 import keras.backend as K
 from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from csbdeep.models import BaseModel
-from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.models.base_model import BaseModel, suppress_without_basedir
+from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
@@ -516,35 +517,36 @@ class StarDistBase(BaseModel):
         ))
         return tuple(overlap.get(a,0) for a in query_axes)
 
-    def export_TF(self, fname = None):
-        from csbdeep.utils.tf import export_SavedModel
-        from csbdeep.utils import Path
-        from keras.layers import Concatenate, UpSampling2D, Conv2DTranspose
+
+    @suppress_without_basedir(warn=True)
+    def export_TF(self, fname=None, single_output=True, upsample_grid=True):
+        from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
-        
+
         grid = self.config.grid
         prob = self.keras_model.outputs[0]
         dist = self.keras_model.outputs[1]
+        assert self.config.n_dim in (2,3)
 
-        # As csbdeep needs same size input/output we need to upsample
-        # the outputs if grid > (1,1)
-        # Upsampling prob with a transposed convolution creates sparse prob output
-        # with less candidates then with standard upsampling 
-        if any(g>1 for g in grid):
-            prob = Conv2DTranspose(1,(1,1), strides=grid,
-                                   kernel_initializer = "ones",
-                                   use_bias = False,padding = "same")(prob)
-            dist = UpSampling2D(grid)(dist)
+        if upsample_grid and any(g>1 for g in grid):
+            # CSBDeep Fiji plugin needs same size input/output
+            # -> we need to upsample the outputs if grid > (1,1)
+            # note: upsampling prob with a transposed convolution creates sparse
+            #       prob output with less candidates than with standard upsampling
+            conv_transpose = Conv2DTranspose if self.config.n_dim==2 else Conv3DTranspose
+            upsampling     = UpSampling2D    if self.config.n_dim==2 else UpSampling3D
+            prob = conv_transpose(1, (1,)*self.config.n_dim, strides=grid, padding='same',
+                                  kernel_initializer='ones', use_bias=False)(prob)
+            dist = upsampling(grid)(dist)
 
-        csbdeep_model = Model(self.keras_model.inputs[0],Concatenate()([prob, dist]))
+        inputs  = self.keras_model.inputs[0]
+        outputs = Concatenate()([prob,dist]) if single_output else [prob,dist]
+        csbdeep_model = Model(inputs, outputs)
 
-        if fname is None:
-            fname = self.logdir / 'TF_SavedModel.zip'
-        else:
-            fname = Path(fname)
-
+        fname = (self.logdir / 'TF_SavedModel.zip') if fname is None else Path(fname)
         export_SavedModel(csbdeep_model, str(fname))
         return csbdeep_model
+
 
 
 class StarDistPadAndCropResizer(Resizer):

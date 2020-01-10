@@ -69,6 +69,17 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
 
 
+def test_load_and_export_TF():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+
 def test_optimize_thresholds():
     model_path = path_model2d()
     model = StarDist2D(None, name=model_path.name,

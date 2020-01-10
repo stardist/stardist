@@ -310,7 +310,7 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     prog.finish();
     
   if (verbose){
-    printf("NMS: Suppressed polyhedra:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
+    printf("NMS: Suppressed polygons:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
   }
     
   npy_intp dims_result[1];
