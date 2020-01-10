@@ -102,6 +102,38 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
     return points[inds], probi[inds], disti[inds]
 
 
+def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=0.5, verbose=False):
+    """Non-Maximum-Supression of 3D polyhedra from a list of dists, probs and points
+    
+    Retains only polyhedra whose overlap is smaller than nms_thresh 
+    dist.shape = (n_polys, n_rays)
+    prob.shape = (n_polys,)
+    points.shape = (n_polys,3)
+    """
+    
+    # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
+
+    dist = np.asarray(dist)
+    prob = np.asarray(prob)
+    points = np.asarray(points)
+
+    assert dist.ndim == 2 and prob.ndim == 1 and points.ndim == 2 and \
+        dist.shape[-1] == len(rays) and points.shape[-1]==3 and len(prob) == len(dist) == len(points)
+    
+    verbose and print("predicting instances with nms_thresh = {nms_thresh}".format(nms_thresh=nms_thresh), flush=True)
+
+    _sorted = np.argsort(prob)[::-1]
+    probi = prob[_sorted]
+    disti = dist[_sorted]
+    pointsi = points[_sorted]
+
+    verbose and print("non-maximum suppression...")
+
+    inds = non_maximum_suppression_3d_inds(disti, pointsi, rays=rays, scores=probi, thresh=nms_thresh, verbose=verbose)
+
+    verbose and print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
+    return pointsi[inds], probi[inds], disti[inds]
+
 
 def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_bbox=True, verbose=1):
     """
