@@ -7,7 +7,8 @@ from csbdeep.utils import _raise
 
 from ..utils import path_absolute, _normalize_grid
 from ..matching import _check_label_array
-from ..lib.stardist3d import c_star_dist3d, c_polyhedron_to_label, c_dist_to_volume, c_dist_to_centroid
+# from ..lib.stardist3d import c_star_dist3d, c_polyhedron_to_label, c_dist_to_volume, c_dist_to_centroid
+from ..lib.stardist3d import c_star_dist3d, c_polyhedron_to_label
 
 
 

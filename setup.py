@@ -5,7 +5,6 @@ from numpy.distutils.misc_util import get_numpy_include_dirs
 from os import path
 from glob import glob
 
-
 class build_ext_openmp(build_ext):
     # https://www.openmp.org/resources/openmp-compilers-tools/
     # python setup.py build_ext --help-compiler
@@ -35,6 +34,9 @@ class build_ext_openmp(build_ext):
             ext.extra_link_args    = _extra_link_args
             super(build_ext_openmp, self).build_extension(ext)
 
+            
+#------------------------------------------------------------------------------------
+
 
 # cf. https://github.com/mkleehammer/pyodbc/issues/82#issuecomment-231561240
 _dir = path.dirname(__file__)
@@ -63,6 +65,7 @@ setup(
     python_requires='>=3.5',
 
     cmdclass={'build_ext': build_ext_openmp},
+    
     ext_modules=[
         Extension(
             'stardist.lib.stardist2d',
@@ -72,7 +75,7 @@ setup(
         ),
         Extension(
             'stardist.lib.stardist3d',
-            sources=['stardist/lib/stardist3d.cpp'] + common_src + qhull_src,
+            sources=['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp'] + common_src + qhull_src,
             extra_compile_args = ['-std=c++11'],
             include_dirs=get_numpy_include_dirs() + [qhull_root],
         ),

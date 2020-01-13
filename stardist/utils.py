@@ -44,7 +44,7 @@ def _normalize_grid(grid,n):
          all(map(_is_power_of_2,grid))) or _raise(TypeError())
         return tuple(int(g) for g in grid)
     except (TypeError, AssertionError):
-        raise ValueError("grid must be a list/tuple of length {n} with values that are power of 2".format(n=n))
+        raise ValueError("grid = {grid} must be a list/tuple of length {n} with values that are power of 2".format(grid=grid, n=n))
 
 
 def _edt_dist_func(anisotropy):
