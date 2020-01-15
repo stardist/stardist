@@ -87,10 +87,19 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
         im_img[...,-1] = 1
         
     else:
-        assert lbl.shape == img.shape
+        assert lbl.shape[:2] == img.shape[:2]
         img = normalize(img) if normalize_img else img
-        im_img = cmap_img(img)
-
+        if img.ndim==2:
+            im_img = cmap_img(img)
+        elif img.ndim==3:
+            im_img = img[...,:4]
+            if img.shape[-1]<4:
+                im_img = np.concatenate([img, np.ones(img.shape[:2]+(4-img.shape[-1],))], axis = -1)
+        else:
+            raise ValueError("img should be 2 or 3 dimensional")
+            
+                
+            
     # render label
     im_lbl = cmap(lbl)
 
@@ -200,11 +209,19 @@ def render_label_pred(y_true, y_pred,
         im_img = np.zeros(y_true.shape+(4,),np.float32)
         im_img[...,-1] = 1
     else:
-        assert y_true.shape == img.shape
+        assert y_true.shape[:2] == img.shape[:2]
         img = normalize(img) if normalize_img else img
         cmap_img = cm.get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
-        im_img = cmap_img(img)
-    
+        if img.ndim==2:
+            im_img = cmap_img(img)
+        elif img.ndim==3:
+            im_img = img[...,:4]
+            if img.shape[-1]<4:
+                im_img = np.concatenate([img, np.ones(img.shape[:2]+(4-img.shape[-1],))], axis = -1)
+        else:
+            raise ValueError("img should be 2 or 3 dimensional")
+        
+        
     # blend
     im = im_img.copy()
     
