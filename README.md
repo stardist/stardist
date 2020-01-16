@@ -64,7 +64,7 @@ We provide example workflows for 2D and 3D via Jupyter [notebooks](https://githu
 
 ### Annotating Images
 
-To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region is labeled with a distinct integer (and background pixels are labeled with 0). To create such label masks, we recommend using the Imagej/Fiji plugin [Labkit](https://imagej.net/Labkit):
+To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region are labeled with a distinct integer (and background pixels are labeled with 0). To create such label masks, one can use e.g. the Imagej/Fiji plugin [Labkit](https://imagej.net/Labkit):
 
 1. Install [Fiji](https://fiji.sc) and the [Labkit](https://imagej.net/Labkit) plugin
 2. Open the (2D or 3D) image and start Labkit via `Plugins > Segmentation > Labkit`
