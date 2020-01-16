@@ -62,6 +62,22 @@ We provide example workflows for 2D and 3D via Jupyter [notebooks](https://githu
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
+### Annotating Images
+
+To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region is labeled with a distinct integer (and background pixels are labeled with 0). To create such label masks, we recommend using the Imagej/Fiji plugin [Labkit](https://imagej.net/Labkit):
+
+1. Install [Fiji](https://fiji.sc) and the [Labkit](https://imagej.net/Labkit) plugin
+2. Open the (2D or 3D) image and start Labkit via `Plugins > Segmentation > Labkit`
+3. Sucessively add a new label and annotate a single cell instance with the brush tool (always check the `override` option) until *all* cells are labeled
+4. Export the label image via `Save Labeling...` and `File format > TIF Image` 
+
+![](images/labkit_2d_labkit.png)
+
+
+Additional tips:
+
+* The Labkit viewer uses [BigDataViewer](https://imagej.net/BigDataViewer) and its keybindings (e.g. <kbd>s</kbd> for contrast options, <kbd>CTRL</kbd>+<kbd>Shift</kbd>+<kbd>mouse-wheel</kbd> for zoom-in/out etc.)
+* For 3D images (XYZ) it is best to first convert it to a (XYT) timeseries (via `Re-Order Hyperstack` and swapping `z` and `t`) and then use <kbd>[</kbd> and <kbd>]</kbd> in Labkit to walk through the slices.    
 
 ## Troubleshooting
 
