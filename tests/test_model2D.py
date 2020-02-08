@@ -67,6 +67,7 @@ def test_load_and_predict():
         polygons['points']) == len(polygons['prob'])
     stats = matching(mask, labels, thresh=0.5)
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
+    return labels
 
 
 def test_load_and_export_TF():

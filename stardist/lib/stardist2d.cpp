@@ -70,6 +70,10 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
                 jj < 0 || jj >= dims[1] ||
                 value != *(unsigned short *)PyArray_GETPTR2(src,ii,jj))
               {
+                // small correction as we overshoot the boundary
+                const float t_corr = .5f/fmax(fabs(dx),fabs(dy));
+                x += (t_corr-1.f)*dx;
+                y += (t_corr-1.f)*dy;
                 const float dist = sqrt(x*x + y*y);
                 *(float *)PyArray_GETPTR3(dst,i,j,k) = dist;
                 break;
