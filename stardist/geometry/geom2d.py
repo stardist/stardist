@@ -81,7 +81,7 @@ def star_dist(a, n_rays=32, mode='cpp'):
 
 def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
     sh = coord.shape[:2] if shape is None else shape
-    lbl = np.zeros(sh,np.uint16)
+    lbl = np.zeros(sh,np.int32)
     # sort points with increasing probability
     ind = np.argsort([ prob[p[0],p[1]] for p in points ])
     points = points[ind]
