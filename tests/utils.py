@@ -67,3 +67,10 @@ def path_model2d():
 
 def path_model3d():
     return Path(_root_dir()) / '..' / 'models' / 'examples' / '3D_demo'
+
+
+def prob_dist_image2d():
+    img  = imread(os.path.join(_root_dir(), 'data', 'dic_img.tif'))
+    prob = imread(os.path.join(_root_dir(), 'data', 'dic_prob.tif'))
+    dist = imread(os.path.join(_root_dir(), 'data', 'dic_dist.tif'))
+    return img, prob, dist

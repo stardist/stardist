@@ -5,7 +5,7 @@ from stardist.models import Config2D, StarDist2D
 from stardist.matching import matching
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
-from utils import circle_image, real_image2d, path_model2d
+from utils import circle_image, real_image2d, path_model2d, prob_dist_image2d
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel', [(17, (1, 1), None), (32, (2, 4), 1), (4, (8, 2), 2)])
@@ -142,8 +142,30 @@ def render_label_pred_example():
     return im
 
 
+def test_affinity(plot=True):
+    img, prob, dist = prob_dist_image2d()
+    
+    conf = Config2D (n_rays = dist.shape[-1], grid =(2,2))
+    
+    model = StarDist2D(conf, name=None, basedir=None)
+
+    labels1, d1 = model._instances_from_prediction(img.shape, prob, dist,
+                                                   affinity=False, affinity_thresh=.1)
+
+    labels2, d2 = model._instances_from_prediction(img.shape, prob, dist,
+                                                   affinity=True, affinity_thresh=.1)
+
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.subplot(1,2,1)
+        plt.imshow(render_label(labels1, img))
+        plt.subplot(1,2,2)
+        plt.imshow(render_label(labels2, img))
+    return img, labels1, labels2, d1, d2
+
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)
     # im = render_label_pred_example()
-    im = render_label_example()
+    # im = render_label_example()
 
+    img, lbl1, lbl2, d1, d2 = test_affinity(plot=True)

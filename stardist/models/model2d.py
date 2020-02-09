@@ -16,13 +16,15 @@ from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 from skimage.segmentation import clear_border
+from skimage.morphology import watershed
+from scipy.ndimage import zoom
 
 from .base import StarDistBase, StarDistDataBase
 from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-
+from ..affinity import dist_to_affinity2D
 
 
 class StarDistData2D(StarDistDataBase):
@@ -381,16 +383,39 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, affinity=False, affinity_thresh=None, overlap_label = None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
+        if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
 
         coord = dist_to_coord(dist, grid=self.config.grid)
         points = non_maximum_suppression(coord, prob, grid=self.config.grid,
                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-        labels = polygons_to_label(coord, prob, points, shape=img_shape)
-        return labels, dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]])
+
+        
+        if affinity:
+            print("using affinity")
+            zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
+            aff, aff_neg = dist_to_affinity2D(dist,
+                                      weights = prob>=affinity_thresh,
+                                      grid = self.config.grid,
+                                      normed=True, verbose = True);
+
+            ws_potential = zoom(np.mean(aff,-1)*prob,
+                                zoom_factor, order=1)
+            mask         = ws_potential>affinity_thresh
+            markers      = np.zeros(img_shape, np.int32)
+            markers[self.config.grid[0]*points[:,0],
+                    self.config.grid[1]*points[:,1]] = np.arange(len(points))+1    
+            labels = watershed(-ws_potential, markers=markers,mask=mask)
+            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]], aff=aff, ws_potential=ws_potential)
+            
+        else:
+            labels = polygons_to_label(coord, prob, points, shape=img_shape)
+            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]])
+
+        return labels, res_dict
 
 
     def _axes_div_by(self, query_axes):
