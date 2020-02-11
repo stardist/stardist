@@ -71,7 +71,7 @@ To train a *StarDist* model you will need some ground-truth annotations: for eve
 3. Sucessively add a new label and annotate a single cell instance with the brush tool (always check the `override` option) until *all* cells are labeled
 4. Export the label image via `Save Labeling...` and `File format > TIF Image` 
 
-![](images/labkit_2d_labkit.png)
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/labkit_2d_labkit.png)
 
 
 Additional tips:
