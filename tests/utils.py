@@ -5,6 +5,7 @@ from skimage.measure import label
 from scipy.ndimage.filters import gaussian_filter
 from pathlib import Path
 
+
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
     img = img > np.percentile(img, 80)
@@ -13,13 +14,15 @@ def random_image(shape=(128, 128)):
     return img
 
 
-def circle_image(shape=(128, 128), center=None):
+def circle_image(shape=(128, 128), radius = None, center=None, eps = (1,1)):
     if center is None:
         center = (0,)*len(shape)
-    xs = tuple(np.linspace(-1, 1, s) for s in shape)
+    if radius is None:
+        radius = min(shape)//4
+    xs = tuple(np.arange(s)-s//2 for s in shape)
     Xs = np.meshgrid(*xs, indexing="ij")
-    R = np.sqrt(np.sum([(X - c) ** 2 for X, c in zip(Xs, center)], axis=0))
-    img = R < .5
+    R = np.sqrt(np.sum([(X - c) ** 2/_eps**2 for X, c,_eps in zip(Xs, center,eps)], axis=0))
+    img = (R < radius).astype(np.uint16)
     return img
 
 
@@ -40,20 +43,21 @@ def _root_dir():
 
 
 def real_image2d():
-    img  = imread(os.path.join(_root_dir(), 'data', 'img2d.tif'))
+    img = imread(os.path.join(_root_dir(), 'data', 'img2d.tif'))
     mask = imread(os.path.join(_root_dir(), 'data', 'mask2d.tif'))
     return img, mask
 
 
 def real_image3d():
-    img  = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
+    img = imread(os.path.join(_root_dir(), 'data', 'img3d.tif'))
     mask = imread(os.path.join(_root_dir(), 'data', 'mask3d.tif'))
     return img, mask
 
 
 def check_similar(x, y):
     delta = np.abs(x - y)
-    debug = 'avg abs err = %.10f, max abs err = %.10f' % (np.mean(delta), np.max(delta))
+    debug = 'avg abs err = %.10f, max abs err = %.10f' % (
+        np.mean(delta), np.max(delta))
     assert np.allclose(x, y), debug
 
 

@@ -46,7 +46,6 @@ def _py_star_dist(a, n_rays=32):
                     dy = np.cos(phi)
                     dx = np.sin(phi)
                     x, y = np.float32(0), np.float32(0)
-
                     while True:
                         x += dx
                         y += dy
@@ -55,7 +54,11 @@ def _py_star_dist(a, n_rays=32):
                         if (ii < 0 or ii >= a.shape[0] or
                             jj < 0 or jj >= a.shape[1] or
                             value != a[ii,jj]):
-                            dist = np.sqrt(x*x + y*y)
+                            # small correction as we overshoot the boundary
+                            t_corr = 1-.5/max(np.abs(dx),np.abs(dy))
+                            x -= t_corr*dx
+                            y -= t_corr*dy
+                            dist = np.sqrt(x**2+y**2)
                             dst[i,j,k] = dist
                             break
     return dst
@@ -78,7 +81,7 @@ def star_dist(a, n_rays=32, mode='cpp'):
 
 def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
     sh = coord.shape[:2] if shape is None else shape
-    lbl = np.zeros(sh,np.uint16)
+    lbl = np.zeros(sh,np.int32)
     # sort points with increasing probability
     ind = np.argsort([ prob[p[0],p[1]] for p in points ])
     points = points[ind]

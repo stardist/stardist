@@ -15,9 +15,9 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
-from csbdeep.data import sample_patches_from_multiple_stacks
 
 from .base import StarDistBase, StarDistDataBase
+from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
@@ -28,12 +28,12 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         augmenter=augmenter, **kwargs)
+                         augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.rays = rays
         self.anisotropy = anisotropy
@@ -50,15 +50,16 @@ class StarDistData3D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
-                                                      patch_size=self.patch_size, n_samples=1,
-                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                 patch_size=self.patch_size, n_samples=1,
+                                 valid_inds=self.get_valid_inds(k)) for k in idx]
+
         if self.n_channel is None:
             X, Y = list(zip(*[(x[0],y[0]) for y,x in arrays]))
         else:
             X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1), y[0]) for y,*x in arrays]))
 
-        X, Y = self.augmenter(X, Y)
+        X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
         if len(Y) == 1:
             X = X[0][np.newaxis]
@@ -145,6 +146,8 @@ class Config3D(BaseConfig):
         Size of patches to be cropped from provided training images.
     train_background_reg : float
         Regularizer to encourage distance predictions on background regions to be 0.
+    train_foreground_only : float
+        Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
@@ -233,6 +236,7 @@ class Config3D(BaseConfig):
         # self.train_completion_crop     = 32
         self.train_patch_size          = 128,128,128
         self.train_background_reg      = 1e-4
+        self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,0.2
@@ -388,10 +392,14 @@ class StarDist3D(StarDistBase):
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable
-            Function with expected signature ``Xbt, Ybt = augmenter(Xb, Yb)``
-            that takes in batch input/label images (Xb,Yb) and returns
-            transformed images (Xbt, Ybt) for the purpose of data augmentation
+            Function with expected signature ``xt, yt = augmenter(x, y)``
+            that takes in a single pair of input/label image (x,y) and returns
+            the transformed images (xt, yt) for the purpose of data augmentation
             during training. Not applied to validation images.
+            Example:
+            def simple_augmenter(x,y):
+                x = x + 0.05*np.random.normal(0,1,x.shape)
+                return x,y
         seed : int
             Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
@@ -403,6 +411,8 @@ class StarDist3D(StarDistBase):
         -------
         ``History`` object
             See `Keras training history <https://keras.io/models/model/#fit>`_.
+
+
 
         """
         if seed is not None:
@@ -428,11 +438,12 @@ class StarDist3D(StarDistBase):
             self.prepare_for_training()
 
         data_kwargs = dict (
-            rays                  = rays_from_json(self.config.rays_json),
-            grid                  = self.config.grid,
-            patch_size            = self.config.train_patch_size,
-            anisotropy            = self.config.anisotropy,
-            use_gpu               = self.config.use_gpu,
+            rays            = rays_from_json(self.config.rays_json),
+            grid            = self.config.grid,
+            patch_size      = self.config.train_patch_size,
+            anisotropy      = self.config.anisotropy,
+            use_gpu         = self.config.use_gpu,
+            foreground_prob = self.config.train_foreground_only,
         )
 
         # generate validation data and store in numpy arrays
@@ -493,7 +504,7 @@ class StarDist3D(StarDistBase):
             labels[labels == fwd[overlap_label2]] = overlap_label
         else:
             labels, _,_ = relabel_sequential(labels)
-            
+
         # TODO: convert to polyhedra faces?
         return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
 

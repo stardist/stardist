@@ -35,9 +35,13 @@ __kernel void star_dist(__global float* dst, read_only image2d_t src) {
                 offset += dir;
                 const int offset_value = read_imageui(src,sampler,round(origin+offset)).x;
                 if (offset_value != value) {
-                    const float dist = sqrt(offset.x*offset.x + offset.y*offset.y);
-                    dst[k + i*N_RAYS + j*N_RAYS*Nx] = dist;
-                    break;
+                  // small correction as we overshoot the boundary
+                  const float t_corr = .5f/fmax(fabs(dir.x),fabs(dir.y));
+                  offset += (t_corr-1.f)*dir;
+
+                  const float dist = sqrt(offset.x*offset.x + offset.y*offset.y);
+                  dst[k + i*N_RAYS + j*N_RAYS*Nx] = dist;
+                  break;
                 }
             }
         }

@@ -6,17 +6,19 @@ import warnings
 import math
 from tqdm import tqdm
 from collections import namedtuple
+from pathlib import Path
 
 import keras.backend as K
 from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from csbdeep.models import BaseModel
-from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.models.base_model import BaseModel, suppress_without_basedir
+from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
+from .sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
 
 
@@ -67,7 +69,7 @@ def kld(y_true, y_pred):
 
 class StarDistDataBase(Sequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, maxfilter_cache=True, maxfilter_patch_size=None, augmenter=None):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
         X = [x.astype(np.float32, copy=False) for x in X]
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
@@ -84,6 +86,7 @@ class StarDistDataBase(Sequence):
         else:
             self.n_channel = X[0].shape[-1]
             assert all(x.shape[-1]==self.n_channel for x in X)
+        assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
         self.batch_size = batch_size
@@ -96,6 +99,7 @@ class StarDistDataBase(Sequence):
             augmenter = lambda *args: args
         callable(augmenter) or _raise(ValueError("augmenter must be None or callable"))
         self.augmenter = augmenter
+        self.foreground_prob = foreground_prob
 
         if self.use_gpu:
             from gputools import max_filter
@@ -106,10 +110,9 @@ class StarDistDataBase(Sequence):
 
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
 
-        if maxfilter_cache:
-            self.R = [self.no_background_patches((y,x)) for x,y in zip(self.X,self.Y)]
-        else:
-            self.R = None
+        self.sample_ind_cache = sample_ind_cache
+        self._ind_cache_fg  = {}
+        self._ind_cache_all = {}
 
 
     def __len__(self):
@@ -120,16 +123,23 @@ class StarDistDataBase(Sequence):
         self.perm = np.random.permutation(len(self.X))
 
 
-    def no_background_patches(self, arrays, *args):
-        y = arrays[0]
-        return self.max_filter(y, self.maxfilter_patch_size) > 0
-
-
-    def no_background_patches_cached(self, k):
-        if self.R is None:
-            return self.no_background_patches
+    def get_valid_inds(self, k, foreground_prob=None):
+        if foreground_prob is None:
+            foreground_prob = self.foreground_prob
+        foreground_only = np.random.uniform() < foreground_prob
+        _ind_cache = self._ind_cache_fg if foreground_only else self._ind_cache_all
+        if k in _ind_cache:
+            inds = _ind_cache[k]
         else:
-            return lambda *args: self.R[k]
+            patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
+            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
+            if self.sample_ind_cache:
+                _ind_cache[k] = inds
+        if foreground_only and len(inds[0])==0:
+            # no foreground pixels available
+            return self.get_valid_inds(k, foreground_prob=0)
+        return inds
+
 
     def channels_as_tuple(self, x):
         if self.n_channel is None:
@@ -328,8 +338,11 @@ class StarDistBase(BaseModel):
         return prob, dist
 
 
-    def predict_instances(self, img, axes=None, normalizer=None, prob_thresh=None, nms_thresh=None,
-                          n_tiles=None, show_tile_progress=True, predict_kwargs=None, nms_kwargs=None, overlap_label = None):
+    def predict_instances(self, img, axes=None, normalizer=None,
+                          prob_thresh=None, nms_thresh=None,
+                          n_tiles=None, show_tile_progress=True,
+                          verbose = False,
+                          predict_kwargs=None, nms_kwargs=None, overlap_label = None):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -374,6 +387,8 @@ class StarDistBase(BaseModel):
             predict_kwargs = {}
         if nms_kwargs is None:
             nms_kwargs = {}
+
+        nms_kwargs.setdefault("verbose", verbose)
 
         _axes         = self._normalize_axes(img, axes)
         _axes_net     = self.config.axes
@@ -501,6 +516,50 @@ class StarDistBase(BaseModel):
             tuple(max(rf) for rf in self._tile_overlap)
         ))
         return tuple(overlap.get(a,0) for a in query_axes)
+
+
+    @suppress_without_basedir(warn=True)
+    def export_TF(self, fname=None, single_output=True, upsample_grid=True):
+        """export model to tensorflow SavedModel format that can be used e.g. 
+        in the Fiji plugin 
+        
+        Parameters
+        ----------
+        fname : str
+            Path of the zip file to store the model 
+            If None, the default path "<modeldir>/TF_SavedModel.zip" is used
+        single_output: bool
+            If set, concatenates the two model outputs into a single output (note: this is currently mandatory for further use in Fiji)
+        upsample_grid: bool
+            If set, upsamples the output to the input shape (note: this is currently mandatory for further use in Fiji)
+        """
+        from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
+        from keras.models import Model
+
+        grid = self.config.grid
+        prob = self.keras_model.outputs[0]
+        dist = self.keras_model.outputs[1]
+        assert self.config.n_dim in (2,3)
+
+        if upsample_grid and any(g>1 for g in grid):
+            # CSBDeep Fiji plugin needs same size input/output
+            # -> we need to upsample the outputs if grid > (1,1)
+            # note: upsampling prob with a transposed convolution creates sparse
+            #       prob output with less candidates than with standard upsampling
+            conv_transpose = Conv2DTranspose if self.config.n_dim==2 else Conv3DTranspose
+            upsampling     = UpSampling2D    if self.config.n_dim==2 else UpSampling3D
+            prob = conv_transpose(1, (1,)*self.config.n_dim,
+                                  strides=grid, padding='same',
+                                  kernel_initializer='ones', use_bias=False)(prob)
+            dist = upsampling(grid)(dist)
+
+        inputs  = self.keras_model.inputs[0]
+        outputs = Concatenate()([prob,dist]) if single_output else [prob,dist]
+        csbdeep_model = Model(inputs, outputs)
+
+        fname = (self.logdir / 'TF_SavedModel.zip') if fname is None else Path(fname)
+        export_SavedModel(csbdeep_model, str(fname))
+        return csbdeep_model
 
 
 

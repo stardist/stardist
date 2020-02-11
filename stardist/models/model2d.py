@@ -15,10 +15,10 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
-from csbdeep.data import sample_patches_from_multiple_stacks
 from skimage.segmentation import clear_border
 
 from .base import StarDistBase, StarDistDataBase
+from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
@@ -27,11 +27,11 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
-                         augmenter=augmenter, **kwargs)
+                         augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.shape_completion = bool(shape_completion)
         if self.shape_completion and b > 0:
@@ -46,15 +46,16 @@ class StarDistData2D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches_from_multiple_stacks((self.Y[k],) + self.channels_as_tuple(self.X[k]),
-                                                      patch_size=self.patch_size, n_samples=1,
-                                                      patch_filter=self.no_background_patches_cached(k)) for k in idx]
+        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+                                 patch_size=self.patch_size, n_samples=1,
+                                 valid_inds=self.get_valid_inds(k)) for k in idx]
+
         if self.n_channel is None:
             X, Y = list(zip(*[(x[0][self.b],y[0]) for y,x in arrays]))
         else:
             X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1)[self.b], y[0]) for y,*x in arrays]))
 
-        X, Y = self.augmenter(X, Y)
+        X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
 
@@ -126,6 +127,8 @@ class Config2D(BaseConfig):
         Size of patches to be cropped from provided training images.
     train_background_reg : float
         Regularizer to encourage distance predictions on background regions to be 0.
+    train_foreground_only : float
+        Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
@@ -188,6 +191,7 @@ class Config2D(BaseConfig):
         self.train_completion_crop     = 32
         self.train_patch_size          = 256,256
         self.train_background_reg      = 1e-4
+        self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = 1,0.2
@@ -294,10 +298,14 @@ class StarDist2D(StarDistBase):
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable
-            Function with expected signature ``Xbt, Ybt = augmenter(Xb, Yb)``
-            that takes in batch input/label images (Xb,Yb) and returns
-            transformed images (Xbt, Ybt) for the purpose of data augmentation
+            Function with expected signature ``xt, yt = augmenter(x, y)``
+            that takes in a single pair of input/label image (x,y) and returns
+            the transformed images (xt, yt) for the purpose of data augmentation
             during training. Not applied to validation images.
+            Example:
+            def simple_augmenter(x,y):
+                x = x + 0.05*np.random.normal(0,1,x.shape)
+                return x,y
         seed : int
             Convenience to set ``np.random.seed(seed)``. (To obtain reproducible validation patches, etc.)
         epochs : int
@@ -342,6 +350,7 @@ class StarDist2D(StarDistBase):
             shape_completion = self.config.train_shape_completion,
             b                = self.config.train_completion_crop,
             use_gpu          = self.config.use_gpu,
+            foreground_prob  = self.config.train_foreground_only,
         )
 
         # generate validation data and store in numpy arrays

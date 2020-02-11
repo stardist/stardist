@@ -1,6 +1,8 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
-from .utils import _normalize_grid
+from csbdeep.utils import normalize
+from ..utils import _normalize_grid
+from ..matching import matching
 
 def random_label_cmap(n=2**16):
     import matplotlib
@@ -64,3 +66,4 @@ def _draw_polygons(polygons, points=None, scores=None, grid=(1,1), cmap=None, sh
             plt.gca().add_collection(LineCollection(dist_lines, colors=c, linewidths=0.4))
 
         _plot_polygon(poly[1], poly[0], 3*score, color=c)
+
