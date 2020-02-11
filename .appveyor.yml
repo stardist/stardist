@@ -30,7 +30,7 @@ install:
   - "python --version"
   - "python -m pip install -U pip"
   - "pip install \"tensorflow<2\" keras pytest"
-  - %INSTALL_COMMAND%
+  - cmd: %INSTALL_COMMAND%
 
 build: none
 
