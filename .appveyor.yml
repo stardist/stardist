@@ -27,7 +27,7 @@ install:
   - "python --version"
   - "python -m pip install -U pip"
   - "pip install \"tensorflow<2\" keras pytest"
-  - "pip install stardist"
+  - "pip install -v stardist"
   - "pip uninstall -y stardist"
   - "pip install --no-cache-dir --force-reinstall ."
 
