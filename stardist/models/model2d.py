@@ -387,7 +387,7 @@ class StarDist2D(StarDistBase):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
-        if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
+        if affinity and affinity_thresh is None: affinity_thresh  = self.thresholds.affinity
 
         coord = dist_to_coord(dist, grid=self.config.grid)
         points = non_maximum_suppression(coord, prob, grid=self.config.grid,
@@ -407,7 +407,9 @@ class StarDist2D(StarDistBase):
             mask         = ws_potential>affinity_thresh
             markers      = np.zeros(img_shape, np.int32)
             markers[self.config.grid[0]*points[:,0],
-                    self.config.grid[1]*points[:,1]] = np.arange(len(points))+1    
+                    self.config.grid[1]*points[:,1]] = np.arange(len(points))+1
+            # from scipy.ndimage import label
+            # markers,_ = label(zoom(prob,zoom_factor, order=1)>prob_thresh)
             labels = watershed(-ws_potential, markers=markers,mask=mask)
             res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]], aff=aff, ws_potential=ws_potential)
             

@@ -341,7 +341,7 @@ class StarDistBase(BaseModel):
     def predict_instances(self, img, axes=None, normalizer=None,
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
-                          verbose = False,
+                          affinity=False, affinity_thresh=None,                                                  verbose = False,
                           predict_kwargs=None, nms_kwargs=None, overlap_label = None):
         """Predict instance segmentation from input image.
 
@@ -396,7 +396,7 @@ class StarDistBase(BaseModel):
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
         prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label = overlap_label, **nms_kwargs)
+        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, affinity=affinity, affinity_thresh=affinity_thresh, overlap_label = overlap_label, **nms_kwargs)
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json=True):
