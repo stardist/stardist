@@ -181,12 +181,12 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif
   }
-    
+
   // build polys and areas
 
   // disable OpenMP  for now, as there is still a race condition (segfaults on OSX)
   // #pragma omp parallel for
-  for (int i=0; i<n_polys; i++) {      
+  for (int i=0; i<n_polys; i++) {
     ClipperLib::Path clip;
     // build clip poly and bounding boxes
     for (int k =0; k<n_rays; k++) {
@@ -226,16 +226,17 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     printf("NMS: starting suppression loop\n");
 
   ProgressBar prog("suppressed");
-  
+
   if (max_bbox_search) {
 
     // suppress (double loop)
     for (int i=0; i<n_polys-1; i++) {
+      if (suppressed[i]) continue;
 
       if (verbose)
-        prog.update(100.*count_suppressed/n_polys);    
+        prog.update(100.*count_suppressed/n_polys);
 
-      // check signals e.g. such that the loop is interuptable 
+      // check signals e.g. such that the loop is interruptible
       if (PyErr_CheckSignals()==-1){
         delete [] areas;
         delete [] suppressed;
@@ -244,11 +245,9 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
         delete [] bbox_x2;
         delete [] bbox_y1;
         delete [] bbox_y2;
-        PyErr_SetString(PyExc_KeyboardInterrupt, "interupted");
+        PyErr_SetString(PyExc_KeyboardInterrupt, "interrupted");
         return Py_None;
       }
-          
-      if (suppressed[i]) continue;
 
       const int xs = std::max((bbox_x1[i]-max_bbox_size_x)/grid_x, 0);
       const int xe = std::min((bbox_x2[i]+max_bbox_size_x)/grid_x, width);
@@ -288,13 +287,26 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
     // suppress (double loop)
     for (int i=0; i<n_polys-1; i++) {
       if (suppressed[i]) continue;
-      
+
       if (verbose)
-        prog.update(100.*count_suppressed/n_polys);    
+        prog.update(100.*count_suppressed/n_polys);
+
+      // check signals e.g. such that the loop is interruptible
+      if (PyErr_CheckSignals()==-1){
+        delete [] areas;
+        delete [] suppressed;
+        delete [] poly_paths;
+        delete [] bbox_x1;
+        delete [] bbox_x2;
+        delete [] bbox_y1;
+        delete [] bbox_y2;
+        PyErr_SetString(PyExc_KeyboardInterrupt, "interrupted");
+        return Py_None;
+      }
 
       // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
 
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
       for (int j=i+1; j<n_polys; j++) {
         if (suppressed[j]) continue;
         // skip if bounding boxes are not even intersecting
@@ -303,8 +315,11 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
         const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
         const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
-        if (overlap > threshold)
+        if (overlap > threshold){
+          count_suppressed +=1;
           suppressed[j] = true;
+        }
+
       }
     }
 
@@ -312,11 +327,11 @@ static PyObject* c_non_max_suppression_inds (PyObject *self, PyObject *args) {
 
   if (verbose)
     prog.finish();
-    
+
   if (verbose){
     printf("NMS: Suppressed polygons:   %8d / %d  (%.2f %%)\n", count_suppressed,n_polys,100*(float)count_suppressed/n_polys);
   }
-    
+
   npy_intp dims_result[1];
   dims_result[0] = n_polys;
 
@@ -353,8 +368,8 @@ static struct PyMethodDef methods[] = {
 static struct PyModuleDef moduledef = {
                                        PyModuleDef_HEAD_INIT,
                                        "stardist2d",
-                                       NULL,        
-                                       -1, 
+                                       NULL,
+                                       -1,
                                        methods,
                                        NULL,NULL,NULL,NULL
 };
