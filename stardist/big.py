@@ -1,13 +1,11 @@
 import numpy as np
 import warnings
+import math
 from tqdm import tqdm
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
-import math
-
-from skimage.segmentation import clear_border
-from collections import namedtuple
 from itertools import product
+
 from .matching import relabel_sequential
 
 
@@ -55,7 +53,7 @@ class Tile:
             self.succ.freeze()
 
     @property
-    def slice(self):
+    def slice_read(self):
         return slice(self.start, self.end)
 
     @property
@@ -75,10 +73,11 @@ class Tile:
         r_end = self.size - self.context_start - self.context_end
 
         # todo: of actual importance is whether one of those objects crosses the overlap region
+
         # assert bmax - bmin < self.min_overlap, 'found object bigger than min overlap'
         # if bmax - bmin < self.min_overlap:
         #     print('found object bigger than min overlap')
-        assert not (not self.at_begin and bmin == 0 and bmax >= r_start), [(r_start,r_end), bbox, self]
+        assert not (bmin == 0 and bmax >= r_start and not self.at_begin), [(r_start,r_end), bbox, self]
 
         assert 0 <= bmin < bmax <= r_end
         # object ends before responsible region start
@@ -121,6 +120,7 @@ class Tile:
         else:
             return f'{self.__class__.__name__}({shared}, overlap={self.overlap}/{self.overlap-self.context_start-self.context_end})'
 
+    @property
     def chain(self):
         tiles = [self]
         while not tiles[-1].at_end:
@@ -128,7 +128,7 @@ class Tile:
         return tiles
 
     def __iter__(self):
-        return iter(self.chain())
+        return iter(self.chain)
 
     # ------------------------
 
@@ -139,7 +139,11 @@ class Tile:
         tile_size = _grid_divisible(grid, tile_size, name='tile_size')
         min_overlap = _grid_divisible(grid, min_overlap, name='min_overlap')
         context = _grid_divisible(grid, context, name='context')
-        assert all(v % grid == 0 for v in (size, tile_size, min_overlap, context))
+        assert all(v % grid == 0 for v in (tile_size, min_overlap, context))
+
+        # allow size not to be divisible by grid
+        size_orig = size
+        size = _grid_divisible(grid, size, name='size', verbose=False)
 
         # divide all sizes by grid
         size //= grid
@@ -180,17 +184,25 @@ class Tile:
                 t.stride = _t.stride*grid
             last = t
 
+            # change size of last tile
+            # will be padded internally to the same size
+            # as the others by model.predict_instances
+            size_delta = size - size_orig
+            last.size -= size_delta
+            assert size_delta < grid
+
         # for efficiency (to not determine starts recursively from now on)
         first.freeze()
 
-        # sanity checks
-        assert first.start == 0 and last.end == size
-        assert all(t.overlap >= min_overlap for t in first)
-        assert all (t.start % grid == 0 and t.end % grid == 0 for t in first)
+        tiles = first.chain
 
+        # sanity checks
+        assert first.start == 0 and last.end == size_orig
+        assert all(t.overlap-2*context >= min_overlap for t in tiles if t != last)
+        assert all (t.start % grid == 0 and t.end % grid == 0 for t in tiles if t != last)
         # print(); [print(t) for t in first]
 
-        return first
+        return tiles
 
 
 
@@ -201,8 +213,8 @@ class TileND:
         self.tiles = tuple(tiles)
 
     @property
-    def slice(self):
-        return tuple(t.slice for t in self.tiles)
+    def slice_read(self):
+        return tuple(t.slice_read for t in self.tiles)
 
     @property
     def slice_crop_context(self):
@@ -211,6 +223,16 @@ class TileND:
     @property
     def slice_write(self):
         return tuple(t.slice_write for t in self.tiles)
+
+    def read(self, x):
+        return x[self.slice_read]
+
+    def crop_context(self, labels):
+        return labels[self.slice_crop_context]
+
+    def write(self, x, labels):
+        mask = labels > 0
+        x[self.slice_write][mask] = labels[mask]
 
     def is_responsible(self, slice):
         return all(t.is_responsible((s.start,s.stop)) for t,s in zip(self.tiles,slice))
@@ -244,7 +266,7 @@ def get_tiling(shape, tile_size, min_overlap, context, grid=1):
     if np.isscalar(grid): grid = (grid,)*n
     assert n == len(tile_size) == len(min_overlap) == len(context) == len(grid)
 
-    tiling = [Tile.get_tiling(_size, _tile_size, _min_overlap, _context, _grid).chain()
+    tiling = [Tile.get_tiling(_size, _tile_size, _min_overlap, _context, _grid)
               for _size, _tile_size, _min_overlap, _context, _grid
               in  zip(shape, tile_size, min_overlap, context, grid)]
 
@@ -252,29 +274,31 @@ def get_tiling(shape, tile_size, min_overlap, context, grid=1):
 
 
 
-def predict_big(img, model, tile_size=16*16, min_overlap=4*16, context=5*16, grid=16):
+def predict_big(model, img, axes='YX', tile_size=16*16, min_overlap=4*16, context=5*16, **kwargs):
+    grid = model._axes_div_by(axes)
+
     tiles = get_tiling(img.shape, tile_size, min_overlap, context, grid)
     output = np.zeros_like(img, dtype=np.int32)
     max_objects_per_block = 1000
 
     for tile in tiles:
-        block, _ = model.predict_instances(img[tile.slice])
-        block = block[tile.slice_crop_context]
+        block, _ = model.predict_instances(tile.read(img), **kwargs)
+        block = tile.crop_context(block)
         block = tile.filter_objects(block)
         block = relabel_sequential(block, 1 + tile.id*max_objects_per_block)[0]
-        mask = block > 0
-        output[tile.slice_write][mask] = block[mask]
+        tile.write(output, block)
 
     output = relabel_sequential(output)[0]
     return output
 
 
 
-def _grid_divisible(grid, size, name=None):
+def _grid_divisible(grid, size, name=None, verbose=True):
     if size % grid == 0:
         return size
     _size = size
     size = math.ceil(size / grid) * grid
-    print(f"changing {'value' if name is None else name} from {_size} to {size} to be evenly divisible by {grid} (grid)")
+    if verbose:
+        print(f"changing {'value' if name is None else name} from {_size} to {size} to be evenly divisible by {grid} (grid)")
     assert size % grid == 0
     return size
