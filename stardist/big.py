@@ -12,7 +12,7 @@ from .matching import relabel_sequential
 
 class Tile:
 
-    def __init__(self, size, min_overlap, pred, context):
+    def __init__(self, size, min_overlap, context, pred):
         self.size = int(size)
         self.min_overlap = int(min_overlap)
         self.context = int(context)
@@ -37,7 +37,7 @@ class Tile:
 
     def add_succ(self):
         assert self.succ is None and not self.frozen
-        self.succ = Tile(self.size, self.min_overlap, self, self.context)
+        self.succ = Tile(self.size, self.min_overlap, self.context, self)
         return self.succ
 
     def decrease_stride(self, amount):
@@ -152,7 +152,7 @@ class Tile:
         context //= grid
 
         # compute tiling in grid-multiples
-        t = first = Tile(tile_size, min_overlap, None, context)
+        t = first = Tile(tile_size, min_overlap, context, None)
         while t.end < size:
             t = t.add_succ()
         last = t
@@ -176,7 +176,7 @@ class Tile:
             context *= grid
             #
             _t = _first = first
-            t = first = Tile(tile_size, min_overlap, None, context)
+            t = first = Tile(tile_size, min_overlap, context, None)
             t.stride = _t.stride*grid
             while not _t.at_end:
                 _t = _t.succ
