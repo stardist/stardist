@@ -72,12 +72,11 @@ class Tile:
         r_start = 0 if self.at_begin else (self.pred.overlap - self.context_start - self.pred.context_end)
         r_end = self.size - self.context_start - self.context_end
 
-        # todo: of actual importance is whether one of those objects crosses the overlap region
-
-        # assert bmax - bmin < self.min_overlap, 'found object bigger than min overlap'
         # if bmax - bmin < self.min_overlap:
         #     print('found object bigger than min overlap')
         assert not (bmin == 0 and bmax >= r_start and not self.at_begin), [(r_start,r_end), bbox, self]
+        # if bmin == 0 and bmax >= r_start and not self.at_begin:
+        #     print("assumption violated")
 
         assert 0 <= bmin < bmax <= r_end
         # object ends before responsible region start
@@ -241,11 +240,15 @@ class TileND:
         slices =  ','.join(f'{t.start:03}:{t.end:03}' for t in self.tiles)
         return f'{self.__class__.__name__}({self.id}|{slices})'
 
-    def filter_objects(self, lbl):
+    def __iter__(self):
+        return iter(self.tiles)
+
+    def filter_objects(self, lbl, polys=None, polys_sort_by='prob'):
         # todo: option to update lbl in-place
         assert np.issubdtype(lbl.dtype, np.integer)
-        assert lbl.ndim == len(self.tiles)
-        assert lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context)
+        ndim = len(self.tiles)
+        assert ndim in (2,3)
+        assert lbl.ndim == ndim and lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context)
 
         lbl_filtered = np.zeros_like(lbl)
         for r in regionprops(lbl, coordinates='rc'):
@@ -253,7 +256,27 @@ class TileND:
             if self.is_responsible(slices):
                 lbl_filtered[slices][r.image] = r.label
 
-        return lbl_filtered
+        if polys is not None:
+            coord_keys = ('points','coord') if ndim == 2 else ('points',)
+            assert isinstance(polys,dict) and coord_keys is not None and all(k in polys for k in list(coord_keys)+[polys_sort_by])
+            ind = np.argsort(polys[polys_sort_by])
+            filtered_labels = np.unique(lbl_filtered)
+            filtered_ind = [ind[i-1] for i in filtered_labels if i > 0]
+            polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v) for k,v in polys.items()}
+            for k in coord_keys:
+                polys_out[k] = self.translate_coordinates(polys_out[k])
+            return lbl_filtered, polys_out
+        else:
+            return lbl_filtered
+
+    def translate_coordinates(self, coordinates, context=False):
+        ndim = len(self.tiles)
+        assert isinstance(coordinates, np.ndarray) and coordinates.ndim >= 2 and coordinates.shape[1] == ndim
+        start = [sl_read.start + bool(context)*sl_crop.start for sl_read,sl_crop in zip(self.slice_read,self.slice_crop_context)]
+        shape = tuple(1 if d!=1 else ndim for d in range(coordinates.ndim))
+        start = np.array(start).reshape(shape)
+        return coordinates + start
+
 
 
 
@@ -279,17 +302,21 @@ def predict_big(model, img, axes='YX', tile_size=16*16, min_overlap=4*16, contex
 
     tiles = get_tiling(img.shape, tile_size, min_overlap, context, grid)
     output = np.zeros_like(img, dtype=np.int32)
+    polys_all = {}
     max_objects_per_block = 1000
 
     for tile in tiles:
-        block, _ = model.predict_instances(tile.read(img), **kwargs)
+        block, polys = model.predict_instances(tile.read(img), **kwargs)
         block = tile.crop_context(block)
-        block = tile.filter_objects(block)
+        block, polys = tile.filter_objects(block, polys)
         block = relabel_sequential(block, 1 + tile.id*max_objects_per_block)[0]
         tile.write(output, block)
+        for k,v in polys.items():
+            polys_all.setdefault(k,[]).append(v)
 
     output = relabel_sequential(output)[0]
-    return output
+    polys_all = {k:np.concatenate(v) for k,v in polys_all.items()}
+    return output, polys_all
 
 
 
