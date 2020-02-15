@@ -25,23 +25,23 @@ matrix:
     - os: linux
       python: 3.6
     - os: linux
-      python: 3.6
-      dist: xenial
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' ONLY_INSTALL=1
-    - os: linux
       python: 3.7
       dist: xenial
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' ONLY_INSTALL=1
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
+    - os: linux
+      python: 3.6
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
+    - os: linux
+      python: 3.5
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
 
 install:
   - pip install $TENSORFLOW $KERAS
-  - if [ -z $ONLY_INSTALL ]; then
+  - if [[ -n $INSTALL_FROM_SOURCE ]]; then
        pip install .;
     else
        pip install stardist;
     fi;
 
 script:
-  - if [ -z $ONLY_INSTALL ]; then
-       pytest -v --durations=50 -m "not gpu";
-    fi;
+  - pytest -v --durations=50 -m "not gpu";

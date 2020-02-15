@@ -12,12 +12,28 @@ environment:
       PYTHON_VERSION: "3.5.x"
       PYTHON_ARCH: "64"
       APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
+      INSTALL_COMMAND: "pip install ."
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install ."
     - PYTHON: "C:\\Python37-x64"
       PYTHON_VERSION: "3.7.x"
       PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install ."
+    - PYTHON: "C:\\Python35-x64"
+      PYTHON_VERSION: "3.5.x"
+      PYTHON_ARCH: "64"
+      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
+      INSTALL_COMMAND: "pip install stardist"
+    - PYTHON: "C:\\Python36-x64"
+      PYTHON_VERSION: "3.6.x"
+      PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install stardist"
+    - PYTHON: "C:\\Python37-x64"
+      PYTHON_VERSION: "3.7.x"
+      PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install stardist"
 
 init:
   - echo %PYTHON% %PYTHON_VERSION% %PYTHON_ARCH%
@@ -27,9 +43,7 @@ install:
   - "python --version"
   - "python -m pip install -U pip"
   - "pip install \"tensorflow<2\" keras pytest"
-  - "pip install -v stardist"
-  - "pip uninstall -y stardist"
-  - "pip install --no-cache-dir --force-reinstall ."
+  - "%INSTALL_COMMAND%"
 
 build: none
 
