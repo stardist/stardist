@@ -3,7 +3,7 @@ import warnings
 import math
 from tqdm import tqdm
 from skimage.measure import regionprops
-from csbdeep.utils import _raise
+from csbdeep.utils import _raise, axes_check_and_normalize
 from itertools import product
 
 from .matching import relabel_sequential
@@ -262,7 +262,7 @@ class TileND:
             ind = np.argsort(polys[polys_sort_by])
             filtered_labels = np.unique(lbl_filtered)
             filtered_ind = [ind[i-1] for i in filtered_labels if i > 0]
-            polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v) for k,v in polys.items()}
+            polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v[np.newaxis]) for k,v in polys.items()}
             for k in coord_keys:
                 polys_out[k] = self.translate_coordinates(polys_out[k])
             return lbl_filtered, polys_out
@@ -297,25 +297,39 @@ def get_tiling(shape, tile_size, min_overlap, context, grid=1):
 
 
 
-def predict_big(model, img, axes='YX', tile_size=16*16, min_overlap=4*16, context=5*16, **kwargs):
+def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress=True, **kwargs):
+    axes = axes_check_and_normalize(axes, length=img.ndim)
+    # todo: do not assume that parameters are provided in order of model.config.axes
+    assert model.config.axes.startswith(axes)
+
+    if np.isscalar(context): context = (context,) * img.ndim
+    if any(_context < (_overlap//2) for _context,_overlap in zip(context,model._axes_tile_overlap(axes))):
+        print("context too small")
+
     grid = model._axes_div_by(axes)
 
     tiles = get_tiling(img.shape, tile_size, min_overlap, context, grid)
     output = np.zeros_like(img, dtype=np.int32)
     polys_all = {}
-    max_objects_per_block = 1000
+    label_offset = 1
+
+    if show_progress:
+        tiles = tqdm(tiles)
 
     for tile in tiles:
         block, polys = model.predict_instances(tile.read(img), **kwargs)
         block = tile.crop_context(block)
         block, polys = tile.filter_objects(block, polys)
-        block = relabel_sequential(block, 1 + tile.id*max_objects_per_block)[0]
+        block = relabel_sequential(block, label_offset)[0]
         tile.write(output, block)
         for k,v in polys.items():
             polys_all.setdefault(k,[]).append(v)
+        label_offset += len(polys['prob'])
 
-    output = relabel_sequential(output)[0]
+    # output = relabel_sequential(output)[0]
     polys_all = {k:np.concatenate(v) for k,v in polys_all.items()}
+    if model.config.n_dim == 3:
+        polys_all['rays'] = polys_all['rays'][0]
     return output, polys_all
 
 
@@ -329,3 +343,17 @@ def _grid_divisible(grid, size, name=None, verbose=True):
         print(f"changing {'value' if name is None else name} from {_size} to {size} to be evenly divisible by {grid} (grid)")
     assert size % grid == 0
     return size
+
+
+
+def render_polygons(polys, shape):
+    # TODO: this function doesn't belong here
+    # -> should really refactor polygons_to_label...
+    assert isinstance(polys,dict) and all(k in polys for k in ('prob','coord','points'))
+    from stardist import polygons_to_label
+    ind = np.arange(len(polys['prob']),dtype=np.int)
+    coord  = np.expand_dims(polys['coord'], 1)
+    prob   = np.expand_dims(polys['prob'], 1)
+    points = np.stack([ind,np.zeros_like(ind)],axis=-1)
+    return polygons_to_label(coord, prob, points, shape=shape)
+
