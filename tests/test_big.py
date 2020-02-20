@@ -36,14 +36,14 @@ def reassemble(lbl, tile_size, min_overlap, context, grid):
     for tile in tiles:
         block = tile.read(lbl)
         block = tile.crop_context(block)
-        block = tile.filter_objects(block)
+        block = tile.filter_objects(block, polys=None)
         tile.write(result, block)
 
     assert np.all(lbl == result)
 
 
 
-@pytest.mark.parametrize('grid', [1, 3, 8])
+@pytest.mark.parametrize('grid', [1, 3, 6])
 @pytest.mark.parametrize('tile_size, context', [(40,0), (55,3), (80,10), (128,17), (256,80), (512,93)])
 def test_tiling2D(tile_size, context, grid):
     lbl = real_image2d()[1]
@@ -58,8 +58,8 @@ def test_tiling2D(tile_size, context, grid):
 
 
 
-@pytest.mark.parametrize('grid', [1, 3, 8])
-@pytest.mark.parametrize('tile_size, context', [((33,71,64),3), ((48,128,128),0), ((62,173,123),(9,27,34))])
+@pytest.mark.parametrize('grid', [1, 3])
+@pytest.mark.parametrize('tile_size, context', [((33,71,64),3), ((48,96,96),0), ((62,97,93),(0,11,9))])
 def test_tiling3D(tile_size, context, grid):
     lbl = real_image3d()[1]
     lbl = lbl.astype(np.int32)
@@ -82,7 +82,8 @@ def test_predict2D():
     img = repeat(img, 2)
 
     ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys = predict_big(model, img, axes='YX', tile_size=288, min_overlap=32, context=96)
+    res_labels, res_polys, res_problems = predict_big(model, img, axes='YX', tile_size=288, min_overlap=32, context=96)
+    assert len(res_problems) == 0
 
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
@@ -102,8 +103,9 @@ def test_predict3D():
     img = repeat(img, 2)
 
     ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys = predict_big(model, img, axes='ZYX',
-                                        tile_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
+    res_labels, res_polys, res_problems = predict_big(model, img, axes='ZYX',
+                                                      tile_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
+    assert len(res_problems) == 0
 
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)

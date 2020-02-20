@@ -3,6 +3,7 @@ import warnings
 import math
 from tqdm import tqdm
 from skimage.measure import regionprops
+from skimage.draw import polygon
 from csbdeep.utils import _raise, axes_check_and_normalize
 from itertools import product
 
@@ -69,16 +70,20 @@ class Tile:
         # coordinates are relative to size without context
         bmin, bmax = bbox
 
-        r_start = 0 if self.at_begin else (self.pred.overlap - self.context_start - self.pred.context_end)
+        r_start = 0 if self.at_begin else (self.pred.overlap - self.pred.context_end - self.context_start)
         r_end = self.size - self.context_start - self.context_end
-
-        # if bmax - bmin < self.min_overlap:
-        #     print('found object bigger than min overlap')
-        assert not (bmin == 0 and bmax >= r_start and not self.at_begin), [(r_start,r_end), bbox, self]
-        # if bmin == 0 and bmax >= r_start and not self.at_begin:
-        #     print("assumption violated")
-
         assert 0 <= bmin < bmax <= r_end
+
+        # assert not (bmin == 0 and bmax >= r_start and not self.at_begin), [(r_start,r_end), bbox, self]
+
+        if bmin == 0 and bmax >= r_start:
+            if bmax == r_end:
+                # object spans the entire tile, i.e. is probably larger than tile_size (minus the context)
+                raise NotFullyVisible(True)
+            if not self.at_begin:
+                # object spans the entire overlap region, i.e. is only partially visible here and also by the predecessor tile
+                raise NotFullyVisible(False)
+
         # object ends before responsible region start
         if bmax < r_start: return False
         # object touches the end of the responsible region (only take if at end)
@@ -201,6 +206,11 @@ class Tile:
         assert all (t.start % grid == 0 and t.end % grid == 0 for t in tiles if t != last)
         # print(); [print(t) for t in first]
 
+        # only neighboring tiles should be overlapping
+        if len(tiles) >= 3:
+            for t in tiles[:-2]:
+                assert t.slice_write.stop <= t.succ.succ.slice_write.start
+
         return tiles
 
 
@@ -243,7 +253,7 @@ class TileND:
     def __iter__(self):
         return iter(self.tiles)
 
-    def filter_objects(self, lbl, polys=None, polys_sort_by='prob'):
+    def filter_objects(self, lbl, polys, polys_sort_by='prob'):
         # todo: option to update lbl in-place
         assert np.issubdtype(lbl.dtype, np.integer)
         ndim = len(self.tiles)
@@ -251,12 +261,32 @@ class TileND:
         assert lbl.ndim == ndim and lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context)
 
         lbl_filtered = np.zeros_like(lbl)
-        for r in regionprops(lbl, coordinates='rc'):
+        problem_labels = []
+        for r in regionprops(lbl):
             slices = tuple(slice(r.bbox[i],r.bbox[i+lbl.ndim]) for i in range(lbl.ndim))
-            if self.is_responsible(slices):
+            try:
+                if self.is_responsible(slices):
+                    lbl_filtered[slices][r.image] = r.label
+            except NotFullyVisible as e:
+                problem_labels.append(r.label)
                 lbl_filtered[slices][r.image] = r.label
+                # render the poly again into the label image, but this is not
+                # ideal since the assumption is that the object outside that
+                # region is not reliable because it's in the context
+                object_larger_than_tile = e.args[0]
+                if object_larger_than_tile:
+                    # problem, since this object will probably be saved by another tile too
+                    # raise NotImplementedError("found object larger than 'tile_size'")
+                    print("found object larger than 'tile_size'")
+                else:
+                    # problem, but maybe fine
+                    # raise NotImplementedError("found object larger than 'min_overlap'")
+                    print("found object larger than 'min_overlap'")
 
-        if polys is not None:
+        if polys is None:
+            assert len(problem_labels) == 0
+            return lbl_filtered
+        else:
             coord_keys = ('points','coord') if ndim == 2 else ('points',)
             assert isinstance(polys,dict) and coord_keys is not None and all(k in polys for k in list(coord_keys)+[polys_sort_by])
             ind = np.argsort(polys[polys_sort_by])
@@ -265,9 +295,8 @@ class TileND:
             polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v[np.newaxis]) for k,v in polys.items()}
             for k in coord_keys:
                 polys_out[k] = self.translate_coordinates(polys_out[k])
-            return lbl_filtered, polys_out
-        else:
-            return lbl_filtered
+
+        return lbl_filtered, polys_out, tuple(problem_labels)
 
     def translate_coordinates(self, coordinates, context=False):
         ndim = len(self.tiles)
@@ -277,6 +306,10 @@ class TileND:
         start = np.array(start).reshape(shape)
         return coordinates + start
 
+
+
+class NotFullyVisible(Exception):
+    pass
 
 
 
@@ -311,6 +344,7 @@ def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress
     tiles = get_tiling(img.shape, tile_size, min_overlap, context, grid)
     output = np.zeros_like(img, dtype=np.int32)
     polys_all = {}
+    labels_incomplete = []
     label_offset = 1
 
     if show_progress:
@@ -319,18 +353,23 @@ def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress
     for tile in tiles:
         block, polys = model.predict_instances(tile.read(img), **kwargs)
         block = tile.crop_context(block)
-        block, polys = tile.filter_objects(block, polys)
-        block = relabel_sequential(block, label_offset)[0]
+        block, polys, incomplete = tile.filter_objects(block, polys)
+        block, fwd_map, _ = relabel_sequential(block, label_offset)
+        if len(incomplete) > 0:
+            labels_incomplete.extend(fwd_map[incomplete])
         tile.write(output, block)
         for k,v in polys.items():
             polys_all.setdefault(k,[]).append(v)
         label_offset += len(polys['prob'])
 
-    # output = relabel_sequential(output)[0]
     polys_all = {k:np.concatenate(v) for k,v in polys_all.items()}
     if model.config.n_dim == 3:
         polys_all['rays'] = polys_all['rays'][0]
-    return output, polys_all
+
+    if len(labels_incomplete) > 0:
+        repaint_labels(output, labels_incomplete, polys_all)
+
+    return output, polys_all, labels_incomplete
 
 
 
@@ -357,3 +396,55 @@ def render_polygons(polys, shape):
     points = np.stack([ind,np.zeros_like(ind)],axis=-1)
     return polygons_to_label(coord, prob, points, shape=shape)
 
+
+
+class Polygon:
+
+    def __init__(self, coord, bbox=None, shape_max=None):
+        self.bbox = self.coords_bbox(coord, shape_max=shape_max) if bbox is None else bbox
+        self.coord = coord - np.array([r[0] for r in self.bbox]).reshape(2,1)
+        self.slice = tuple(slice(*r) for r in self.bbox)
+        self.shape = tuple(r[1]-r[0] for r in self.bbox)
+        rr,cc = polygon(*self.coord, self.shape)
+        self.mask = np.zeros(self.shape, np.bool)
+        self.mask[rr,cc] = True
+
+    @staticmethod
+    def coords_bbox(*coords, shape_max=None):
+        assert all(isinstance(c, np.ndarray) and c.ndim==2 and c.shape[0]==2 for c in coords)
+        if shape_max is None:
+            shape_max = (np.inf, np.inf)
+        coord = np.concatenate(coords, axis=1)
+        mins = np.maximum(0,         np.floor(np.min(coord,axis=1)) - 10).astype(int)
+        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=1)) + 10).astype(int)
+        return tuple(zip(tuple(mins),tuple(maxs)))
+
+
+
+def repaint_labels(output, labels, polys):
+    assert output.ndim in (2,3)
+    if output.ndim == 3: raise NotImplementedError()
+
+    coord = lambda i: polys['coord'][i-1]
+    prob  = lambda i: polys['prob'][i-1]
+
+    for i in labels:
+        poly_i = Polygon(coord(i), shape_max=output.shape)
+
+        # find all labels that overlap with i (including i)
+        overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+        overlapping.add(i)
+        # compute bbox union to find area to crop/replace in large output label image
+        bbox_union = Polygon.coords_bbox(*[coord(j) for j in overlapping], shape_max=output.shape)
+
+        # crop out label i, including the region that include all overlapping labels
+        poly_i = Polygon(coord(i), bbox=bbox_union)
+        mask = poly_i.mask.copy()
+
+        # remove pixels from mask that belong to labels with higher probability
+        for j in [j for j in overlapping if prob(j) > prob(i)]:
+            mask[ Polygon(coord(j), bbox=bbox_union).mask ] = False
+
+        crop = output[poly_i.slice]
+        crop[crop==i] = 0 # delete all remnants of i in crop
+        crop[mask]    = i # paint i where mask still active
