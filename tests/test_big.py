@@ -28,8 +28,8 @@ def repeat(mask, reps):
 
 
 
-def reassemble(lbl, tile_size, min_overlap, context, grid):
-    tiles = get_tiling(lbl.shape, tile_size=tile_size, min_overlap=min_overlap, context=context, grid=grid)
+def reassemble(lbl, axes, tile_size, min_overlap, context, grid):
+    tiles = get_tiling(lbl.shape, axes=axes, tile_size=tile_size, min_overlap=min_overlap, context=context, grid=grid)
     # print(len(tiles))
     result = np.zeros_like(lbl)
 
@@ -54,7 +54,7 @@ def test_tiling2D(tile_size, context, grid):
     lbl = repeat(lbl, 4)
     assert max_sizes == tuple(calculate_extents(lbl, func=np.max))
 
-    reassemble(lbl, tile_size, min_overlap, context, grid)
+    reassemble(lbl, 'YX', tile_size, min_overlap, context, grid)
 
 
 
@@ -69,20 +69,25 @@ def test_tiling3D(tile_size, context, grid):
     lbl = repeat(lbl, (2,4,4))
     assert max_sizes == tuple(calculate_extents(lbl, func=np.max))
 
-    reassemble(lbl, tile_size, min_overlap, context, grid)
+    reassemble(lbl, 'ZYX', tile_size, min_overlap, context, grid)
 
 
-
-def test_predict2D():
+@pytest.mark.parametrize('use_channel', [False, True])
+def test_predict2D(use_channel):
     model_path = path_model2d()
     model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
 
     img = real_image2d()[0]
     img = normalize(img, 1, 99.8)
     img = repeat(img, 2)
+    axes = 'YX'
+
+    if use_channel:
+        img = img[...,np.newaxis]
+        axes += 'C'
 
     ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys, res_problems = predict_big(model, img, axes='YX', tile_size=288, min_overlap=32, context=96)
+    res_labels, res_polys, res_problems = predict_big(model, img, axes=axes, tile_size=288, min_overlap=32, context=96)
     assert len(res_problems) == 0
 
     m = matching(ref_labels, res_labels)

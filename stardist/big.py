@@ -4,7 +4,7 @@ import math
 from tqdm import tqdm
 from skimage.measure import regionprops
 from skimage.draw import polygon
-from csbdeep.utils import _raise, axes_check_and_normalize
+from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict
 from itertools import product
 
 from .matching import relabel_sequential
@@ -139,7 +139,8 @@ class Tile:
     @staticmethod
     def get_tiling(size, tile_size, min_overlap, context, grid=1):
 
-        assert 0 < grid <= min_overlap+2*context < tile_size <= size
+        assert 0 <= min_overlap+2*context < tile_size <= size
+        assert 0 < grid <= tile_size
         tile_size = _grid_divisible(grid, tile_size, name='tile_size')
         min_overlap = _grid_divisible(grid, min_overlap, name='min_overlap')
         context = _grid_divisible(grid, context, name='context')
@@ -217,55 +218,58 @@ class Tile:
 
 class TileND:
 
-    def __init__(self, id, tiles):
+    def __init__(self, id, tiles, axes):
         self.id = id
         self.tiles = tuple(tiles)
+        self.axes = axes_check_and_normalize(axes, length=len(self.tiles))
+        self.axis_to_tile = dict(zip(self.axes,self.tiles))
 
-    @property
-    def slice_read(self):
-        return tuple(t.slice_read for t in self.tiles)
+    def tiles_for_axes(self, axes=None):
+        axes = self.axes if axes is None else axes_check_and_normalize(axes)
+        return tuple(self.axis_to_tile[a] for a in axes)
 
-    @property
-    def slice_crop_context(self):
-        return tuple(t.slice_crop_context for t in self.tiles)
+    def slice_read(self, axes=None):
+        return tuple(t.slice_read for t in self.tiles_for_axes(axes))
 
-    @property
-    def slice_write(self):
-        return tuple(t.slice_write for t in self.tiles)
+    def slice_crop_context(self, axes=None):
+        return tuple(t.slice_crop_context for t in self.tiles_for_axes(axes))
 
-    def read(self, x):
-        return x[self.slice_read]
+    def slice_write(self, axes=None):
+        return tuple(t.slice_write for t in self.tiles_for_axes(axes))
 
-    def crop_context(self, labels):
-        return labels[self.slice_crop_context]
+    def read(self, x, axes=None):
+        return x[self.slice_read(axes)]
 
-    def write(self, x, labels):
+    def crop_context(self, labels, axes=None):
+        return labels[self.slice_crop_context(axes)]
+
+    def write(self, x, labels, axes=None):
         mask = labels > 0
-        x[self.slice_write][mask] = labels[mask]
+        x[self.slice_write(axes)][mask] = labels[mask]
 
-    def is_responsible(self, slice):
-        return all(t.is_responsible((s.start,s.stop)) for t,s in zip(self.tiles,slice))
+    def is_responsible(self, slice, axes=None):
+        return all(t.is_responsible((s.start,s.stop)) for t,s in zip(self.tiles_for_axes(axes),slice))
 
     def __repr__(self):
-        slices =  ','.join(f'{t.start:03}:{t.end:03}' for t in self.tiles)
+        slices =  ','.join(f'{a}={t.start:03}:{t.end:03}' for t,a in zip(self.tiles,self.axes))
         return f'{self.__class__.__name__}({self.id}|{slices})'
 
     def __iter__(self):
         return iter(self.tiles)
 
-    def filter_objects(self, lbl, polys, polys_sort_by='prob'):
+    def filter_objects(self, lbl, polys, polys_sort_by='prob', axes=None):
         # todo: option to update lbl in-place
         assert np.issubdtype(lbl.dtype, np.integer)
-        ndim = len(self.tiles)
+        ndim = len(self.tiles_for_axes(axes))
         assert ndim in (2,3)
-        assert lbl.ndim == ndim and lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context)
+        assert lbl.ndim == ndim and lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context(axes))
 
         lbl_filtered = np.zeros_like(lbl)
         problem_labels = []
         for r in regionprops(lbl):
             slices = tuple(slice(r.bbox[i],r.bbox[i+lbl.ndim]) for i in range(lbl.ndim))
             try:
-                if self.is_responsible(slices):
+                if self.is_responsible(slices, axes):
                     lbl_filtered[slices][r.image] = r.label
             except NotFullyVisible as e:
                 problem_labels.append(r.label)
@@ -294,14 +298,14 @@ class TileND:
             filtered_ind = [ind[i-1] for i in filtered_labels if i > 0]
             polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v[np.newaxis]) for k,v in polys.items()}
             for k in coord_keys:
-                polys_out[k] = self.translate_coordinates(polys_out[k])
+                polys_out[k] = self.translate_coordinates(polys_out[k], axes=axes)
 
         return lbl_filtered, polys_out, tuple(problem_labels)
 
-    def translate_coordinates(self, coordinates, context=False):
-        ndim = len(self.tiles)
+    def translate_coordinates(self, coordinates, context=False, axes=None):
+        ndim = len(self.tiles_for_axes(axes))
         assert isinstance(coordinates, np.ndarray) and coordinates.ndim >= 2 and coordinates.shape[1] == ndim
-        start = [sl_read.start + bool(context)*sl_crop.start for sl_read,sl_crop in zip(self.slice_read,self.slice_crop_context)]
+        start = [sl_read.start + bool(context)*sl_crop.start for sl_read,sl_crop in zip(self.slice_read(axes),self.slice_crop_context(axes))]
         shape = tuple(1 if d!=1 else ndim for d in range(coordinates.ndim))
         start = np.array(start).reshape(shape)
         return coordinates + start
@@ -313,8 +317,9 @@ class NotFullyVisible(Exception):
 
 
 
-def get_tiling(shape, tile_size, min_overlap, context, grid=1):
+def get_tiling(shape, axes, tile_size, min_overlap, context, grid=1):
     shape = tuple(shape)
+    axes = axes_check_and_normalize(axes, length=len(shape))
     n = len(shape)
     if np.isscalar(tile_size): tile_size = (tile_size,)*n
     if np.isscalar(min_overlap): min_overlap = (min_overlap,)*n
@@ -326,23 +331,46 @@ def get_tiling(shape, tile_size, min_overlap, context, grid=1):
               for _size, _tile_size, _min_overlap, _context, _grid
               in  zip(shape, tile_size, min_overlap, context, grid)]
 
-    return tuple(TileND(i,tiles) for i,tiles in enumerate(product(*tiling)))
+    return tuple(TileND(i,tiles,axes) for i,tiles in enumerate(product(*tiling)))
 
 
 
 def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress=True, **kwargs):
-    axes = axes_check_and_normalize(axes, length=img.ndim)
-    # todo: do not assume that parameters are provided in order of model.config.axes
-    assert model.config.axes.startswith(axes)
+    n = img.ndim
+    axes = axes_check_and_normalize(axes, length=n)
 
-    if np.isscalar(context): context = (context,) * img.ndim
-    if any(_context < (_overlap//2) for _context,_overlap in zip(context,model._axes_tile_overlap(axes))):
-        print("context too small")
+    if np.isscalar(tile_size): tile_size = (tile_size,)*n
+    if np.isscalar(min_overlap): min_overlap = (min_overlap,)*n
+    if np.isscalar(context): context = (context,)*n
+
+    # TODO: do properly
+    # if any(_context < (_overlap//2) for _context,_overlap in zip(context,model._axes_tile_overlap(axes))):
+    #    print("context too small")
 
     grid = model._axes_div_by(axes)
+    axes_out = model._axes_out.replace('C','')
+    shape_dict = dict(zip(axes,img.shape))
+    shape_out = tuple(shape_dict[a] for a in axes_out)
 
-    tiles = get_tiling(img.shape, tile_size, min_overlap, context, grid)
-    output = np.zeros_like(img, dtype=np.int32)
+    if 'C' in axes:
+        # TODO: tell user if values have been changed
+        i = axes_dict(axes)['C']
+        tile_size = list(tile_size)
+        min_overlap = list(min_overlap)
+        context = list(context)
+        # don't tile channel axis
+        tile_size[i] = img.shape[i]
+        # overlap and context for channel axis not needed
+        min_overlap[i] = 0
+        context[i] = 0
+
+    # print('DEBUG:')
+    # print(f'img.shape = {img.shape}, axes={axes}, axes_out={axes_out}')
+    # print(f'tile_size = {tile_size}, min_overlap={min_overlap}, context={context}')
+    # print(flush=True)
+
+    tiles = get_tiling(img.shape, axes, tile_size, min_overlap, context, grid)
+    output = np.zeros(shape_out, dtype=np.int32)
     polys_all = {}
     labels_incomplete = []
     label_offset = 1
@@ -351,13 +379,14 @@ def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress
         tiles = tqdm(tiles)
 
     for tile in tiles:
-        block, polys = model.predict_instances(tile.read(img), **kwargs)
-        block = tile.crop_context(block)
-        block, polys, incomplete = tile.filter_objects(block, polys)
+        block, polys = model.predict_instances(tile.read(img, axes=axes), **kwargs)
+        block = tile.crop_context(block, axes=axes_out)
+        block, polys, incomplete = tile.filter_objects(block, polys, axes=axes_out)
+        # TODO: replace relabel_sequential with efficient variant (had some of that in my matching lib)
         block, fwd_map, _ = relabel_sequential(block, label_offset)
         if len(incomplete) > 0:
-            labels_incomplete.extend(fwd_map[incomplete])
-        tile.write(output, block)
+            labels_incomplete.extend([fwd_map[i] for i in incomplete])
+        tile.write(output, block, axes=axes_out)
         for k,v in polys.items():
             polys_all.setdefault(k,[]).append(v)
         label_offset += len(polys['prob'])
