@@ -100,6 +100,8 @@ def polygons_to_label(coord, prob, points, shape=None, thr=-np.inf):
 def relabel_image_stardist(lbl, n_rays, **kwargs):
     """relabel each label region in `lbl` with its star representation"""
     _check_label_array(lbl, "lbl")
+    if not lbl.ndim==2:
+        raise ValueError("lbl image should be 2 dimensional")
     dist = star_dist(lbl, n_rays, **kwargs)
     coord = dist_to_coord(dist)
     points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
