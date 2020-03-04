@@ -8,7 +8,7 @@ from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict
 from itertools import product
 
 from .matching import relabel_sequential
-
+from .geometry import polyhedron_to_label
 
 
 class Tile:
@@ -291,12 +291,12 @@ class TileND:
             assert len(problem_labels) == 0
             return lbl_filtered
         else:
+            # it is assumed that ids in 'lbl' map to entries in 'polys'
             coord_keys = ('points','coord') if ndim == 2 else ('points',)
             assert isinstance(polys,dict) and coord_keys is not None and all(k in polys for k in list(coord_keys)+[polys_sort_by])
-            ind = np.argsort(polys[polys_sort_by])
             filtered_labels = np.unique(lbl_filtered)
-            filtered_ind = [ind[i-1] for i in filtered_labels if i > 0]
-            polys_out = {k: (v[filtered_ind] if len(v)==len(ind) else v[np.newaxis]) for k,v in polys.items()}
+            filtered_ind = [i-1 for i in filtered_labels if i > 0]
+            polys_out = {k: (v[filtered_ind] if isinstance(v,np.ndarray) else v) for k,v in polys.items()}
             for k in coord_keys:
                 polys_out[k] = self.translate_coordinates(polys_out[k], axes=axes)
 
@@ -391,9 +391,7 @@ def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress
             polys_all.setdefault(k,[]).append(v)
         label_offset += len(polys['prob'])
 
-    polys_all = {k:np.concatenate(v) for k,v in polys_all.items()}
-    if model.config.n_dim == 3:
-        polys_all['rays'] = polys_all['rays'][0]
+    polys_all = {k: (np.concatenate(v) if isinstance(v[0], np.ndarray) else v[0]) for k,v in polys_all.items()}
 
     if len(labels_incomplete) > 0:
         repaint_labels(output, labels_incomplete, polys_all)
@@ -450,30 +448,82 @@ class Polygon:
 
 
 
+class Polyhedron:
+
+    def __init__(self, dist, origin, rays, bbox=None, shape_max=None):
+        self.bbox = self.coords_bbox((dist, origin), rays=rays, shape_max=shape_max) if bbox is None else bbox
+        self.slice = tuple(slice(*r) for r in self.bbox)
+        self.shape = tuple(r[1]-r[0] for r in self.bbox)
+        _origin = origin.reshape(1,3) - np.array([r[0] for r in self.bbox]).reshape(1,3)
+        self.mask = polyhedron_to_label(dist[np.newaxis], _origin, rays, shape=self.shape, verbose=False).astype(np.bool)
+
+    @staticmethod
+    def coords_bbox(*dist_origin, rays, shape_max=None):
+        dists, points = zip(*dist_origin)
+        assert all(isinstance(d, np.ndarray) and d.ndim==1 and len(d)==len(rays) for d in dists)
+        assert all(isinstance(p, np.ndarray) and p.ndim==1 and len(p)==3 for p in points)
+        dists, points, verts = np.stack(dists)[...,np.newaxis], np.stack(points)[:,np.newaxis], rays.vertices[np.newaxis]
+        coord = dists * verts + points
+        coord = np.concatenate(coord, axis=0)
+        if shape_max is None:
+            shape_max = (np.inf, np.inf, np.inf)
+        mins = np.maximum(0,         np.floor(np.min(coord,axis=0)) - 10).astype(int)
+        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=0)) + 10).astype(int)
+        return tuple(zip(tuple(mins),tuple(maxs)))
+
+
+
 def repaint_labels(output, labels, polys):
     assert output.ndim in (2,3)
-    if output.ndim == 3: raise NotImplementedError()
 
-    coord = lambda i: polys['coord'][i-1]
-    prob  = lambda i: polys['prob'][i-1]
+    if output.ndim == 2:
+        coord = lambda i: polys['coord'][i-1]
+        prob  = lambda i: polys['prob'][i-1]
 
-    for i in labels:
-        poly_i = Polygon(coord(i), shape_max=output.shape)
+        for i in labels:
+            poly_i = Polygon(coord(i), shape_max=output.shape)
 
-        # find all labels that overlap with i (including i)
-        overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
-        overlapping.add(i)
-        # compute bbox union to find area to crop/replace in large output label image
-        bbox_union = Polygon.coords_bbox(*[coord(j) for j in overlapping], shape_max=output.shape)
+            # find all labels that overlap with i (including i)
+            overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+            overlapping.add(i)
+            # compute bbox union to find area to crop/replace in large output label image
+            bbox_union = Polygon.coords_bbox(*[coord(j) for j in overlapping], shape_max=output.shape)
 
-        # crop out label i, including the region that include all overlapping labels
-        poly_i = Polygon(coord(i), bbox=bbox_union)
-        mask = poly_i.mask.copy()
+            # crop out label i, including the region that include all overlapping labels
+            poly_i = Polygon(coord(i), bbox=bbox_union)
+            mask = poly_i.mask.copy()
 
-        # remove pixels from mask that belong to labels with higher probability
-        for j in [j for j in overlapping if prob(j) > prob(i)]:
-            mask[ Polygon(coord(j), bbox=bbox_union).mask ] = False
+            # remove pixels from mask that belong to labels with higher probability
+            for j in [j for j in overlapping if prob(j) > prob(i)]:
+                mask[ Polygon(coord(j), bbox=bbox_union).mask ] = False
 
-        crop = output[poly_i.slice]
-        crop[crop==i] = 0 # delete all remnants of i in crop
-        crop[mask]    = i # paint i where mask still active
+            crop = output[poly_i.slice]
+            crop[crop==i] = 0 # delete all remnants of i in crop
+            crop[mask]    = i # paint i where mask still active
+    else:
+
+        dist = lambda i: polys['dist'][i-1]
+        origin = lambda i: polys['points'][i-1]
+        prob = lambda i: polys['prob'][i-1]
+        rays = polys['rays']
+
+        for i in labels:
+            poly_i = Polyhedron(dist(i), origin(i), rays, shape_max=output.shape)
+
+            # find all labels that overlap with i (including i)
+            overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+            overlapping.add(i)
+            # compute bbox union to find area to crop/replace in large output label image
+            bbox_union = Polyhedron.coords_bbox(*[(dist(j),origin(j)) for j in overlapping], rays=rays, shape_max=output.shape)
+
+            # crop out label i, including the region that include all overlapping labels
+            poly_i = Polyhedron(dist(i), origin(i), rays, bbox=bbox_union)
+            mask = poly_i.mask.copy()
+
+            # remove pixels from mask that belong to labels with higher probability
+            for j in [j for j in overlapping if prob(j) > prob(i)]:
+                mask[ Polyhedron(dist(j), origin(j), rays, bbox=bbox_union).mask ] = False
+
+            crop = output[poly_i.slice]
+            crop[crop==i] = 0 # delete all remnants of i in crop
+            crop[mask]    = i # paint i where mask still active
