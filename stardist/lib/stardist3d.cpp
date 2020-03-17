@@ -1,4 +1,6 @@
 #include <Python.h>
+#include <vector>
+#include <iostream>
 #include "numpy/arrayobject.h"
 #include "numpy/npy_math.h"
 #include "stardist3d_impl.h"
@@ -10,26 +12,51 @@
 // expects that polys are sorted with associated descending scores
 // returns boolean vector of polys indices that are kept
 
+
+int lists_to_vectors(PyObject *list_of_lists, std::vector<std::vector<long>> **vec_of_vecs) {
+
+  if (PyList_Check(list_of_lists)) {
+    (**vec_of_vecs).resize(PyList_Size(list_of_lists));
+
+    for(Py_ssize_t i = 0; i < PyList_Size(list_of_lists); i++) {
+      PyObject *list = PyList_GetItem(list_of_lists, i);
+      if (PyList_Check(list)) {
+
+        for(Py_ssize_t j = 0; j < PyList_Size(list); j++) {
+          PyObject *value = PyList_GetItem(list, j);
+          long long_value = PyLong_AsLong(value);
+          (**vec_of_vecs)[i].push_back(long_value);
+        }
+      } else { return false; }
+    }
+    return true;
+  } else { return false; }
+}
+
+
 static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   PyArrayObject *arr_dist=NULL, *arr_points=NULL,*arr_verts=NULL,*arr_faces=NULL,*arr_scores=NULL;
   PyArrayObject *arr_result=NULL;
 
+  std::vector<std::vector<long>> pairs;
+  std::vector<std::vector<long>> *ppairs = &pairs;
+
   float threshold = 0;
   int use_bbox;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iif",
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!O&iif",
                         &PyArray_Type, &arr_dist,
                         &PyArray_Type, &arr_points,
                         &PyArray_Type, &arr_verts,
                         &PyArray_Type, &arr_faces,
                         &PyArray_Type, &arr_scores,
+                        &lists_to_vectors, &ppairs,
                         &use_bbox,
                         &verbose,
                         &threshold))
     return NULL;
-
 
   const int n_polys = PyArray_DIMS(arr_dist)[0];
   const int n_rays = PyArray_DIMS(arr_dist)[1];
@@ -50,7 +77,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   bool * result = (bool*) PyArray_DATA(arr_result);
 
 
-  _COMMON_non_maximum_suppression_sparse(scores,dist, points,
+  _COMMON_non_maximum_suppression_sparse(scores,dist, points, ppairs,
                                  n_polys, n_rays, n_faces, 
                                  verts, faces,
                                  threshold, use_bbox, verbose, 
@@ -283,9 +310,9 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
 
           for (int n = 0; n < n_rays; n++) {
 
-            float dx = *(float *)PyArray_GETPTR1(pdx,n);
-            float dy = *(float *)PyArray_GETPTR1(pdy,n);
-            float dz = *(float *)PyArray_GETPTR1(pdz,n);
+            float dx = *(float *)PyArray_GETPTR1(pdx,n)/4;
+            float dy = *(float *)PyArray_GETPTR1(pdy,n)/4;
+            float dz = *(float *)PyArray_GETPTR1(pdz,n)/4;
 
             float x = 0, y = 0, z=0;
             // move along ray

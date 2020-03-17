@@ -3,6 +3,8 @@ import numpy as np
 from time import time
 from .utils import _normalize_grid
 
+from scipy.spatial import cKDTree
+
 
 
 def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
@@ -173,6 +175,9 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
     points = points[ind]
     scores = scores[ind]
 
+    kdtree = cKDTree(points)
+    pairs  = kdtree.query_ball_tree(kdtree, 2 * np.max(dist))
+
     def _prep(x, dtype):
         return np.ascontiguousarray(x.astype(dtype, copy=False))
 
@@ -184,6 +189,7 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
                                                 _prep(rays.vertices, np.float32),
                                                 _prep(rays.faces, np.int32),
                                                 _prep(scores, np.float32),
+                                                pairs,
                                                 np.int(use_bbox),
                                                 np.int(verbose),
                                                 np.float32(thresh))

@@ -928,6 +928,7 @@ float diff_time(const std::chrono::time_point<std::chrono::high_resolution_clock
 
 void _COMMON_non_maximum_suppression_sparse(
                     const float* scores, const float* dist, const float* points,
+                    std::vector<std::vector<long>>* pairs,
                     const int n_polys, const int n_rays, const int n_faces, 
                     const float* verts, const int* faces,
                     const float threshold, const int use_bbox, const int verbose, 
@@ -1037,7 +1038,7 @@ void _COMMON_non_maximum_suppression_sparse(
   int count_suppressed_kernel = 0;
   int count_suppressed_rendered = 0;
 
-  int count_call_upper = 0;
+  unsigned long long count_call_upper = 0;
   int count_call_lower = 0;
   int count_call_kernel = 0;
   int count_call_render = 0;
@@ -1102,6 +1103,11 @@ void _COMMON_non_maximum_suppression_sparse(
 
     // compute polyverts
     polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
+
+   // TODO: pairs should be leveraged here
+   // inner loop should only be over the indices in the pairs list for the current polygon
+   // the distance metric is symmetric, so if a pair index is less than the current polygon index, it can
+   // be ignored, as it has already been considered
      
 	 //  inner loop
 	 //  can be parallelized....
