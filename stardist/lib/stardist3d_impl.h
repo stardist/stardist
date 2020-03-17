@@ -6,6 +6,7 @@ int round_to_int(float);
 
 void _COMMON_non_maximum_suppression_sparse(
                     const float* scores, const float* dist, const float* points,
+                    std::vector<std::vector<long>> * pairs,
                     const int n_polys, const int n_rays, const int n_faces, 
                     const float* verts, const int* faces,
                     const float threshold, const int use_bbox, const int verbose, 
