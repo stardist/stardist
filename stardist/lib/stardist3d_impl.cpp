@@ -1108,6 +1108,10 @@ void _COMMON_non_maximum_suppression_sparse(
    // inner loop should only be over the indices in the pairs list for the current polygon
    // the distance metric is symmetric, so if a pair index is less than the current polygon index, it can
    // be ignored, as it has already been considered
+
+
+    std::vector<long> * candidates = &(*pairs)[i];
+    int n_candidates = candidates->size();
      
 	 //  inner loop
 	 //  can be parallelized....
@@ -1122,15 +1126,17 @@ void _COMMON_non_maximum_suppression_sparse(
   reduction(+:timer_call_render) \
   shared(curr_rendered)
 
-    for (int j=i+1; j<n_polys; j++) {
+    for (int j=0; j<n_candidates; j++) {
 
-      if (suppressed[j])
+      long j_candidate = (*candidates)[j];
+
+      if (suppressed[j_candidate] or j_candidate <= i)
         continue;
 
 
       std::chrono::time_point<std::chrono::high_resolution_clock> time_start;
       float iou = 0;
-      float A_min = fmin(volumes[i], volumes[j]);
+      float A_min = fmin(volumes[i], volumes[j_candidate]);
       float A_inter = 0;
 
       // --------- first check: bounding box and inner sphere intersection  (cheap)
@@ -1139,11 +1145,11 @@ void _COMMON_non_maximum_suppression_sparse(
       // upper  bound of intersection and IoU
       A_inter = fmin(intersect_sphere_isotropic(radius_outer_isotropic[i],
                                                 &points[3*i],
-                                                radius_outer_isotropic[j],
-                                                &points[3*j],
+                                                radius_outer_isotropic[j_candidate],
+                                                &points[3*j_candidate],
                                                 anisotropy
                                                 ),
-                     intersect_bbox(&bbox[6*i],&bbox[6*j]));
+                     intersect_bbox(&bbox[6*i],&bbox[6*j_candidate]));
       count_call_upper++;
 
 	   // if it doesn't intersect at all, we can move on...
@@ -1158,8 +1164,8 @@ void _COMMON_non_maximum_suppression_sparse(
       // lower bound of intersection and IoU
       A_inter = intersect_sphere_isotropic(radius_inner_isotropic[i],
                                            &points[3*i],
-                                           radius_inner_isotropic[j],
-                                           &points[3*j],
+                                           radius_inner_isotropic[j_candidate],
+                                           &points[3*j_candidate],
                                            anisotropy
                                            );
       count_call_lower++;
@@ -1170,14 +1176,14 @@ void _COMMON_non_maximum_suppression_sparse(
 
       if (iou>threshold){
         count_suppressed_pretest++;
-        suppressed[j] = true;
+        suppressed[j_candidate] = true;
         continue;
       }
 
       float * polyverts = new float[3*n_rays];
 
       // compute polyverts of the second polyhedron
-      polyhedron_polyverts(&dist[j*n_rays], &points[3*j],
+      polyhedron_polyverts(&dist[j_candidate*n_rays], &points[3*j_candidate],
                            verts,n_rays, polyverts);
 
 
@@ -1187,7 +1193,7 @@ void _COMMON_non_maximum_suppression_sparse(
        
       float A_inter_kernel = qhull_overlap_kernel(
 	   								  curr_polyverts, curr_point,
-	   								  polyverts, &points[3*j],
+	   								  polyverts, &points[3*j_candidate],
 	   								  faces, n_rays, n_faces);
 
       count_call_kernel++;
@@ -1198,7 +1204,7 @@ void _COMMON_non_maximum_suppression_sparse(
        
       if (iou>threshold){
         count_suppressed_kernel++;
-        suppressed[j] = true;
+        suppressed[j_candidate] = true;
         delete[] polyverts;
         continue;
       }
@@ -1208,7 +1214,7 @@ void _COMMON_non_maximum_suppression_sparse(
       
       float A_inter_convex = qhull_overlap_convex_hulls(
 	   								  curr_polyverts, curr_point,
-	   								  polyverts, &points[3*j],
+	   								  polyverts, &points[3*j_candidate],
 	   								  faces, n_rays, n_faces);
       count_call_convex++;
       timer_call_convex += diff_time(time_start);
@@ -1239,8 +1245,8 @@ void _COMMON_non_maximum_suppression_sparse(
         }
       }
        
-      float A_inter_render = overlap_render_polyhedron(&dist[j*n_rays],
-                                                       &points[3*j],
+      float A_inter_render = overlap_render_polyhedron(&dist[j_candidate*n_rays],
+                                                       &points[3*j_candidate],
                                                        curr_bbox,
                                                        polyverts,
                                                        faces, n_rays, n_faces,
@@ -1253,7 +1259,7 @@ void _COMMON_non_maximum_suppression_sparse(
 
       if (iou>threshold){
         count_suppressed_rendered++;
-        suppressed[j] = true;
+        suppressed[j_candidate] = true;
       }
 
       delete[] polyverts;
