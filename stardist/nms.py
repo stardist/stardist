@@ -176,7 +176,7 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
     scores = scores[ind]
 
     kdtree = cKDTree(points)
-    pairs  = kdtree.query_ball_tree(kdtree, 2 * np.max(dist))
+    pairs  = kdtree.query_ball_tree(kdtree, 2*(np.mean(dist) + np.std(dist)))
 
     def _prep(x, dtype):
         return np.ascontiguousarray(x.astype(dtype, copy=False))
