@@ -34,6 +34,28 @@ int lists_to_vectors(PyObject *list_of_lists, std::vector<std::vector<long>> **v
 }
 
 
+int arrays_to_vectors(PyArrayObject *array_of_arrays, std::vector<std::vector<long>> **vec_of_vecs) {
+
+  if (PyArray_Check(array_of_arrays)) {
+    (**vec_of_vecs).resize(PyArray_DIM(array_of_arrays, 0));
+
+    for(Py_ssize_t i = 0; i < PyArray_DIM(array_of_arrays, 0); i++) {
+      PyObject *array = PyArray_GETITEM(array_of_arrays, PyArray_GetPtr(array_of_arrays, &i));
+      if (PyArray_Check(array)) {
+        (**vec_of_vecs)[i].resize(PyArray_DIM(array, 0));
+
+        for(Py_ssize_t j = 0; j < PyArray_DIM(array, 0); j++) {
+          PyObject *value = PyArray_GETITEM(array, PyArray_GetPtr((PyArrayObject *)array, &j));
+          long long_value = PyLong_AsLong(value);
+          (**vec_of_vecs)[i][j] = long_value;
+        }
+      }  else {return false; }
+    }
+    return true;
+  } else {return false; }
+}
+
+
 static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   PyArrayObject *arr_dist=NULL, *arr_points=NULL,*arr_verts=NULL,*arr_faces=NULL,*arr_scores=NULL;
@@ -52,7 +74,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
                         &PyArray_Type, &arr_verts,
                         &PyArray_Type, &arr_faces,
                         &PyArray_Type, &arr_scores,
-                        &lists_to_vectors, &ppairs,
+                        &arrays_to_vectors, &ppairs,
                         &use_bbox,
                         &verbose,
                         &threshold))

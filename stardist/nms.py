@@ -3,7 +3,7 @@ import numpy as np
 from time import time
 from .utils import _normalize_grid
 
-from scipy.spatial import cKDTree
+from sklearn.neighbors import KDTree
 
 
 
@@ -175,8 +175,8 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
     points = points[ind]
     scores = scores[ind]
 
-    kdtree = cKDTree(points)
-    pairs  = kdtree.query_ball_tree(kdtree, 2*(np.mean(dist) + np.std(dist)))
+    kdtree = KDTree(points)
+    pairs  = kdtree.query_radius(points, 2*(np.mean(dist) + np.std(dist)))
 
     def _prep(x, dtype):
         return np.ascontiguousarray(x.astype(dtype, copy=False))
