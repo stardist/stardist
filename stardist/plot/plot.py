@@ -4,12 +4,12 @@ from csbdeep.utils import normalize
 from ..utils import _normalize_grid
 from ..matching import matching
 
-def random_label_cmap(n=2**16):
+def random_label_cmap(n=2**16, h = (0,1), l = (.4,1), s =(.2,.8)):
     import matplotlib
     import colorsys
     # cols = np.random.rand(n,3)
     # cols = np.random.uniform(0.1,1.0,(n,3))
-    h,l,s = np.random.uniform(0,1,n), 0.4 + np.random.uniform(0,0.6,n), 0.2 + np.random.uniform(0,0.8,n)
+    h,l,s = np.random.uniform(*h,n), np.random.uniform(*l,n), np.random.uniform(*s,n)
     cols = np.stack([colorsys.hls_to_rgb(_h,_l,_s) for _h,_l,_s in zip(h,l,s)],axis=0)
     cols[0] = 0
     return matplotlib.colors.ListedColormap(cols)
