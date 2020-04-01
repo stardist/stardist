@@ -3,6 +3,18 @@ import numpy as np
 from time import time
 from .utils import _normalize_grid
 
+def _ind_prob_thresh(prob, prob_thresh, b = 2):
+    if b is not None and np.isscalar(b):
+        b = ((b,b),)*prob.ndim
+
+    ind_thresh = prob > prob_thresh
+    if b is not None:
+        _ind_thresh = np.zeros_like(ind_thresh)
+        ss = tuple(slice(_bs[0] if _bs[0]>0 else None,
+                         -_bs[1] if _bs[1]>0 else None)  for _bs in b)
+        _ind_thresh[ss] = True
+        ind_thresh &= _ind_thresh
+    return ind_thresh
 
 
 def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
