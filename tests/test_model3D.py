@@ -88,7 +88,7 @@ def test_predict_dense_sparse():
                        basedir=str(model_path.parent))
     img, mask = real_image3d()
     x = normalize(img, 1, 99.8)
-    labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2))
+    labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = False)
     labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
     assert np.allclose(labels1, labels2)
     assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )

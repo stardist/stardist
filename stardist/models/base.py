@@ -469,7 +469,7 @@ class StarDistBase(BaseModel):
             Note that the default (``None``) assumes ``img`` to be already normalized.
         sparse: bool 
             If true, aggregate probabilities/distances sparsely during tiled 
-            prediction to save memory (recommended)
+            prediction to save memory (recommended). Currently only 3D supported
         prob_thresh : float or None
             Consider only object candidates from pixels with predicted object probability
             above this threshold (also see `optimize_thresholds`).
