@@ -450,7 +450,7 @@ class StarDistBase(BaseModel):
 
     
     def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse = False,
+                          sparse = False, 
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,

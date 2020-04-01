@@ -114,7 +114,7 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
     return points[inds], probi[inds], disti[inds]
 
 
-def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=0.5, verbose=False):
+def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=0.5, use_kdtree = True, verbose=False):
     """Non-Maximum-Supression of 3D polyhedra from a list of dists, probs and points
     
     Retains only polyhedra whose overlap is smaller than nms_thresh 
@@ -141,13 +141,13 @@ def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=
 
     verbose and print("non-maximum suppression...")
 
-    inds = non_maximum_suppression_3d_inds(disti, pointsi, rays=rays, scores=probi, thresh=nms_thresh, verbose=verbose)
+    inds = non_maximum_suppression_3d_inds(disti, pointsi, rays=rays, scores=probi, thresh=nms_thresh, use_kdtree = use_kdtree, verbose=verbose)
 
     verbose and print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
     return pointsi[inds], probi[inds], disti[inds]
 
 
-def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_bbox=True, verbose=1):
+def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_bbox=True, use_kdtree = True, verbose=1):
     """
     Applies non maximum supression to ray-convex polyhedra given by dists and rays
     sorted by scores and IoU threshold
@@ -197,6 +197,7 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
                                                 _prep(rays.faces, np.int32),
                                                 _prep(scores, np.float32),
                                                 np.int(use_bbox),
+                                                np.int(use_kdtree),
                                                 np.int(verbose),
                                                 np.float32(thresh))
 

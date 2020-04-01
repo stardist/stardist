@@ -20,8 +20,35 @@
 #include "libqhullcpp/QhullPointSet.h"
 #include "libqhullcpp/QhullRidge.h"
 #include "libqhullcpp/Qhull.h"
-
+#include <nanoflann.hpp>
 #include "utils.h"
+
+template <typename T>
+struct PointCloud3D
+{
+	struct Point
+	{
+		T  x,y,z;
+	};
+	std::vector<Point>  pts;
+	// Must return the number of data points
+	inline size_t kdtree_get_point_count() const { return pts.size(); }
+	// Returns the dim'th component of the idx'th point in the class:
+	// Since this is inlined and the "dim" argument is typically an immediate value, the
+	//  "if/else's" are actually solved at compile time.
+	inline T kdtree_get_pt(const size_t idx, const size_t dim) const
+	{
+		if (dim == 0) return pts[idx].x;
+		else if (dim == 1) return pts[idx].y;
+		else return pts[idx].z;
+	}
+	// Optional bounding-box computation: return false to default to a standard bbox computation loop.
+	//   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
+	//   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
+	template <class BBOX>
+	bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
+};
+
 
 using namespace orgQhull;
 
@@ -930,7 +957,8 @@ void _COMMON_non_maximum_suppression_sparse(
                     const float* scores, const float* dist, const float* points,
                     const int n_polys, const int n_rays, const int n_faces, 
                     const float* verts, const int* faces,
-                    const float threshold, const int use_bbox, const int verbose, 
+                    const float threshold, const int use_bbox, const int use_kdtree, 
+                    const int verbose, 
                     bool* result)
 {
   // set SIGINT handler to react on Ctrl-C
@@ -938,7 +966,7 @@ void _COMMON_non_maximum_suppression_sparse(
   
   if (verbose){
     printf("Non Maximum Suppression (3D) ++++ \n");
-    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox);
+    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \nNMS: use_kdtree = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox, use_kdtree);
 #ifdef _OPENMP
     printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif
@@ -1023,6 +1051,39 @@ void _COMMON_non_maximum_suppression_sparse(
 
   }
 
+  // build kdtree
+
+  PointCloud3D<float> cloud;
+  float query_point[3];  
+  nanoflann::SearchParams params;
+  std::vector<std::pair<size_t,float>> results;
+  float max_dist = 0;
+
+  cloud.pts.resize(n_polys);
+  for (long i = 0; i < n_polys; i++){
+    cloud.pts[i].x = points[3*i];
+    cloud.pts[i].y = points[3*i+1];
+    cloud.pts[i].z = points[3*i+2];
+    max_dist = (radius_outer[i]>max_dist)?radius_outer[i]:max_dist;
+  }
+  
+  // construct a kd-tree:
+  typedef nanoflann::KDTreeSingleIndexAdaptor<
+    nanoflann::L2_Simple_Adaptor<float, PointCloud3D<float>> ,
+    PointCloud3D<float>,3> my_kd_tree_t;
+
+  
+  //build the index from points
+  my_kd_tree_t  index(3, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10 /* max leaf */) );
+
+  if (use_kdtree){
+    if (verbose){
+      printf("NMS: building kdtree...\n");
+      fflush(stdout);
+    }
+    index.buildIndex();
+  }
+
 
 
   // +++++++  NMS starts here ++++++++
@@ -1059,6 +1120,10 @@ void _COMMON_non_maximum_suppression_sparse(
   // suppress (double loop)
   for (int i=0; i<n_polys-1; i++) {
 
+    // skip if already suppressed
+    if (suppressed[i])
+      continue;
+
     long count_total = count_suppressed_pretest+count_suppressed_kernel+count_suppressed_rendered;
     int status_percentage_new = 100*count_total/n_polys;
 
@@ -1069,11 +1134,6 @@ void _COMMON_non_maximum_suppression_sparse(
     }
 
     // check signals e.g. such that the loop is interruptable 
-
-    // skip if already suppressed
-    if (suppressed[i])
-      continue;
-
     if (IS_TERMINATED){
       delete [] volumes;
       delete [] curr_polyverts;
@@ -1102,9 +1162,20 @@ void _COMMON_non_maximum_suppression_sparse(
 
     // compute polyverts
     polyhedron_polyverts(curr_dist, curr_point, verts, n_rays, curr_polyverts);
-     
-	 //  inner loop
-	 //  can be parallelized....
+
+
+    if (use_kdtree)
+      // compute neighbors
+      size_t n_matches = index.radiusSearch(&points[3*i],
+                         (max_dist+radius_outer[i])*(max_dist+radius_outer[i]),
+                                          results, params);
+    else{
+      results.resize(n_polys-i);
+      for (int n = 0; n < results.size(); ++n)
+        results[n].first = i+n;
+    }
+    //  inner loop
+    //  can be parallelized....
 #pragma omp parallel for schedule(dynamic) \
   reduction(+:count_suppressed_pretest) reduction(+:count_suppressed_kernel) \
   reduction(+:count_suppressed_rendered)                                \
@@ -1114,12 +1185,20 @@ void _COMMON_non_maximum_suppression_sparse(
   reduction(+:count_kept_pretest) reduction(+:count_kept_convex)        \
   reduction(+:timer_call_kernel) reduction(+:timer_call_convex)        \
   reduction(+:timer_call_render) \
-  shared(curr_rendered)
+  shared(curr_rendered)\
+  shared(suppressed) 
 
-    for (int j=i+1; j<n_polys; j++) {
+    // for (int j=i+1; j<n_polys; j++) {
+    //   if (suppressed[j])
+    //     continue;
+    
+    for (int neigh=0; neigh<results.size(); neigh++) {
 
-      if (suppressed[j])
+      long j = results[neigh].first;
+
+      if ((suppressed[j]) or (j<=i))
         continue;
+
 
 
       std::chrono::time_point<std::chrono::high_resolution_clock> time_start;
@@ -1140,8 +1219,8 @@ void _COMMON_non_maximum_suppression_sparse(
                      intersect_bbox(&bbox[6*i],&bbox[6*j]));
       count_call_upper++;
 
-	   // if it doesn't intersect at all, we can move on...
-	   iou = fmin(1.f,A_inter/(A_min+1e-10));
+      // if it doesn't intersect at all, we can move on...
+      iou = fmin(1.f,A_inter/(A_min+1e-10));
 
       if ((A_inter<1.e-10)||(iou<=threshold)){
         count_kept_pretest++;

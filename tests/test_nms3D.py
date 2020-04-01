@@ -89,4 +89,5 @@ def test_speed(noises = (0,0.1,.2), n_rays = 32):
 
 if __name__ == '__main__':
     np.random.seed(42)
-    lbl = test_nms_and_label(.2, shape=(44, 55, 66), noise=.2)
+    # lbl = test_nms_and_label(.2, shape=(44, 55, 66), noise=.2)
+    lbl = test_nms_and_label(.2, shape=(128,128,128), noise=.2)
