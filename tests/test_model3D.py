@@ -82,6 +82,19 @@ def test_load_and_predict_with_overlap():
     return model, labels
 
 
+def test_predict_dense_sparse():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img, 1, 99.8)
+    labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2))
+    labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
+    assert np.allclose(labels1, labels2)
+    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+    return labels2, labels2 
+
+
 def test_load_and_export_TF():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
@@ -127,4 +140,5 @@ def test_stardistdata():
 
 
 if __name__ == '__main__':
-    model, lbl = test_load_and_predict_with_overlap()
+    # model, lbl = test_load_and_predict_with_overlap()
+    y1,y2 = test_predict_dense_sparse()

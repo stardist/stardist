@@ -20,7 +20,7 @@ from csbdeep.data import Resizer
 
 from .sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
-
+from ..nms import _ind_prob_thresh
 
 # TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
@@ -338,7 +338,119 @@ class StarDistBase(BaseModel):
         return prob, dist
 
 
+    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, **predict_kwargs):
+        """sparse version of model.predict() 
+        TODO: refactor common funcs with model.predict()
+        Returns
+        -------
+        (prob, dist, points)   flat list of probs, dists, and points
+        """
+        if prob_thresh is None: prob_thresh = self.thresholds.prob
+        
+        if n_tiles is None:
+            n_tiles = [1]*img.ndim
+        try:
+            n_tiles = tuple(n_tiles)
+            img.ndim == len(n_tiles) or _raise(TypeError())
+        except TypeError:
+            raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
+        all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
+            ValueError("all values of n_tiles must be integer values >= 1"))
+        n_tiles = tuple(map(int,n_tiles))
+
+        axes     = self._normalize_axes(img, axes)
+        axes_net = self.config.axes
+
+        _permute_axes = self._make_permute_axes(axes, axes_net)
+        x = _permute_axes(img) # x has axes_net semantics
+
+        channel = axes_dict(axes_net)['C']
+        self.config.n_channel_in == x.shape[channel] or _raise(ValueError())
+        axes_net_div_by = self._axes_div_by(axes_net)
+
+        grid = tuple(self.config.grid)
+        len(grid) == len(axes_net)-1 or _raise(ValueError())
+        grid_dict = dict(zip(axes_net.replace('C',''),grid))
+
+        normalizer = self._check_normalizer_resizer(normalizer, None)[0]
+        resizer = StarDistPadAndCropResizer(grid=grid_dict)
+
+        x = normalizer.before(x, axes_net)
+        x = resizer.before(x, axes_net, axes_net_div_by)
+
+        def predict_direct(tile):
+            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
+            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            return prob[0], dist[0]
+        
+        def _prep(prob, dist):
+            prob = np.take(prob,0,axis=channel)
+            dist = np.moveaxis(dist,channel,-1)
+            dist = np.maximum(1e-3, dist)
+            return prob, dist
+
+
+        proba, dista, pointsa = [],[],[]
+        
+        if np.prod(n_tiles) > 1:
+            tiling_axes   = axes_net.replace('C','') # axes eligible for tiling
+            x_tiling_axis = tuple(axes_dict(axes_net)[a] for a in tiling_axes) # numerical axis ids for x
+            axes_net_tile_overlaps = self._axes_tile_overlap(axes_net)
+            # hack: permute tiling axis in the same way as img -> x was permuted
+            n_tiles = _permute_axes(np.empty(n_tiles,np.bool)).shape
+            (all(n_tiles[i] == 1 for i in range(x.ndim) if i not in x_tiling_axis) or
+                _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
+
+            sh = [s//grid_dict.get(a,1) for a,s in zip(axes_net,x.shape)]
+            sh[channel] = 1;
+
+            proba, dista, pointsa = [], [], []
+            
+            n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
+                                in zip(axes_net_tile_overlaps, axes_net_div_by)]
+
+            for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
+                                           disable=(not show_tile_progress), total=np.prod(n_tiles)):
+                prob_tile, dist_tile = predict_direct(tile)
+                # account for grid
+                s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
+                s_dst = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_dst,axes_net)]
+                s_src[channel] = slice(None)
+                s_dst[channel] = slice(None)
+                s_src, s_dst = tuple(s_src), tuple(s_dst)
+
+                prob_tile, dist_tile = _prep(prob_tile[s_src], dist_tile[s_src])
+
+                bs = list((b if s.start==0 else -1, b if s.stop==_sh else -1) for s,_sh in zip(s_dst, sh))
+                bs.pop(channel)
+                inds   = _ind_prob_thresh(prob_tile, prob_thresh, b=bs)
+                proba.extend(prob_tile[inds].copy())
+                dista.extend(dist_tile[inds].copy())
+                _points = np.stack(np.where(inds), axis=1)
+                offset = list(s.start for i,s in enumerate(s_dst))
+                offset.pop(channel)
+                _points = _points + np.array(offset).reshape((1,3))
+                _points = _points * np.array(self.config.grid).reshape((1,3))
+                pointsa.extend(_points)
+
+            proba = np.asarray(proba)
+            dista = np.asarray(dista)
+            pointsa = np.asarray(pointsa)
+            
+        else:
+            prob, dist = predict_direct(x)
+            prob, dist = _prep(prob, dist)            
+            inds   = _ind_prob_thresh(prob, prob_thresh, b=b)
+            proba = prob[inds].copy()
+            dista = dist[inds].copy()
+            _points = np.stack(np.where(inds), axis=1)
+            pointsa = (_points * np.array(self.config.grid).reshape((1,3)))
+
+        return proba, dista, pointsa
+
+    
     def predict_instances(self, img, axes=None, normalizer=None,
+                          sparse = True, 
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
@@ -355,6 +467,9 @@ class StarDistBase(BaseModel):
         normalizer : :class:`csbdeep.data.Normalizer` or None
             (Optional) normalization of input image before prediction.
             Note that the default (``None``) assumes ``img`` to be already normalized.
+        sparse: bool 
+            If true, aggregate probabilities/distances sparsely during tiled 
+            prediction to save memory (recommended)
         prob_thresh : float or None
             Consider only object candidates from pixels with predicted object probability
             above this threshold (also see `optimize_thresholds`).
@@ -395,8 +510,33 @@ class StarDistBase(BaseModel):
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
-        prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label = overlap_label, **nms_kwargs)
+
+        if sparse:
+            prob, dist, points = self.predict_sparse(img, prob_thresh = prob_thresh,
+                                    axes=axes, normalizer=normalizer,
+                                    n_tiles=n_tiles,
+                                    show_tile_progress=show_tile_progress,
+                                    **predict_kwargs)
+            return self._instances_from_prediction(_shape_inst,
+                                                   prob, dist,
+                                                   points = points,
+                                                nms_thresh=nms_thresh,
+                                                overlap_label=overlap_label,
+                                                **nms_kwargs)
+
+        else:
+            prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
+                                      n_tiles=n_tiles,
+                                      show_tile_progress=show_tile_progress,
+                                      **predict_kwargs)
+            return self._instances_from_prediction(_shape_inst, prob, dist,
+                                               points = None,
+                                               prob_thresh=prob_thresh,
+                                               nms_thresh=nms_thresh,
+                                               overlap_label=overlap_label,
+                                               **nms_kwargs)
+
+        
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json=True):
