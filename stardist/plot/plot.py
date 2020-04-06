@@ -55,14 +55,14 @@ def _draw_polygons(polygons, points=None, scores=None, grid=(1,1), cmap=None, sh
 
     for point,poly,score,c in zip(points,polygons,scores,cmap.colors[1:]):
         if point is not None:
-            plt.plot(point[1]*grid[1], point[0]*grid[0], '.', markersize=8*score, color=c)
+            plt.plot(point[1], point[0], '.', markersize=8*score, color=c)
 
         if show_dist:
             dist_lines = np.empty((poly.shape[-1],2,2))
             dist_lines[:,0,0] = poly[1]
             dist_lines[:,0,1] = poly[0]
-            dist_lines[:,1,0] = point[1]*grid[1]
-            dist_lines[:,1,1] = point[0]*grid[0]
+            dist_lines[:,1,0] = point[1]
+            dist_lines[:,1,1] = point[0]
             plt.gca().add_collection(LineCollection(dist_lines, colors=c, linewidths=0.4))
 
         _plot_polygon(poly[1], poly[0], 3*score, color=c)
