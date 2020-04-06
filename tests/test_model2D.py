@@ -69,6 +69,16 @@ def test_load_and_predict():
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
     return labels
 
+def test_load_and_predict_big():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, _ = real_image2d()
+    x = normalize(img, 1, 99.8)
+    x = np.tile(x,(8,8))
+    labels, polygons = model.predict_instances(x)
+    return labels
+
 
 def test_load_and_export_TF():
     model_path = path_model2d()
@@ -145,5 +155,5 @@ def render_label_pred_example():
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)
     # im = render_label_pred_example()
-    im = render_label_example()
-
+    # im = render_label_example()
+    test_load_and_predict_big()
