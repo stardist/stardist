@@ -172,7 +172,7 @@ def calculate_extents(lbl, func=np.median):
         return func(extents, axis=0)
 
 
-def polyroi_bytearray(x,y,pos=None,subpixel=False):
+def polyroi_bytearray(x,y,pos=None,subpixel=True):
     """ Byte array of polygon roi with provided x and y coordinates
         See https://github.com/imagej/imagej1/blob/master/ij/io/RoiDecoder.java
     """
@@ -187,8 +187,9 @@ def polyroi_bytearray(x,y,pos=None,subpixel=False):
         return struct.pack(">f", x)
 
     subpixel = bool(subpixel)
-    x_raw = np.asarray(x).ravel()
-    y_raw = np.asarray(y).ravel()
+    # add offset since pixel center is at (0.5,0.5) in ImageJ
+    x_raw = np.asarray(x).ravel() + 0.5
+    y_raw = np.asarray(y).ravel() + 0.5
     x = np.round(x_raw)
     y = np.round(y_raw)
     assert len(x) == len(y)
@@ -229,7 +230,7 @@ def polyroi_bytearray(x,y,pos=None,subpixel=False):
     return bytearray(B)
 
 
-def export_imagej_rois(fname, polygons, set_position=True, subpixel=False, compression=ZIP_DEFLATED):
+def export_imagej_rois(fname, polygons, set_position=True, subpixel=True, compression=ZIP_DEFLATED):
     """ polygons assumed to be a list of arrays with shape (id,2,c) """
 
     if isinstance(polygons,np.ndarray):
