@@ -20,6 +20,7 @@ from csbdeep.data import Resizer
 
 from .sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
+from .pretrained import get_model_instance
 
 
 # TODO: support (optional) classification of objects?
@@ -150,6 +151,10 @@ class StarDistDataBase(Sequence):
 
 
 class StarDistBase(BaseModel):
+
+    @classmethod
+    def get_pretrained(cls, key_or_alias):
+        return get_model_instance(cls, key_or_alias)
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)
