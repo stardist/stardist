@@ -87,6 +87,7 @@ static PyObject* c_dist_to_affinity2D(PyObject *self, PyObject *args) {
 		   
 		 float aff_inc = weight;
 
+           
 		 // grid-correction of distances
 		 float dy = dy0/gridy;
 		 float dx = dx0/gridx;
@@ -102,7 +103,10 @@ static PyObject* c_dist_to_affinity2D(PyObject *self, PyObject *args) {
 		 int d0 = round_to_int(true_dist);
 		 if (d0<1)
 		   continue;
-		  
+
+         float true_dist_opposite = dist[((r+n_rays/2)%n_rays)+n_rays*offset]*_mag;
+         int d0_opposite = round_to_int(true_dist_opposite);
+             
 		 // loop through all pixels that are have a distance smaller than d0-1
 		 // and increment the affinity along the specific direction
 		   
@@ -118,13 +122,16 @@ static PyObject* c_dist_to_affinity2D(PyObject *self, PyObject *args) {
 
 		   float prefac = exp(-kappa*i); 
 
+		   // if (normed){
+		   //   if (kappa>0)
+		   //     prefac *= (1.-exp(-kappa))/(exp(-kappa)-exp(-kappa*(d0)));
+		   //   else
+		   //     prefac *= 1./d0;
+		   // }
 		   if (normed){
-			 if (kappa>0)
-			   prefac *= (1.-exp(-kappa))/(exp(-kappa)-exp(-kappa*(d0)));
-			 else
-			   prefac *= 1./d0;
+             prefac *= 1+kappa*(d0_opposite+i);
+             prefac *= 2./(d0+d0_opposite)/n_rays;
 		   }
-
 		   
 		   // increment all affinities that are neighboring the two pixels 
 		   // int ay = y1 - (dy<0);
@@ -157,14 +164,19 @@ static PyObject* c_dist_to_affinity2D(PyObject *self, PyObject *args) {
 		 if (!((0<=ax)&&(ax<nx)&&(0<=ay)&&(ay<ny)))
 		   continue;
 		 // weight by the increment vector
-			 
+
+         float prefac = 1;
+         if (normed)
+           prefac *= 2./(d0+d0_opposite)/n_rays;
+
+         
 #pragma omp atomic
 		 *(float *)PyArray_GETPTR3(arr_result_neg,ay,ax,0) +=
-		   fabs(dy)*aff_inc;
+		   fabs(dy)*prefac*aff_inc;
 // -			 aff_inc;			
 #pragma omp atomic
 		 *(float *)PyArray_GETPTR3(arr_result_neg,ay,ax,1) +=
-		   fabs(dx)*aff_inc;
+		   fabs(dx)*prefac*aff_inc;
 		 // aff_inc;
 	   }
 	 }

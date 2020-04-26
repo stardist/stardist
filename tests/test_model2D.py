@@ -150,22 +150,21 @@ def test_affinity(plot=True):
     model = StarDist2D(conf, name=None, basedir=None)
 
     labels1, d1 = model._instances_from_prediction(img.shape, prob, dist,
-                                                   affinity=False, affinity_thresh=.1)
+                                                   affinity=False)
 
     labels2, d2 = model._instances_from_prediction(img.shape, prob, dist,
-                                                   affinity=True, affinity_thresh=.1)
+                                                   affinity=True, affinity_thresh=.02)
 
     if plot:
         import matplotlib.pyplot as plt
         plt.subplot(1,2,1)
-        plt.imshow(render_label(labels1, img))
+        plt.imshow(render_label(labels1, img=.5*img, normalize_img = False))
+        plt.title("normal")
         plt.subplot(1,2,2)
-        plt.imshow(render_label(labels2, img))
+        plt.imshow(render_label(labels2, img=.5*img, normalize_img = False))
+        plt.title("affinity")
     return img, labels1, labels2, d1, d2
 
 if __name__ == '__main__':
-    # test_model("tmpdir", 32, (1, 1), 1)
-    # im = render_label_pred_example()
-    # im = render_label_example()
 
     img, lbl1, lbl2, d1, d2 = test_affinity(plot=True)

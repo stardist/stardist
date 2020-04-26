@@ -26,6 +26,7 @@ def circle_image(shape=(128, 128), radius = None, center=None, eps = (1,1)):
     return img
 
 
+
 def overlap_image(shape=(128, 128)):
     img1 = circle_image(shape, center=(0.1,) * len(shape))
     img2 = circle_image(shape, center=(-0.1,) * len(shape))

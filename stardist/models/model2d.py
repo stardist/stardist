@@ -398,13 +398,15 @@ class StarDist2D(StarDistBase):
             print("using affinity")
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
             aff, aff_neg = dist_to_affinity2D(dist,
-                                      weights = prob>=affinity_thresh,
-                                      grid = self.config.grid,
-                                      normed=True, verbose = True);
+                                              weights = prob>=affinity_thresh,
+                                              decay = .1,
+                                              grid = self.config.grid,
+                                              normed=True, verbose = True);
 
-            ws_potential = zoom(np.mean(aff,-1)*prob,
+            ws_potential = zoom(np.mean(aff,-1)*(.1+prob),
                                 zoom_factor, order=1)
-            mask         = ws_potential>affinity_thresh
+            mask = zoom(prob, zoom_factor, order=1)>affinity_thresh
+            
             markers      = np.zeros(img_shape, np.int32)
             markers[self.config.grid[0]*points[:,0],
                     self.config.grid[1]*points[:,1]] = np.arange(len(points))+1
