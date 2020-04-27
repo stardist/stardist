@@ -13,7 +13,7 @@ branches:
     - dev
 
 env:
-  - TENSORFLOW='tensorflow<2' KERAS='keras'
+  - TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA=''
 
 matrix:
   include:
@@ -22,21 +22,22 @@ matrix:
       dist: xenial
     - os: linux
       python: 3.5
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='llvmlite<0.32.0'
     - os: linux
       python: 3.6
     - os: linux
       python: 3.7
       dist: xenial
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='' INSTALL_FROM_SOURCE=1
     - os: linux
       python: 3.6
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='' INSTALL_FROM_SOURCE=1
     - os: linux
       python: 3.5
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' INSTALL_FROM_SOURCE=1
+      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='llvmlite<0.32.0' INSTALL_FROM_SOURCE=1
 
 install:
-  - pip install $TENSORFLOW $KERAS
+  - pip install $TENSORFLOW $KERAS $EXTRA
   - if [[ -n $INSTALL_FROM_SOURCE ]]; then
        pip install .;
     else

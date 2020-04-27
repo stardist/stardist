@@ -12,7 +12,7 @@ environment:
       PYTHON_VERSION: "3.5.x"
       PYTHON_ARCH: "64"
       APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
-      INSTALL_COMMAND: "pip install ."
+      INSTALL_COMMAND: "pip install \"llvmlite<0.32.0\" && pip install ."
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "64"
@@ -25,7 +25,7 @@ environment:
       PYTHON_VERSION: "3.5.x"
       PYTHON_ARCH: "64"
       APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
-      INSTALL_COMMAND: "pip install stardist"
+      INSTALL_COMMAND: "pip install \"llvmlite<0.32.0\" && pip install stardist"
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "64"
