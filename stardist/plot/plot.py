@@ -1,5 +1,6 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
+from warnings import warn
 from csbdeep.utils import normalize
 from ..utils import _normalize_grid
 from ..matching import matching
@@ -25,13 +26,14 @@ def _plot_polygon(x,y,score,color):
 
 def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False):
     """poly_idx is a N x 2 array with row-col coordinate indices"""
+    grid = _normalize_grid(grid,2)
     return _draw_polygons(polygons=coord[poly_idx[:,0],poly_idx[:,1]],
-                         points=poly_idx,
+                         points=poly_idx*np.array(grid),
                          scores=score[poly_idx[:,0],poly_idx[:,1]],
-                         grid=grid, cmap=cmap, show_dist=show_dist)
+                         cmap=cmap, show_dist=show_dist)
 
 
-def _draw_polygons(polygons, points=None, scores=None, grid=(1,1), cmap=None, show_dist=False):
+def _draw_polygons(polygons, points=None, scores=None, grid=None, cmap=None, show_dist=False):
     """
         polygons is a list/array of x,y coordinate lists/arrays
         points is a list/array of x,y coordinates
@@ -41,7 +43,8 @@ def _draw_polygons(polygons, points=None, scores=None, grid=(1,1), cmap=None, sh
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
 
-    grid = _normalize_grid(grid,2)
+    if grid is not None:
+        warn("parameter 'grid' has no effect anymore, please remove")
     if points is None:
         points = [None]*len(polygons)
     if scores is None:
