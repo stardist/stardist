@@ -20,6 +20,7 @@ from csbdeep.data import Resizer
 
 from .sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
+from .pretrained import get_model_details, get_model_instance, get_registered_models
 
 
 # TODO: support (optional) classification of objects?
@@ -150,6 +151,16 @@ class StarDistDataBase(Sequence):
 
 
 class StarDistBase(BaseModel):
+
+    @classmethod
+    def from_pretrained(cls, name_or_alias=None):
+        try:
+            get_model_details(cls, name_or_alias, verbose=True)
+            return get_model_instance(cls, name_or_alias)
+        except ValueError:
+            if name_or_alias is not None:
+                print("Could not find model with name or alias '%s'" % (name_or_alias), file=sys.stderr, flush=True)
+            get_registered_models(cls, verbose=True)
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)

@@ -172,27 +172,32 @@ def calculate_extents(lbl, func=np.median):
         return func(extents, axis=0)
 
 
-def polyroi_bytearray(x,y,pos=None):
+def polyroi_bytearray(x,y,pos=None,subpixel=True):
     """ Byte array of polygon roi with provided x and y coordinates
         See https://github.com/imagej/imagej1/blob/master/ij/io/RoiDecoder.java
     """
+    import struct
     def _int16(x):
         return int(x).to_bytes(2, byteorder='big', signed=True)
     def _uint16(x):
         return int(x).to_bytes(2, byteorder='big', signed=False)
     def _int32(x):
         return int(x).to_bytes(4, byteorder='big', signed=True)
+    def _float(x):
+        return struct.pack(">f", x)
 
-    x = np.asarray(x).ravel()
-    y = np.asarray(y).ravel()
-    x = np.round(x)
-    y = np.round(y)
+    subpixel = bool(subpixel)
+    # add offset since pixel center is at (0.5,0.5) in ImageJ
+    x_raw = np.asarray(x).ravel() + 0.5
+    y_raw = np.asarray(y).ravel() + 0.5
+    x = np.round(x_raw)
+    y = np.round(y_raw)
     assert len(x) == len(y)
     top, left, bottom, right = y.min(), x.min(), y.max(), x.max() # bbox
 
     n_coords = len(x)
     bytes_header = 64
-    bytes_total = bytes_header + n_coords*2*2
+    bytes_total = bytes_header + n_coords*2*2 + subpixel*n_coords*2*4
     B = [0] * bytes_total
     B[ 0: 4] = map(ord,'Iout')   # magic start
     B[ 4: 6] = _int16(227)       # version
@@ -202,6 +207,8 @@ def polyroi_bytearray(x,y,pos=None):
     B[12:14] = _int16(bottom)    # bbox bottom
     B[14:16] = _int16(right)     # bbox right
     B[16:18] = _uint16(n_coords) # number of coordinates
+    if subpixel:
+        B[50:52] = _int16(128)   # subpixel resolution (option flag)
     if pos is not None:
         B[56:60] = _int32(pos)   # position (C, Z, or T)
 
@@ -211,10 +218,19 @@ def polyroi_bytearray(x,y,pos=None):
         B[xs:xs+2] = _int16(_x - left)
         B[ys:ys+2] = _int16(_y - top)
 
+    if subpixel:
+        base1 = bytes_header + n_coords*2*2
+        base2 = base1 + n_coords*4
+        for i,(_x,_y) in enumerate(zip(x_raw,y_raw)):
+            xs = base1 + 4*i
+            ys = base2 + 4*i
+            B[xs:xs+4] = _float(_x)
+            B[ys:ys+4] = _float(_y)
+
     return bytearray(B)
 
 
-def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLATED):
+def export_imagej_rois(fname, polygons, set_position=True, subpixel=True, compression=ZIP_DEFLATED):
     """ polygons assumed to be a list of arrays with shape (id,2,c) """
 
     if isinstance(polygons,np.ndarray):
@@ -227,7 +243,7 @@ def export_imagej_rois(fname, polygons, set_position=True, compression=ZIP_DEFLA
     with ZipFile(str(fname)+'.zip', mode='w', compression=compression) as roizip:
         for pos,polygroup in enumerate(polygons,start=1):
             for i,poly in enumerate(polygroup,start=1):
-                roi = polyroi_bytearray(poly[1],poly[0], pos=(pos if set_position else None))
+                roi = polyroi_bytearray(poly[1],poly[0], pos=(pos if set_position else None), subpixel=subpixel)
                 roizip.writestr('{pos:03d}_{i:03d}.roi'.format(pos=pos,i=i), roi)
 
 
