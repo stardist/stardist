@@ -380,7 +380,8 @@ class StarDist3D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X,Y, validation_data, augmenter=None, seed=None,
+              epochs=None, steps_per_epoch=None, initial_epoch=0):
         """Train the neural network with the given data.
 
         Parameters
@@ -477,7 +478,7 @@ class StarDist3D(StarDistBase):
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1)
+                                                 callbacks=self.callbacks, verbose=1, initial_epoch=initial_epoch)
         self._training_finished()
 
         return history
