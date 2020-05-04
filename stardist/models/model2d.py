@@ -29,7 +29,7 @@ from ..affinity import dist_to_affinity2D
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, dist_mask_is_prob=True,  **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
@@ -42,7 +42,7 @@ class StarDistData2D(StarDistDataBase):
             self.b = slice(None),slice(None)
 
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
-
+        self.dist_mask_is_prob = dist_mask_is_prob
 
     def __getitem__(self, i):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
@@ -79,6 +79,9 @@ class StarDistData2D(StarDistDataBase):
         dist_mask = dist_mask[self.ss_grid]
         prob      = prob[self.ss_grid]
         dist      = dist[self.ss_grid]
+
+        if not self.dist_mask_is_prob:
+            dist_mask=(dist_mask>0).astype(np.float32)
 
         return [X,dist_mask], [prob,dist]
 
@@ -203,6 +206,8 @@ class Config2D(BaseConfig):
         self.train_batch_size          = 4
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
+        self.train_dist_mask_is_prob   = True
+
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
@@ -356,7 +361,8 @@ class StarDist2D(StarDistBase):
         )
 
         # generate validation data and store in numpy arrays
-        data_val = StarDistData2D(*validation_data, batch_size=1, **data_kwargs)
+        data_val = StarDistData2D(*validation_data, batch_size=1,
+                                  dist_mask_is_prob = self.config.train_dist_mask_is_prob, **data_kwargs)
         n_data_val = len(data_val)
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
@@ -366,7 +372,9 @@ class StarDist2D(StarDistBase):
         Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,Dv]]
 
-        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
+        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size,
+                                    dist_mask_is_prob = self.config.train_dist_mask_is_prob,
+                                    augmenter=augmenter, **data_kwargs)
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
@@ -383,7 +391,10 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, affinity=False, affinity_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist,
+                        prob_thresh=None, nms_thresh=None, affinity=False,
+                                   affinity_thresh=None, overlap_label = None,
+                                   affinity_kwargs = {}, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
@@ -395,15 +406,19 @@ class StarDist2D(StarDistBase):
 
         
         if affinity:
-            print("using affinity")
+            affinity_kwargs.setdefault("decay", 0.1)
+            affinity_kwargs.setdefault("normed", True)
+            affinity_kwargs.setdefault("verbose", True)
+            print("using affinity with parameters", affinity_kwargs)
+            
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
             aff, aff_neg = dist_to_affinity2D(dist,
-                                              weights = prob>=affinity_thresh,
-                                              decay = .1,
-                                              grid = self.config.grid,
-                                              normed=True, verbose = True);
+                            weights = prob>=affinity_thresh,
+                            grid = self.config.grid,
+                                              **affinity_kwargs)
 
-            ws_potential = zoom(np.mean(aff,-1)*(.1+prob),
+            aff_sum = np.mean(aff,-1)- np.mean(aff_neg,-1)
+            ws_potential = zoom(aff_sum*(.1+prob),
                                 zoom_factor, order=1)
             mask = zoom(prob, zoom_factor, order=1)>affinity_thresh
             
@@ -413,7 +428,7 @@ class StarDist2D(StarDistBase):
             # from scipy.ndimage import label
             # markers,_ = label(zoom(prob,zoom_factor, order=1)>prob_thresh)
             labels = watershed(-ws_potential, markers=markers,mask=mask)
-            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]], aff=aff, ws_potential=ws_potential)
+            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]], aff=aff,aff_neg=aff_neg, ws_potential=ws_potential)
             
         else:
             labels = polygons_to_label(coord, prob, points, shape=img_shape)
