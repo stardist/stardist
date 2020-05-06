@@ -394,7 +394,7 @@ class StarDist2D(StarDistBase):
     def _instances_from_prediction(self, img_shape, prob, dist,
                         prob_thresh=None, nms_thresh=None, affinity=False,
                                    affinity_thresh=None, overlap_label = None,
-                                   affinity_kwargs = {}, **nms_kwargs):
+                                   affinity_kwargs = None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
@@ -406,6 +406,7 @@ class StarDist2D(StarDistBase):
 
         
         if affinity:
+            if affinity_kwargs is None: affinity_kwargs = {}
             affinity_kwargs.setdefault("decay", 0.1)
             affinity_kwargs.setdefault("normed", True)
             affinity_kwargs.setdefault("verbose", True)
