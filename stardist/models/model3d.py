@@ -549,7 +549,7 @@ class StarDist3D(StarDistBase):
     def _config_class(self):
         return Config3D
 
-    def export_mesh(self, polys, fname = None, scale = 1, uv_map = False):
+    def export_mesh(self, polys, fname = None, scale = 1, single_mesh = True, uv_map = False):
         """ exports 3D mesh result to obj file format """
 
         dist   = polys["dist"]
@@ -586,8 +586,9 @@ class StarDist3D(StarDistBase):
             # reorder to xyz
             xs = xs[:,[2,1,0]]
 
-            # new object 
-            obj_str += f"o poly_{i:d}\n"
+            # new object
+            if i==0 or not single_mesh:
+                obj_str += f"o poly_{i:d}\n"
 
             # vertex coords
             for x,y,z in xs:
