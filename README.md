@@ -15,8 +15,8 @@ This repository contains the implementation of star-convex object detection for 
 International Conference on Medical Image Computing and Computer-Assisted Intervention (MICCAI), Granada, Spain, September 2018.
 
 - Martin Weigert, Uwe Schmidt, Robert Haase, Ko Sugawara, and Gene Myers.  
-[*Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy*](https://arxiv.org/abs/1908.03636).  
-arXiv, 2019
+[*Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy*](http://openaccess.thecvf.com/content_WACV_2020/papers/Weigert_Star-convex_Polyhedra_for_3D_Object_Detection_and_Segmentation_in_Microscopy_WACV_2020_paper.pdf).  
+The IEEE Winter Conference on Applications of Computer Vision (WACV), Snowmass Village, Colorado, March 2020
 
 Please [cite the paper(s)](#how-to-cite) if you are using this code in your research.
 
@@ -114,10 +114,11 @@ We currently provide a ImageJ/Fiji plugin that can be used to run pretrained Sta
   doi       = {10.1007/978-3-030-00934-2_30}
 }
 
-@article{weigert2019,
+@inproceedings{weigert2019,
   author    = {Martin Weigert and Uwe Schmidt and Robert Haase and Ko Sugawara and Gene Myers},
   title     = {Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy},
-  journal   = {arXiv:1908.03636},
-  year      = {2019}
+  booktitle = {The IEEE Winter Conference on Applications of Computer Vision (WACV)},
+  month     = {March},
+  year      = {2020}
 }
 ```

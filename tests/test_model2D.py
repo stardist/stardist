@@ -151,6 +151,28 @@ def render_label_pred_example():
     plt.show()
     return im
 
+def test_pretrained_scales():
+    from scipy.ndimage import zoom
+    from stardist.matching import matching
+    from skimage.measure import regionprops
+    
+    model = StarDist2D.from_pretrained("2D_versatile_fluo")
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+
+    def pred_scale(scale=2):
+        x2 = zoom(x, scale, order=1)
+        labels2, _ = model.predict_instances(x2)
+        labels = zoom(labels2, tuple(_s1/_s2 for _s1, _s2 in zip(mask.shape, labels2.shape)), order=0)
+        return labels
+
+    scales = np.linspace(.5,5,10)
+    accs = tuple(matching(mask, pred_scale(s)).accuracy for s in scales)
+    print("scales   ", np.round(scales,2))
+    print("accuracy ", np.round(accs,2))
+    
+    return accs
+
 
 def test_affinity(plot=False):
     img, prob, dist = prob_dist_image2d()
@@ -176,4 +198,8 @@ def test_affinity(plot=False):
     return img, labels1, labels2, d1, d2
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     img, lbl1, lbl2, d1, d2 = test_affinity(plot=True)
+=======
+    accs = test_pretrained_scales()
+>>>>>>> kdtree

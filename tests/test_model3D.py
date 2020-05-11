@@ -141,14 +141,13 @@ def test_stardistdata():
 
 
 
-
 def test_affinity(plot=False):
-
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
                        basedir=str(model_path.parent))
     img, mask = real_image3d()
-    x = normalize(img, 1, 99.8)    
+    x = normalize(img, 1, 99.8)
+
     labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
     labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2),
                                             affinity =True, affinity_thresh = 0.02,
@@ -167,5 +166,27 @@ def test_affinity(plot=False):
     return img, labels1, labels2, res1, res2
 
 
+def test_mesh_export():
+    from stardist.geometry import export_to_obj_file3D
+    from stardist.rays3d import rays_from_json
+    
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img, 1, 99.8)
+    labels, polys = model.predict_instances(x, nms_thresh=.5,
+                                        overlap_label=-3)
+
+    rays  = rays_from_json(model.config.rays_json)
+    polys["rays_vertices"] = rays.vertices
+    polys["rays_faces"] = rays.faces
+
+    s = export_to_obj_file3D(polys,
+                             "mesh.obj",scale = (.2,.1,.1))
+    return s
+
 if __name__ == '__main__':
     img, lbl1, lbl2, res1, res2  = test_affinity(plot=True)
+
+
