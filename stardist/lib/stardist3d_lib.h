@@ -6,7 +6,7 @@ void _COMMON_non_maximum_suppression_sparse(
                     const float* scores, const float* dist, const float* points,
                     const int n_polys, const int n_rays, const int n_faces, 
                     const float* verts, const int* faces,
-                    const float threshold, const int use_bbox, const int verbose, 
+                    const float threshold, const int use_bbox, const int use_kdtree, const int verbose, 
                     bool* result);
 
 
@@ -30,7 +30,7 @@ extern "C" {
                     const float*, const float*, const float*,                    
                     const int, const int, const int,
                     const float* , const int* ,
-                    const float, const int, const int, 
+                    const float, const int, const int, const int, 
                     bool*);
 
 

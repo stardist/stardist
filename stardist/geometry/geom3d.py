@@ -199,6 +199,8 @@ def polyhedron_to_label(dist, points, rays, shape, prob=None, thr=-np.inf, label
 def relabel_image_stardist3D(lbl, rays, verbose=False, **kwargs):
     """relabel each label region in `lbl` with its star representation"""
     _check_label_array(lbl, "lbl")
+    if not lbl.ndim==3:
+        raise ValueError("lbl image should be 3 dimensional")
 
     dist_all = star_dist3D(lbl, rays, **kwargs)
 

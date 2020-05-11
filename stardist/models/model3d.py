@@ -16,14 +16,20 @@ from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 
+from skimage.segmentation import clear_border
+from skimage.morphology import watershed
+from scipy.ndimage import zoom
+
+
+
 from .base import StarDistBase, StarDistDataBase
 from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
-from ..nms import non_maximum_suppression_3d
-
+from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
+from ..affinity import dist_to_affinity3D
 
 
 class StarDistData3D(StarDistDataBase):
@@ -380,7 +386,8 @@ class StarDist3D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X,Y, validation_data, augmenter=None, seed=None,
+              epochs=None, steps_per_epoch=None, initial_epoch=0):
         """Train the neural network with the given data.
 
         Parameters
@@ -477,36 +484,71 @@ class StarDist3D(StarDistBase):
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1)
+                                                 callbacks=self.callbacks, verbose=1, initial_epoch=initial_epoch)
         self._training_finished()
 
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, affinity=False, affinity_thresh=None, affinity_kwargs = None, overlap_label = None, **nms_kwargs):
+        """if points are given, use sparse prediction"""
+
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
+        if affinity and affinity_thresh is None: affinity_thresh  = self.thresholds.affinity
+        verbose = nms_kwargs.get('verbose',False)
 
         rays = rays_from_json(self.config.rays_json)
-        points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, grid=self.config.grid,
-                                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-        verbose = nms_kwargs.get('verbose',False)
-        verbose and print("render polygons...")
-        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
 
-        # map the overlap_label to something positive and back
-        # (as relabel_sequential doesn't like negative values)
-        if overlap_label is not None and overlap_label<0:
-            overlap_mask = (labels == overlap_label)
-            overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
-            labels[overlap_mask] = overlap_label2
-            labels, fwd, bwd = relabel_sequential(labels)
-            labels[labels == fwd[overlap_label2]] = overlap_label
+        if points is not None and affinity:
+            raise NotImplementedError("Sparse prediction assumes non-affinity based prediction!")
+
+
+        # if points is given, assume sparse prediction (else dense)
+        if points is not None:
+            points, probi, disti = non_maximum_suppression_3d_sparse(dist, prob,
+                                                                     points,  rays,
+                                                                     nms_thresh=nms_thresh,
+                                                                     **nms_kwargs)
         else:
-            labels, _,_ = relabel_sequential(labels)
+            points, probi, disti = non_maximum_suppression_3d(dist, prob, rays,
+                                                          grid=self.config.grid,
+                                                          prob_thresh=prob_thresh,
+                                                          nms_thresh=nms_thresh,
+                                                          **nms_kwargs)
 
-        # TODO: convert to polyhedra faces?
-        return labels, dict(dist=disti, points=points, prob=probi, rays=rays)
+
+        if affinity:
+            if affinity_kwargs is None: affinity_kwargs = {}
+            affinity_kwargs.setdefault("decay", 0.1)
+            affinity_kwargs.setdefault("normed", True)
+            affinity_kwargs.setdefault("verbose", True)
+            print("using affinity with parameters", affinity_kwargs)
+
+            zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
+            aff, aff_neg = dist_to_affinity3D(dist,
+                                              weights = prob>=affinity_thresh,
+                                              rays = rays, 
+                                              grid = self.config.grid,
+                                              **affinity_kwargs)
+
+            aff_sum = np.mean(aff,-1)- np.mean(aff_neg,-1)
+            ws_potential = zoom(aff_sum*(.1+prob),
+                                zoom_factor, order=1)
+            mask = zoom(prob, zoom_factor, order=1)>affinity_thresh
+            
+            markers      = np.zeros(img_shape, np.int32)
+            markers[points[:,0], points[:,1], points[:,2]] = np.arange(len(points))+1
+
+            labels = watershed(-ws_potential, markers=markers,mask=mask)
+                        
+            res_dict = dict(dist=disti, points=points, prob=probi, rays=rays, aff=aff,aff_neg=aff_neg, ws_potential=ws_potential)
+            
+        else:
+            labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
+            res_dict = dict(dist=disti, points=points, prob=probi, rays=rays)
+
+        return labels, res_dict
 
 
     def _axes_div_by(self, query_axes):

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
+from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d
 
@@ -82,6 +83,19 @@ def test_load_and_predict_with_overlap():
     return model, labels
 
 
+def test_predict_dense_sparse():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img, 1, 99.8)
+    labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = False)
+    labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
+    assert np.allclose(labels1, labels2)
+    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+    return labels2, labels2 
+
+
 def test_load_and_export_TF():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
@@ -126,5 +140,32 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
+
+
+def test_affinity(plot=False):
+
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img, 1, 99.8)    
+    labels1, res1 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
+    labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2),
+                                            affinity =True, affinity_thresh = 0.02,
+                                            sparse = False)
+
+    nz = len(labels1)//2
+    
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.subplot(1,2,1)
+        plt.imshow(render_label(labels1[nz], img=.5*x[nz], normalize_img = False))
+        plt.title("normal")
+        plt.subplot(1,2,2)
+        plt.imshow(render_label(labels2[nz], img=.5*x[nz], normalize_img = False))
+        plt.title("affinity")
+    return img, labels1, labels2, res1, res2
+
+
 if __name__ == '__main__':
-    model, lbl = test_load_and_predict_with_overlap()
+    img, lbl1, lbl2, res1, res2  = test_affinity(plot=True)

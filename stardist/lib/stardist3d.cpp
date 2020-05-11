@@ -17,15 +17,16 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   float threshold = 0;
   int use_bbox;
+  int use_kdtree;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iif",
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiif",
                         &PyArray_Type, &arr_dist,
                         &PyArray_Type, &arr_points,
                         &PyArray_Type, &arr_verts,
                         &PyArray_Type, &arr_faces,
                         &PyArray_Type, &arr_scores,
-                        &use_bbox,
+                        &use_bbox, &use_kdtree,
                         &verbose,
                         &threshold))
     return NULL;
@@ -51,10 +52,10 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
 
   _COMMON_non_maximum_suppression_sparse(scores,dist, points,
-                                 n_polys, n_rays, n_faces, 
-                                 verts, faces,
-                                 threshold, use_bbox, verbose, 
-                                 result);
+                                         n_polys, n_rays, n_faces, 
+                                         verts, faces,
+                                         threshold, use_bbox, use_kdtree, verbose, 
+                                         result);
   
 
   return PyArray_Return(arr_result);
@@ -287,6 +288,9 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
             float dy = *(float *)PyArray_GETPTR1(pdy,n);
             float dz = *(float *)PyArray_GETPTR1(pdz,n);
 
+            // dx /= 4;
+            // dy /= 4;
+            // dz /= 4;
             float x = 0, y = 0, z=0;
             // move along ray
             while (1) {
@@ -303,14 +307,24 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
                   kk < 0 || kk >= dims[2] ||
                   value != *(unsigned short *)PyArray_GETPTR3(src,ii,jj,kk))
                 {
-                  const float dist = sqrt(x*x + y*y + z*z);
-
-                  // const int x2 = round_to_int(x);
-                  // const int y2 = round_to_int(y);
-                  // const int z2 = round_to_int(z);
-                  // const float dist = sqrt(x2*x2 + y2*y2 + z2*z2);
-
+                  const int x2 = round_to_int(x);
+                  const int y2 = round_to_int(y);
+                  const int z2 = round_to_int(z);
+                  const float dist = sqrt(x2*x2 + y2*y2 + z2*z2);
                   *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
+
+                  // const float dist = sqrt(x*x + y*y + z*z);
+                  // *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
+
+                  // small correction as we overshoot the boundary
+                  // const float t_corr = .5f/fmax(fmax(fabs(dx),fabs(dy)),fabs(dz));
+                  // printf("%.2f\n", t_corr);
+                  // x += (t_corr-1.f)*dx;
+                  // y += (t_corr-1.f)*dy;
+                  // z += (t_corr-1.f)*dz;
+                  // const float dist = sqrt(x*x + y*y + z*z);
+                  // *(float *)PyArray_GETPTR4(dst,i,j,k,n) = dist;
+                  
                   break;
                 }
             }

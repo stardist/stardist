@@ -293,7 +293,8 @@ class StarDist2D(StarDistBase):
         return Model([input_img,input_mask], [output_prob,output_dist])
 
 
-    def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, augmenter=None, seed=None,
+              epochs=None, steps_per_epoch=None, initial_epoch=0):
         """Train the neural network with the given data.
 
         Parameters
@@ -385,33 +386,40 @@ class StarDist2D(StarDistBase):
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1)
+                                                 callbacks=self.callbacks, verbose=1, initial_epoch=initial_epoch)
         self._training_finished()
 
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist,
-                        prob_thresh=None, nms_thresh=None, affinity=False,
-                                   affinity_thresh=None, overlap_label = None,
-                                   affinity_kwargs = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, affinity=False, affinity_thresh=None, affinity_kwargs = None, overlap_label = None, **nms_kwargs):
+
+
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
         if affinity and affinity_thresh is None: affinity_thresh  = self.thresholds.affinity
 
-        coord = dist_to_coord(dist, grid=self.config.grid)
-        points = non_maximum_suppression(coord, prob, grid=self.config.grid,
-                                         prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-
         
+        coord = dist_to_coord(dist, grid=self.config.grid)
+        inds = non_maximum_suppression(coord, prob, grid=self.config.grid,
+                                       prob_thresh=prob_thresh,
+                                       nms_thresh=nms_thresh,
+                                       **nms_kwargs)
+            
+        # sparse prediction 
+        if points is not None:
+            raise NotImplementedError("Sparse prediction not yet implemented in 2D!")
+        else:
+            points = inds*np.array(self.config.grid)
+            
         if affinity:
             if affinity_kwargs is None: affinity_kwargs = {}
             affinity_kwargs.setdefault("decay", 0.1)
             affinity_kwargs.setdefault("normed", True)
             affinity_kwargs.setdefault("verbose", True)
             print("using affinity with parameters", affinity_kwargs)
-            
+
             zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
             aff, aff_neg = dist_to_affinity2D(dist,
                             weights = prob>=affinity_thresh,
@@ -424,16 +432,17 @@ class StarDist2D(StarDistBase):
             mask = zoom(prob, zoom_factor, order=1)>affinity_thresh
             
             markers      = np.zeros(img_shape, np.int32)
-            markers[self.config.grid[0]*points[:,0],
-                    self.config.grid[1]*points[:,1]] = np.arange(len(points))+1
-            # from scipy.ndimage import label
-            # markers,_ = label(zoom(prob,zoom_factor, order=1)>prob_thresh)
+            markers[points[:,0], points[:,1]] = np.arange(len(points))+1
+
             labels = watershed(-ws_potential, markers=markers,mask=mask)
-            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]], aff=aff,aff_neg=aff_neg, ws_potential=ws_potential)
+                        
+            res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]], aff=aff,aff_neg=aff_neg, ws_potential=ws_potential)
             
         else:
-            labels = polygons_to_label(coord, prob, points, shape=img_shape)
-            res_dict = dict(coord=coord[points[:,0],points[:,1]], points=points, prob=prob[points[:,0],points[:,1]])
+            # adjust for grid
+            points = inds*np.array(self.config.grid)
+            labels = polygons_to_label(coord, prob, inds, shape=img_shape)
+            res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
         return labels, res_dict
 
