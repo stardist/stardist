@@ -139,6 +139,27 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
+def test_mesh_export():
+    from stardist.geometry import export_to_obj_file3D
+    from stardist.rays3d import rays_from_json
+    
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, mask = real_image3d()
+    x = normalize(img, 1, 99.8)    
+    labels, polys = model.predict_instances(x, nms_thresh=.5,
+                                        overlap_label=-3)
+
+    rays  = rays_from_json(model.config.rays_json)
+    polys["rays_vertices"] = rays.vertices
+    polys["rays_faces"] = rays.faces
+
+    s = export_to_obj_file3D(polys,
+                             "mesh.obj",scale = (.2,.1,.1))
+    return s
+    
+
 if __name__ == '__main__':
     # model, lbl = test_load_and_predict_with_overlap()
-    y1,y2 = test_predict_dense_sparse()
+    s = test_mesh_export()
