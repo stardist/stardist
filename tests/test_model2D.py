@@ -198,8 +198,4 @@ def test_affinity(plot=False):
     return img, labels1, labels2, d1, d2
 
 if __name__ == '__main__':
-<<<<<<< HEAD
     img, lbl1, lbl2, d1, d2 = test_affinity(plot=True)
-=======
-    accs = test_pretrained_scales()
->>>>>>> kdtree
