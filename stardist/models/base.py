@@ -23,7 +23,6 @@ from ..utils import _is_power_of_2, optimize_threshold
 from ..nms import _ind_prob_thresh
 from .pretrained import get_model_details, get_model_instance, get_registered_models
 
-
 # TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
