@@ -151,10 +151,6 @@ def test_mesh_export():
     labels, polys = model.predict_instances(x, nms_thresh=.5,
                                         overlap_label=-3)
 
-    rays  = rays_from_json(model.config.rays_json)
-    polys["rays_vertices"] = rays.vertices
-    polys["rays_faces"] = rays.faces
-
     s = export_to_obj_file3D(polys,
                              "mesh.obj",scale = (.2,.1,.1))
     return s
