@@ -151,9 +151,28 @@ def render_label_pred_example():
     plt.show()
     return im
 
+def test_pretrained_scales():
+    from scipy.ndimage import zoom
+    from stardist.matching import matching
+    from skimage.measure import regionprops
+    
+    model = StarDist2D.from_pretrained("2D_versatile_fluo")
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+
+    def pred_scale(scale=2):
+        x2 = zoom(x, scale, order=1)
+        labels2, _ = model.predict_instances(x2)
+        labels = zoom(labels2, tuple(_s1/_s2 for _s1, _s2 in zip(mask.shape, labels2.shape)), order=0)
+        return labels
+
+    scales = np.linspace(.5,5,10)
+    accs = tuple(matching(mask, pred_scale(s)).accuracy for s in scales)
+    print("scales   ", np.round(scales,2))
+    print("accuracy ", np.round(accs,2))
+    
+    return accs
+
 
 if __name__ == '__main__':
-    # test_model("tmpdir", 32, (1, 1), 1)
-    # im = render_label_pred_example()
-    # im = render_label_example()
-    test_load_and_predict_big()
+    accs = test_pretrained_scales()
