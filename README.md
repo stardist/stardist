@@ -96,7 +96,7 @@ If you use `conda` on macOS and after `import stardist` see errors similar to th
 ``` 
 Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next
 ```
-please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19) for a temporay workaround.  
+please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporay workaround.  
 
 ### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.5 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
