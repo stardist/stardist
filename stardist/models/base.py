@@ -72,7 +72,9 @@ class StarDistDataBase(Sequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
-        X = [x.astype(np.float32, copy=False) for x in X]
+        if isinstance(X, (np.ndarray, tuple, list)):
+            X = [x.astype(np.float32, copy=False) for x in X]
+
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
 
         # sanity checks
@@ -81,7 +83,12 @@ class StarDistDataBase(Sequence):
         assert nD in (2,3)
         x_ndim = X[0].ndim
         assert x_ndim in (nD,nD+1)
-        assert all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y))
+
+        if isinstance(X, (np.ndarray, tuple, list)) and \
+           isinstance(Y, (np.ndarray, tuple, list)):
+            all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y)) or _raise("images and masks should have corresponding shapes/dimensions")
+            all(x.shape[:nD]>=patch_size for x in X) or _raise("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size))
+
         if x_ndim == nD:
             self.n_channel = None
         else:
