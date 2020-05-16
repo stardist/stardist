@@ -97,6 +97,19 @@ def test_predict2D(use_channel):
                  render_polygons(res_polys, shape=img.shape))
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
+    # sort them first lexicographic
+    ref_inds = np.lexsort(ref_polys["points"].T)
+    res_inds = np.lexsort(res_polys["points"].T)
+
+    assert np.allclose(ref_polys["coord"][ref_inds],
+                       res_polys["coord"][res_inds])
+    assert np.allclose(ref_polys["points"][ref_inds],
+                       res_polys["points"][res_inds])
+    assert np.allclose(ref_polys["prob"][ref_inds],
+                       res_polys["prob"][res_inds])
+
+    return ref_polys, res_polys
+
 
 
 def test_predict3D():
@@ -115,7 +128,20 @@ def test_predict3D():
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
+    # compare 
+    # sort them first lexicographic
+    ref_inds = np.lexsort(ref_polys["points"].T)
+    res_inds = np.lexsort(res_polys["points"].T)
+
+    assert np.allclose(ref_polys["dist"][ref_inds],
+                       res_polys["dist"][res_inds])
+    assert np.allclose(ref_polys["points"][ref_inds],
+                       res_polys["points"][res_inds])
+    assert np.allclose(ref_polys["prob"][ref_inds],
+                       res_polys["prob"][res_inds])
+
+    return ref_polys, res_polys
 
 
 if __name__ == '__main__':
-    pass
+    a, b = test_predict2D(False)
