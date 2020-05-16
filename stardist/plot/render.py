@@ -142,6 +142,34 @@ def cmap_from_hls(h,l,s):
     cols[0] = 0
     return matplotlib.colors.ListedColormap(cols)
 
+def match_labels(y0,y):
+    """match labels from y to y0"""
+    res = matching(y0,y,report_matches=True, thresh =.1)
+    if len(res.matched_pairs)==0:
+        print("no matching found")
+        return y
+    
+    ind_matched0, ind_matched = tuple(zip(*res.matched_pairs))
+    
+    ind_unmatched = (set(np.unique(y))-{0}) - set(ind_matched)
+
+    leftover_labels = set(np.arange(1,np.max(ind_matched0))) - set(ind_matched0)
+
+    leftover_labels = leftover_labels.union(set(np.max(ind_matched0)+1+np.arange(len(ind_unmatched)-len(leftover_labels))))
+
+    assert len(leftover_labels)>= len(ind_unmatched)
+
+    
+    print(f"matched: {len(ind_matched)} unmatched: {len(ind_unmatched)}")
+    u = np.zeros_like(y)
+    for ind0,ind in zip(ind_matched0, ind_matched):
+        u[y==ind] = ind0
+
+    for ind,ind2 in zip(ind_unmatched, leftover_labels):
+        u[y==ind] = ind2
+    
+    return u
+
 
 
 def render_label_pred(y_true, y_pred,
