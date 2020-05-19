@@ -4,7 +4,8 @@
 
 # *StarDist* - Object Detection with Star-convex Shapes 
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png)
+[![webinar video](http://img.youtube.com/vi/Amn_eHRGX5M/0.jpg)](http://www.youtube.com/watch?v=Amn_eHRGX5M "Webinar") 
+<img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview_stacked.png"  width="40%" align="right">
 
 This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
 
