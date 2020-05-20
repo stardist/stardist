@@ -68,6 +68,32 @@ We provide example workflows for 2D and 3D via Jupyter [notebooks](https://githu
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
+### Pretrained Models for 2D
+
+Currently we provide some pretrained models in 2D that might already be suitable for your images:
+
+
+| key | Modality (Staining) | Image format | Example Image    | Description  | 
+| :-- | :-: | :-:| :-:| :-- |
+| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a subset of the [ DSB 2018 nuclei segmentation challenge dataset](https://data.broadinstitute.org/bbbc/BBBC038/). | 
+|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TCGA archive](http://cancergenome.nih.gov/). |
+
+
+You can access these pretrained models from `stardist.models.StarDist2D`
+
+```python
+
+from stardist.models import StarDist2D 
+
+# prints a list of available models 
+StarDist2D.from_pretrained() 
+
+# creates a pretrained model
+model = StarDist2D.from_pretrained('2D_versatile_fluo')
+
+```
+
+
 ### Annotating Images
 
 To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region are labeled with a distinct integer (and background pixels are labeled with 0). To create such label masks, one can use e.g. the Imagej/Fiji plugin [Labkit](https://imagej.net/Labkit):
