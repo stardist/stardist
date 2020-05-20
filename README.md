@@ -32,6 +32,12 @@ The approach for 3D volumes is similar to the one described for 2D, using pairs 
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_3d.png)
 
+## Webinar/Tutorial 
+
+If you want to know more about the concepts and practical applications of StarDist, please have a look at the following webinar that was given at NEUBIAS Academy @Home 2020:
+
+[![webinar video](http://img.youtube.com/vi/Amn_eHRGX5M/0.jpg)](http://www.youtube.com/watch?v=Amn_eHRGX5M "Webinar") 
+
 
 ## Installation
 
