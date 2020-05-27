@@ -121,7 +121,7 @@ Additional tips:
 1. Install [QuPath](https://qupath.github.io/)
 2. Create a new project (`File -> Project...-> Create project`) and add your raw images 
 3. Annotate nuclei/objects
-4. Run [this script](https://github.com/mpicbg-csbd/stardist/blob/master/extras/qupath_export_annotations.groovy) to exports the annotations (save the file and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within yourt qupath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
+4. Run [this script](https://github.com/mpicbg-csbd/stardist/blob/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
 
 To see how this could be done, have a look at the following [example QuPath project](https://github.com/mpicbg-csbd/stardist/blob/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
 
