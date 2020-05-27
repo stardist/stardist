@@ -125,6 +125,7 @@ Additional tips:
 
 To see how this could be done, have a look at the following [example QuPath project](https://github.com/mpicbg-csbd/stardist/blob/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
 
+![](https://github.com/mpicbg-csbd/stardist/raw/master/images/qupath.png)
 
 ## Troubleshooting
 
