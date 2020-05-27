@@ -68,9 +68,40 @@ We provide example workflows for 2D and 3D via Jupyter [notebooks](https://githu
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
+### Pretrained Models for 2D
+
+Currently we provide some pretrained models in 2D that might already be suitable for your images:
+
+
+| key | Modality (Staining) | Image format | Example Image    | Description  | 
+| :-- | :-: | :-:| :-:| :-- |
+| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a subset of the [ DSB 2018 nuclei segmentation challenge dataset](https://data.broadinstitute.org/bbbc/BBBC038/). | 
+|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TCGA archive](http://cancergenome.nih.gov/). |
+
+
+You can access these pretrained models from `stardist.models.StarDist2D`
+
+```python
+
+from stardist.models import StarDist2D 
+
+# prints a list of available models 
+StarDist2D.from_pretrained() 
+
+# creates a pretrained model
+model = StarDist2D.from_pretrained('2D_versatile_fluo')
+
+```
+
+
 ### Annotating Images
 
-To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region are labeled with a distinct integer (and background pixels are labeled with 0). To create such label masks, one can use e.g. the Imagej/Fiji plugin [Labkit](https://imagej.net/Labkit):
+To train a *StarDist* model you will need some ground-truth annotations: for every raw training image there has to be a corresponding label image where all pixels of a cell region are labeled with a distinct integer (and background pixels are labeled with 0). 
+To create such annotations in 2D, there are several options, among them being [Fiji](http://fiji.sc/), [Labkit](https://imagej.net/Labkit), or [QuPath](https://qupath.github.io). In 3D, there are fewer options: [Labkit](https://github.com/maarzt/imglib2-labkit) and [Paintera](https://github.com/saalfeldlab/paintera) (the latter being very sophisticated but having a steeper learning curve). 
+
+Although each of these provide decent annotation tools, we currently recommend using Labkit (for 2D or 3D images) or QuPath (for 2D):
+
+#### Annotating with LabKit (2D or 3D)
 
 1. Install [Fiji](https://fiji.sc) and the [Labkit](https://imagej.net/Labkit) plugin
 2. Open the (2D or 3D) image and start Labkit via `Plugins > Segmentation > Labkit`
@@ -84,6 +115,17 @@ Additional tips:
 
 * The Labkit viewer uses [BigDataViewer](https://imagej.net/BigDataViewer) and its keybindings (e.g. <kbd>s</kbd> for contrast options, <kbd>CTRL</kbd>+<kbd>Shift</kbd>+<kbd>mouse-wheel</kbd> for zoom-in/out etc.)
 * For 3D images (XYZ) it is best to first convert it to a (XYT) timeseries (via `Re-Order Hyperstack` and swapping `z` and `t`) and then use <kbd>[</kbd> and <kbd>]</kbd> in Labkit to walk through the slices.    
+
+#### Annotating with QuPath (2D)
+
+1. Install [QuPath](https://qupath.github.io/)
+2. Create a new project (`File -> Project...-> Create project`)
+3. Add your raw images 
+4. Annotate nuclei/objects e.g. with the polygon tool (press `P` before each new object)
+5. Run [this script](https://gist.github.com/maweigert/0c7122e898815955084c3c90cffc6c31) to exports the annotations. (Save the file and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder that includes `images` and `masks` subfolder which can be directly used with *StarDist*.
+
+To see how this could be done, have a look at this (FIXME) example QuPath project. 
+
 
 ## Troubleshooting
 
