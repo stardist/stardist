@@ -303,11 +303,15 @@ def export_to_obj_file3D(polys, fname = None, scale = 1, single_mesh = True, uv_
 
     decimals = int(max(1,1-np.log10(np.min(scale))))
 
-    vertex_line = f"v {{x:.{decimals}f}} {{y:.{decimals}f}} {{z:.{decimals}f}}\n" 
 
     scaled_verts = scale*rays_vertices
     scaled_verts /= np.linalg.norm(scaled_verts,axis = 1, keepdims=True)
-        
+
+
+    vertex_line = f"v {{x:.{decimals}f}} {{y:.{decimals}f}} {{z:.{decimals}f}}\n" 
+
+    rays_faces = rays_faces.copy()+1
+    
     for i, xs in enumerate(tqdm(coord)):
         # reorder to xyz
         xs = xs[:,[2,1,0]]
@@ -330,11 +334,10 @@ def export_to_obj_file3D(polys, fname = None, scale = 1, single_mesh = True, uv_
                 obj_str +=  f"vt {u:.4f} {v:.4f}\n" 
 
         # face indices
-        for face in rays_faces.copy():
-            face += 1 + vert_count
+        for face in rays_faces:
             obj_str += f"f {face[0]}/{face[0]} {face[1]}/{face[1]} {face[2]}/{face[2]}\n"
                 
-        vert_count += len(xs)
+        rays_faces += len(xs)
 
     if fname is not None:
         with open(fname,"w") as f:
