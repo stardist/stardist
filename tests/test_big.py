@@ -102,11 +102,11 @@ def test_predict2D(use_channel):
     res_inds = np.lexsort(res_polys["points"].T)
 
     assert np.allclose(ref_polys["coord"][ref_inds],
-                       res_polys["coord"][res_inds])
+                       res_polys["coord"][res_inds],atol=1e-2)
     assert np.allclose(ref_polys["points"][ref_inds],
-                       res_polys["points"][res_inds])
+                       res_polys["points"][res_inds],atol=1e-2)
     assert np.allclose(ref_polys["prob"][ref_inds],
-                       res_polys["prob"][res_inds])
+                       res_polys["prob"][res_inds],atol=1e-2)
 
     return ref_polys, res_polys
 
