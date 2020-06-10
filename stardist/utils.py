@@ -286,6 +286,10 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
     return opt.x, -opt.fun
 
     
-    
-    
+def _merge_multiclass(y):
+    y_merged = np.zeros(y.shape[:-1], np.int32)
+    for i in range(y.shape[-1]):
+        m = y[...,i]
+        y_merged[m>0] += m[m>0] + y_merged.max()
+    return y_merged
     

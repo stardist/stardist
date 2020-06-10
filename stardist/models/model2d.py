@@ -19,7 +19,7 @@ from skimage.segmentation import clear_border
 
 from .base import StarDistBase, StarDistDataBase
 from .sample_patches import sample_patches
-from ..utils import edt_prob, _normalize_grid
+from ..utils import edt_prob, _normalize_grid, _merge_multiclass
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
 
@@ -46,27 +46,43 @@ class StarDistData2D(StarDistDataBase):
         idx = slice(i*self.batch_size,(i+1)*self.batch_size)
         idx = list(self.perm[idx])
 
-        arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
+        arrays = [sample_patches((self.Y_merged[k], self.Y[k], self.X[k]),
                                  patch_size=self.patch_size, n_samples=1,
                                  valid_inds=self.get_valid_inds(k)) for k in idx]
 
-        if self.n_channel is None:
-            X, Y = list(zip(*[(x[0][self.b],y[0]) for y,x in arrays]))
-        else:
-            X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1)[self.b], y[0]) for y,*x in arrays]))
+        X, Y = list(zip(*[(x[0][self.b],y[0]) for _,y,x in arrays]))
+
+            
+        if self.n_classes is None or self.n_classes==1:
+            Y = tuple(y[...,0] for y in Y)
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
-        prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
+        if self.n_classes is None or self.n_classes==1:
+            Y = tuple(np.expand_dims(y,-1) for y in Y)
+
+        Y_merged = tuple(_merge_multiclass(y) for y in Y)
+        
+        prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y_merged])
 
         if self.shape_completion:
-            Y_cleared = [clear_border(lbl) for lbl in Y]
+            Y_cleared = [clear_border(lbl) for lbl in Y_merged]
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
         else:
-            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y])
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y_merged])
             dist_mask = prob
 
+        prob_class = np.stack(tuple((y>0).astype(np.float32) for y in Y))
+
+        prob_class_sum = np.sum(prob_class, axis = -1, keepdims = True)
+        if prob_class_sum.max()>1:
+            warnings.warn("Overlapping masks detected! ")
+            prob_class_sum = np.clip(prob_class_sum,0,1)
+            
+        # add background class to first index
+        prob_class = np.concatenate([1.-prob_class_sum,prob_class], axis = -1)
+        
         X = np.stack(X)
         if X.ndim == 3: # input image has no channel axis
             X = np.expand_dims(X,-1)
@@ -74,11 +90,12 @@ class StarDistData2D(StarDistDataBase):
         dist_mask = np.expand_dims(dist_mask,-1)
 
         # subsample wth given grid
-        dist_mask = dist_mask[self.ss_grid]
-        prob      = prob[self.ss_grid]
-        dist      = dist[self.ss_grid]
+        dist_mask   = dist_mask[self.ss_grid]
+        prob        = prob[self.ss_grid]
+        prob_class  = prob_class[self.ss_grid]
+        dist        = dist[self.ss_grid]
 
-        return [X,dist_mask], [prob,dist]
+        return [X,dist_mask], [prob,prob_class, dist]
 
 
 
@@ -153,7 +170,7 @@ class Config2D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, grid=(1,1), backbone='unet', **kwargs):
+    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, n_classes = 1, grid=(1,1), backbone='unet', **kwargs):
         """See class docstring."""
 
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+n_rays)
@@ -162,7 +179,8 @@ class Config2D(BaseConfig):
         self.n_rays                    = int(n_rays)
         self.grid                      = _normalize_grid(grid,2)
         self.backbone                  = str(backbone).lower()
-
+        self.n_classes                 = n_classes
+        
         # default config (can be overwritten by kwargs below)
         if self.backbone == 'unet':
             self.unet_n_depth          = 3
@@ -194,7 +212,7 @@ class Config2D(BaseConfig):
         self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
-        self.train_loss_weights        = 1,0.2
+        self.train_loss_weights        = 1, 1, 0.2
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
@@ -282,8 +300,12 @@ class StarDist2D(StarDistBase):
                              name='features', padding='same', activation=self.config.unet_activation)(unet)
 
         output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
+
+        output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
+                              name='prob_class', padding='same', activation='softmax')(unet)
+        
         output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img,input_mask], [output_prob,output_prob_class, output_dist])
 
 
     def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
@@ -327,6 +349,12 @@ class StarDist2D(StarDistBase):
         if steps_per_epoch is None:
             steps_per_epoch = self.config.train_steps_per_epoch
 
+
+        if self.config.n_channel_in>1:
+            assert X[0].shape[-1]==self.config.n_channel_in
+            assert Y[0].shape[-1]==self.config.n_classes
+
+            
         validation_data is not None or _raise(ValueError())
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)==2)
             or _raise(ValueError('validation_data must be a pair of numpy arrays')))
@@ -358,20 +386,25 @@ class StarDist2D(StarDistBase):
         n_data_val = len(data_val)
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
-        Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
+        Xv, Mv, Pv, PCv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
         for i,k in enumerate(ids):
-            (Xv[i],Mv[i]),(Pv[i],Dv[i]) = data_val[k]
-        Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
-        data_val = [[Xv,Mv],[Pv,Dv]]
+            (Xv[i],Mv[i]),(Pv[i],PCv[i],Dv[i]) = data_val[k]
+        Xv, Mv, Pv, PCv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(PCv,axis=0), np.concatenate(Dv,axis=0)
+        data_val = [[Xv,Mv],[Pv,PCv,Dv]]
+
+        self.data_val = data_val
 
         data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
+                cb.output_slices = [[slice(None)]*4, [slice(None)]*4, [slice(None)]*4]
+                _n = min(3, self.config.n_classes)
+                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_classes//_n)*_n,self.config.n_classes//_n)
+
                 # show dist for three rays
                 _n = min(3, self.config.n_rays)
-                cb.output_slices = [[slice(None)]*4,[slice(None)]*4]
-                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+                cb.output_slices[2][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
 
         history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
                                                  epochs=epochs, steps_per_epoch=steps_per_epoch,
@@ -381,7 +414,7 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, prob_class, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")

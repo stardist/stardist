@@ -3,33 +3,41 @@ import numpy as np
 import pytest
 from stardist.models import Config2D, StarDist2D
 from stardist.matching import matching
+from stardist.utils import _merge_multiclass
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel', [(17, (1, 1), None), (32, (2, 4), 1), (4, (8, 2), 2)])
-def test_model(tmpdir, n_rays, grid, n_channel):
-    img = circle_image(shape=(160, 160))
-    imgs = np.repeat(img[np.newaxis], 3, axis=0)
+def test_model(tmpdir, n_rays, grid, n_channel, n_classes):
+    radii = np.random.randint(10,30,n_classes)
+    w  = 160
+    def sample():
+        mask = np.zeros((w,w,n_classes), np.uint16)
+        for i,r in enumerate(radii):
+            mask[...,i] = (.2*i+1)*circle_image(shape=(160, 160), radius = r, center = np.random.randint(-w//3,w//3,2))
+        mask_merged = _merge_multiclass(mask)
+        img = mask_merged.astype(np.float32)
+        img += .6*np.random.uniform(0, 1, img.shape)
+        img = img if n_channel is None else np.repeat(np.expand_dims(img,-1),n_channel, -1)
+        if n_channel>1:
+            img *= np.random.uniform(.4,1.6,(1,1,n_channel)) 
+        mask = mask_merged if n_classes==1 else mask
+        return img, mask
 
-    if n_channel is not None:
-        imgs = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
-    else:
-        n_channel = 1
-
-    X = imgs+.6*np.random.uniform(0, 1, imgs.shape)
-    Y = (imgs if imgs.ndim == 3 else imgs[..., 0]).astype(int)
+    X, Y = tuple(zip(*tuple(sample() for _ in range(16))))
 
     conf = Config2D(
         n_rays=n_rays,
         grid=grid,
         n_channel_in=n_channel,
+        n_classes=n_classes,
         use_gpu=False,
-        train_epochs=1,
-        train_steps_per_epoch=2,
+        train_epochs=100,
+        train_steps_per_epoch=20,
         train_batch_size=2,
-        train_loss_weights=(4, 1),
+        train_loss_weights=(1, 1, .2),
         train_patch_size=(128, 128),
     )
 
@@ -49,7 +57,7 @@ def test_model(tmpdir, n_rays, grid, n_channel):
     with pytest.warns(UserWarning):
         StarDist2D(conf, name='stardist', basedir=None).train(
             _X, _Y, validation_data=(X[-1:], Y[-1:]))
-
+    return X,Y, model
 
 def test_load_and_predict():
     model_path = path_model2d()
@@ -98,13 +106,30 @@ def test_optimize_thresholds():
     np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
 
 
-def test_stardistdata():
+def test_stardistdata(n_channel=1):
     from stardist.models import StarDistData2D
-    img, mask = real_image2d()
-    s = StarDistData2D([img, img], [mask, mask],
+    img, y = real_image2d()
+    if n_channel>1:
+        img = np.repeat(np.expand_dims(img,-1),n_channel,-1)
+        
+    s = StarDistData2D([img, img], [y, y],
                        batch_size=1, patch_size=(30, 40), n_rays=32)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+    (img, mask), (prob,prob_class,  dist) = s[0]
+    return (img, mask), (prob, prob_class, dist), s
+
+def test_stardistdata_multiclass(n_channel = 1):
+    from stardist.models import StarDistData2D
+    img, y = real_image2d()
+    if n_channel>1:
+        img = np.repeat(np.expand_dims(img,-1),n_channel,-1)
+
+    # create 3 non-overlapping masks 
+    y = np.stack([y*np.isin(y,np.arange(1+i,y.max()+1,3)) for i in range(3)], axis = -1)
+    
+    s = StarDistData2D([img, img], [y, y],
+                       batch_size=1, patch_size=(30, 40), n_rays=32)
+    (img, mask), (prob, prob_class, dist) = s[0]
+    return (img, mask), (prob, prob_class, dist), s
 
 
 def render_label_example():
@@ -167,6 +192,8 @@ def test_pretrained_scales():
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)
     # im = render_label_pred_example()
-    accs = test_pretrained_scales()
-    
+    # accs = test_pretrained_scales()
+    # (img, mask), (prob, prob_class, dist), s = test_stardistdata(3)    
+    # (img, mask), (prob, prob_class, dist), s = test_stardistdata_multiclass(2)    
 
+    X,Y, model = test_model(".", 32, (2,2), n_channel = 3, n_classes = 5)
