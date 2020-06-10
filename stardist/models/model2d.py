@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 import math
 from tqdm import tqdm
-
+from collections import defaultdict
 from distutils.version import LooseVersion
 import keras
 import keras.backend as K
@@ -425,7 +425,17 @@ class StarDist2D(StarDistBase):
         # adjust for grid
         points = inds*np.array(self.config.grid)
         labels = polygons_to_label(coord, prob, inds, shape=img_shape)
-        return labels, dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
+
+        # build map class_ids -> label ids  (background -> 0)
+        classes = np.argmax(prob_class,-1)[tuple(inds.T)]
+        class_id_map = dict((cls,[]) for cls in range(self.config.n_classes+1))
+        for cls,i in zip(classes, labels[tuple(points.T)]):
+            if cls==0:
+                warnings.warn("some found objects where classified as background, skipping")
+            class_id_map[cls].append(i)
+        
+        
+        return labels, dict(coord=coord[inds[:,0],inds[:,1]], inds = inds,  points=points, class_id_map = class_id_map, prob_class = prob_class, prob=prob[inds[:,0],inds[:,1]])
 
 
     def _axes_div_by(self, query_axes):
