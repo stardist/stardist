@@ -547,7 +547,7 @@ class StarDistBase(BaseModel):
         from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
 
-        (fname or self.basdir) or _raise("Either fname or basedir should be given!")
+        (fname or self.basedir) or _raise("Either fname or basedir should be given!")
 
         grid = self.config.grid
         prob = self.keras_model.outputs[0]
