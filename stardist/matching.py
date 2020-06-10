@@ -103,10 +103,23 @@ def f1(tp,fp,fn):
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
 
+def _save_divide(x,y):
+    return x/y if y>0 else 0.0
 
 def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     """
+    Calculate detection/instance segmentation metrics between two label images
+
+    Corresponding objects of y_true and y_pred are counted as true positives (tp), false positives (fp), and false negatives (fn) whether their IoU >= thresh (for criterion='iou')
+
+    mean_matched_score is the mean IoUs of matched true positives
+
+
+    mean_true_score is the mean IoUs of matched true positives but normalized by the total number of GT objects (SEG score https://public.celltrackingchallenge.net/documents/SEG.pdf)
+
     if report_matches=True, return (matched_pairs,matched_scores) are independent of 'thresh'
+    
+
     """
     _check_label_array(y_true,'y_true')
     _check_label_array(y_pred,'y_pred')
@@ -142,6 +155,13 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
         fn = n_true - tp
         # assert tp+fp == n_pred
         # assert tp+fn == n_true
+        sum_iou_matched = np.sum(scores[true_ind,pred_ind][match_ok]) if not_trivial else 0.0
+
+        
+        mean_matched_score = _save_divide(sum_iou_matched, tp)
+        mean_true_score    = _save_divide(sum_iou_matched, n_true)
+        panoptic_quality   = _save_divide(sum_iou_matched, tp+fp/2+fn/2) 
+
         stats_dict = dict (
             criterion       = criterion,
             thresh          = thr,
@@ -154,7 +174,9 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
             f1              = f1(tp,fp,fn),
             n_true          = n_true,
             n_pred          = n_pred,
-            mean_true_score = np.sum(scores[true_ind,pred_ind][match_ok]) / n_true if not_trivial else 0.0,
+            mean_true_score = mean_true_score,
+            mean_matched_score = mean_matched_score,
+            panoptic_quality = panoptic_quality, 
         )
         if bool(report_matches):
             if not_trivial:
@@ -186,7 +208,7 @@ def matching_dataset(y_true, y_pred, thresh=0.5, criterion='iou', by_image=False
 
 def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, show_progress=True, parallel=False):
 
-    expected_keys = set(('fp', 'tp', 'fn', 'precision', 'recall', 'accuracy', 'f1', 'criterion', 'thresh', 'n_true', 'n_pred', 'mean_true_score'))
+    expected_keys = set(('fp', 'tp', 'fn', 'precision', 'recall', 'accuracy', 'f1', 'criterion', 'thresh', 'n_true', 'n_pred', 'mean_true_score','mean_matched_score','panoptic_quality'))
 
     single_thresh = False
     if np.isscalar(thresh):
@@ -233,16 +255,25 @@ def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, sh
         acc['thresh'] = thr
         acc['by_image'] = bool(by_image)
         if bool(by_image):
-            for k in ('precision', 'recall', 'accuracy', 'f1', 'mean_true_score'):
+            for k in ('precision', 'recall', 'accuracy', 'f1', 'mean_true_score', 'mean_matched_score', "panoptic_quality"):
                 acc[k] /= n_images
         else:
-            tp, fp, fn = acc['tp'], acc['fp'], acc['fn']
+            tp, fp, fn, n_true = acc['tp'], acc['fp'], acc['fn'], acc['n_true']
+
+            sum_iou_matched = acc['mean_true_score']
+
+            mean_matched_score = _save_divide(sum_iou_matched, tp)
+            mean_true_score    = _save_divide(sum_iou_matched, n_true)
+            panoptic_quality   = _save_divide(sum_iou_matched, tp+fp/2+fn/2) 
+            
             acc.update(
                 precision       = precision(tp,fp,fn),
                 recall          = recall(tp,fp,fn),
                 accuracy        = accuracy(tp,fp,fn),
                 f1              = f1(tp,fp,fn),
-                mean_true_score = acc['mean_true_score'] / acc['n_true'] if acc['n_true'] > 0 else 0.0,
+                mean_true_score = mean_true_score,
+                mean_matched_score = mean_matched_score,
+                panoptic_quality = panoptic_quality, 
             )
 
     accumulate = tuple(namedtuple('DatasetMatching',acc.keys())(*acc.values()) for acc in accumulate)

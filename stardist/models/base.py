@@ -529,7 +529,7 @@ class StarDistBase(BaseModel):
         return tuple(overlap.get(a,0) for a in query_axes)
 
 
-    @suppress_without_basedir(warn=True)
+    # @suppress_without_basedir(warn=True)
     def export_TF(self, fname=None, single_output=True, upsample_grid=True):
         """export model to tensorflow SavedModel format that can be used e.g. 
         in the Fiji plugin 
@@ -546,6 +546,8 @@ class StarDistBase(BaseModel):
         """
         from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
+
+        (fname or self.basdir) or _raise("Either fname or basedir should be given!")
 
         grid = self.config.grid
         prob = self.keras_model.outputs[0]
