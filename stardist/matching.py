@@ -6,11 +6,7 @@ from scipy.optimize import linear_sum_assignment
 from collections import namedtuple
 from csbdeep.utils import _raise
 
-
-
 matching_criteria = dict()
-
-
 
 def label_are_sequential(y):
     """ returns true if y has only sequential labels from 1... """
@@ -18,10 +14,8 @@ def label_are_sequential(y):
     return (set(labels)-{0}) == set(range(1,1+labels.max()))
 
 
-
 def is_array_of_integers(y):
     return isinstance(y,np.ndarray) and np.issubdtype(y.dtype, np.integer)
-
 
 
 def _check_label_array(y, name=None, check_sequential=False):
@@ -35,7 +29,6 @@ def _check_label_array(y, name=None, check_sequential=False):
     else:
         y.min() >= 0 or _raise(err)
     return True
-
 
 
 def label_overlap(x, y, check=True):
@@ -55,7 +48,6 @@ def _label_overlap(x, y):
     return overlap
 
 
-
 def intersection_over_union(overlap):
     _check_label_array(overlap,'overlap')
     if np.sum(overlap) == 0:
@@ -65,7 +57,6 @@ def intersection_over_union(overlap):
     return overlap / (n_pixels_pred + n_pixels_true - overlap)
 
 matching_criteria['iou'] = intersection_over_union
-
 
 
 def intersection_over_true(overlap):
@@ -78,7 +69,6 @@ def intersection_over_true(overlap):
 matching_criteria['iot'] = intersection_over_true
 
 
-
 def intersection_over_pred(overlap):
     _check_label_array(overlap,'overlap')
     if np.sum(overlap) == 0:
@@ -87,7 +77,6 @@ def intersection_over_pred(overlap):
     return overlap / n_pixels_pred
 
 matching_criteria['iop'] = intersection_over_pred
-
 
 
 def precision(tp,fp,fn):
@@ -103,10 +92,53 @@ def f1(tp,fp,fn):
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
 
+def _save_divide(x,y):
+    return x/y if y>0 else 0.0
 
 def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     """
-    if report_matches=True, return (matched_pairs,matched_scores) are independent of 'thresh'
+
+    Calculate detection/instance segmentation metrics between ground truth and predicted label images
+
+    Currently, the following metrics are implemented:
+
+    'fp', 'tp', 'fn', 'precision', 'recall', 'accuracy', 'f1', 'criterion', 'thresh', 'n_true', 'n_pred', 'mean_true_score','mean_matched_score','panoptic_quality'
+
+    Corresponding objects of y_true and y_pred are counted as true positives (tp), false positives (fp), and false negatives (fn)
+    whether their intersection over union (IoU) >= thresh (for criterion='iou', which can be changed)
+
+    * mean_matched_score is the mean IoUs of matched true positives
+
+    * mean_true_score is the mean IoUs of matched true positives but normalized by the total number of GT objects (SEG score https://public.celltrackingchallenge.net/documents/SEG.pdf)
+
+    * panoptic quality defined as in Kirillov et al 2019
+
+    Parameters
+    ----------
+    y_true: ndarray
+        ground truth label image (integer valued)
+        predicted label image (integer valued)
+    thresh: float
+        threshold for matching criterion (default 0.5 IoU intersection)
+    criterion: string
+        matching criterion (default IoU)
+    report_matches: bool
+        if True, additionally calculate matched_pairs and matched_scores (note, that this returns even gt-pred pairs whose scores are below  'thresh')
+
+    Returns
+    -------
+        Matching object with different metrics as attributes
+
+    Examples
+    --------
+        >>> y_true = np.zeros((100,100), np.uint16)
+        >>> y_true[10:20,10:20] = 1
+        >>> y_pred = np.roll(y_true,5,axis = 0)
+
+        >>> stats = matching(y_true, y_pred)
+        >>> print(stats)
+        Matching(criterion='iou', thresh=0.5, fp=1, tp=0, fn=1, precision=0, recall=0, accuracy=0, f1=0, n_true=1, n_pred=1, mean_true_score=0.0, mean_matched_score=0.0, panoptic_quality=0.0)
+
     """
     _check_label_array(y_true,'y_true')
     _check_label_array(y_pred,'y_pred')
@@ -142,6 +174,12 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
         fn = n_true - tp
         # assert tp+fp == n_pred
         # assert tp+fn == n_true
+        sum_iou_matched = np.sum(scores[true_ind,pred_ind][match_ok]) if not_trivial else 0.0
+
+        mean_matched_score = _save_divide(sum_iou_matched, tp)
+        mean_true_score    = _save_divide(sum_iou_matched, n_true)
+        panoptic_quality   = _save_divide(sum_iou_matched, tp+fp/2+fn/2) 
+
         stats_dict = dict (
             criterion       = criterion,
             thresh          = thr,
@@ -154,7 +192,9 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
             f1              = f1(tp,fp,fn),
             n_true          = n_true,
             n_pred          = n_pred,
-            mean_true_score = np.sum(scores[true_ind,pred_ind][match_ok]) / n_true if not_trivial else 0.0,
+            mean_true_score = mean_true_score,
+            mean_matched_score = mean_matched_score,
+            panoptic_quality = panoptic_quality, 
         )
         if bool(report_matches):
             if not_trivial:
@@ -177,6 +217,8 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
 
 
 def matching_dataset(y_true, y_pred, thresh=0.5, criterion='iou', by_image=False, show_progress=True, parallel=False):
+    """matching metrics for list of images, see ``stardist.matching.matching`
+    """
     len(y_true) == len(y_pred) or _raise(ValueError("y_true and y_pred must have the same length."))
     return matching_dataset_lazy (
         tuple(zip(y_true,y_pred)), thresh=thresh, criterion=criterion, by_image=by_image, show_progress=show_progress, parallel=parallel,
@@ -186,7 +228,7 @@ def matching_dataset(y_true, y_pred, thresh=0.5, criterion='iou', by_image=False
 
 def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, show_progress=True, parallel=False):
 
-    expected_keys = set(('fp', 'tp', 'fn', 'precision', 'recall', 'accuracy', 'f1', 'criterion', 'thresh', 'n_true', 'n_pred', 'mean_true_score'))
+    expected_keys = set(('fp', 'tp', 'fn', 'precision', 'recall', 'accuracy', 'f1', 'criterion', 'thresh', 'n_true', 'n_pred', 'mean_true_score','mean_matched_score','panoptic_quality'))
 
     single_thresh = False
     if np.isscalar(thresh):
@@ -233,16 +275,25 @@ def matching_dataset_lazy(y_gen, thresh=0.5, criterion='iou', by_image=False, sh
         acc['thresh'] = thr
         acc['by_image'] = bool(by_image)
         if bool(by_image):
-            for k in ('precision', 'recall', 'accuracy', 'f1', 'mean_true_score'):
+            for k in ('precision', 'recall', 'accuracy', 'f1', 'mean_true_score', 'mean_matched_score', "panoptic_quality"):
                 acc[k] /= n_images
         else:
-            tp, fp, fn = acc['tp'], acc['fp'], acc['fn']
+            tp, fp, fn, n_true = acc['tp'], acc['fp'], acc['fn'], acc['n_true']
+
+            sum_iou_matched = acc['mean_true_score']
+
+            mean_matched_score = _save_divide(sum_iou_matched, tp)
+            mean_true_score    = _save_divide(sum_iou_matched, n_true)
+            panoptic_quality   = _save_divide(sum_iou_matched, tp+fp/2+fn/2) 
+            
             acc.update(
                 precision       = precision(tp,fp,fn),
                 recall          = recall(tp,fp,fn),
                 accuracy        = accuracy(tp,fp,fn),
                 f1              = f1(tp,fp,fn),
-                mean_true_score = acc['mean_true_score'] / acc['n_true'] if acc['n_true'] > 0 else 0.0,
+                mean_true_score = mean_true_score,
+                mean_matched_score = mean_matched_score,
+                panoptic_quality = panoptic_quality, 
             )
 
     accumulate = tuple(namedtuple('DatasetMatching',acc.keys())(*acc.values()) for acc in accumulate)
