@@ -205,6 +205,9 @@ class Config2D(BaseConfig):
             self.net_input_shape       = self.n_channel_in,None,None
             self.net_mask_shape        = 1,None,None
 
+        self.train_focal_loss          = True
+        self.train_class_weights       = True
+
         self.train_shape_completion    = False
         self.train_completion_crop     = 32
         self.train_patch_size          = 256,256
@@ -392,7 +395,18 @@ class StarDist2D(StarDistBase):
         Xv, Mv, Pv, PCv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(PCv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,PCv,Dv]]
 
-        self.data_val = data_val
+        # class weights
+        freq_bg = np.sum(tuple(np.prod(y.shape) for y in Y))
+        freq = np.sum(np.stack(tuple(np.count_nonzero(y,axis = (0,1)) for y in Y)),0)
+        freq = np.concatenate([[freq_bg], freq])
+
+        if self.config.train_class_weights:
+            class_weights = 1./np.sqrt(1+freq)
+            class_weights = class_weights/np.min(class_weights)
+            class_weights = np.clip(class_weights,1,1000)
+            class_weights = class_weights.reshape((1,1,1,len(class_weights)))
+            print(f"Updating class_weights: {np.round(class_weights,1)} ")
+            K.set_value(self.class_weights, class_weights)
 
         data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
 
@@ -435,7 +449,9 @@ class StarDist2D(StarDistBase):
             class_id_map[cls].append(i)
         
         
-        return labels, dict(coord=coord[inds[:,0],inds[:,1]], inds = inds,  points=points, class_id_map = class_id_map, prob_class = prob_class, prob=prob[inds[:,0],inds[:,1]])
+        return labels, dict(coord=coord[inds[:,0],inds[:,1]], inds = inds,  points=points, class_id_map = class_id_map, prob_class = prob_class,
+                            prob_full = prob, 
+                            prob=prob[inds[:,0],inds[:,1]])
 
 
     def _axes_div_by(self, query_axes):

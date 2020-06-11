@@ -66,6 +66,17 @@ def kld(y_true, y_pred):
     y_pred = K.clip(y_pred, K.epsilon(), 1)
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
+def focal_loss_categorical(weights, gamma=2.):
+    def _loss(y_true, y_pred):
+        eps = K.epsilon()
+        y_pred = K.clip(y_pred, eps, 1. - eps)
+
+        ce = -y_true * K.log(y_pred)
+
+        loss = weights*K.pow(1 - y_pred, gamma) * ce
+        loss = K.sum(loss, axis = -1)
+        return loss
+    return _loss
 
 
 class StarDistDataBase(Sequence):
@@ -197,6 +208,9 @@ class StarDistBase(BaseModel):
         )
         print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
 
+        # set class_weights to ones by default 
+        self.class_weights = K.ones((1,)*(self.config.n_dim+1)+(self.config.n_classes+1,))
+
 
     @property
     def thresholds(self):
@@ -230,8 +244,13 @@ class StarDistBase(BaseModel):
         input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
         dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss](input_mask, reg_weight=self.config.train_background_reg)
         prob_loss = 'binary_crossentropy'
-        prob_class_loss = 'categorical_crossentropy'
-        
+
+        if self.config.train_focal_loss:
+            print("using focal loss")
+            prob_class_loss = focal_loss_categorical(self.class_weights,gamma=2)
+        else:
+            prob_class_loss = 'categorical_crossentropy'
+
         self.keras_model.compile(optimizer, loss=[prob_loss, prob_class_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
                                             metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
