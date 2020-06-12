@@ -12,7 +12,7 @@ import keras.backend as K
 from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from csbdeep.models.base_model import BaseModel, suppress_without_basedir
+from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
@@ -529,15 +529,13 @@ class StarDistBase(BaseModel):
         return tuple(overlap.get(a,0) for a in query_axes)
 
 
-    # @suppress_without_basedir(warn=True)
     def export_TF(self, fname=None, single_output=True, upsample_grid=True):
-        """export model to tensorflow SavedModel format that can be used e.g. 
-        in the Fiji plugin 
-        
+        """Export model to TensorFlow's SavedModel format that can be used e.g. in the Fiji plugin
+
         Parameters
         ----------
         fname : str
-            Path of the zip file to store the model 
+            Path of the zip file to store the model
             If None, the default path "<modeldir>/TF_SavedModel.zip" is used
         single_output: bool
             If set, concatenates the two model outputs into a single output (note: this is currently mandatory for further use in Fiji)
@@ -547,7 +545,8 @@ class StarDistBase(BaseModel):
         from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
 
-        (fname or self.basedir) or _raise("Either fname or basedir should be given!")
+        if self.basedir is None and fname is None:
+            raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
 
         grid = self.config.grid
         prob = self.keras_model.outputs[0]
