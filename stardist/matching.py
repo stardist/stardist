@@ -172,9 +172,13 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
         fn = n_true - tp
         # assert tp+fp == n_pred
         # assert tp+fn == n_true
+
+        # the score sum over all matched objects (tp)
         sum_matched_score = np.sum(scores[true_ind,pred_ind][match_ok]) if not_trivial else 0.0
 
+        # the score average over all matched objects (tp)
         mean_matched_score = _safe_divide(sum_matched_score, tp)
+        # the score average over all gt/true objects
         mean_true_score    = _safe_divide(sum_matched_score, n_true)
         panoptic_quality   = _safe_divide(sum_matched_score, tp+fp/2+fn/2)
 
@@ -215,7 +219,7 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
 
 
 def matching_dataset(y_true, y_pred, thresh=0.5, criterion='iou', by_image=False, show_progress=True, parallel=False):
-    """matching metrics for list of images, see ``stardist.matching.matching`
+    """matching metrics for list of images, see `stardist.matching.matching`
     """
     len(y_true) == len(y_pred) or _raise(ValueError("y_true and y_pred must have the same length."))
     return matching_dataset_lazy (
