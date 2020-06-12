@@ -97,7 +97,6 @@ def _save_divide(x,y):
 
 def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     """
-
     Calculate detection/instance segmentation metrics between ground truth and predicted label images
 
     Currently, the following metrics are implemented:
@@ -174,10 +173,14 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
         fn = n_true - tp
         # assert tp+fp == n_pred
         # assert tp+fn == n_true
+        
+        # the sum of IoU over all matched TP
         sum_iou_matched = np.sum(scores[true_ind,pred_ind][match_ok]) if not_trivial else 0.0
 
-        mean_matched_score = _save_divide(sum_iou_matched, tp)
+        # the average IoU over all gt objects
         mean_true_score    = _save_divide(sum_iou_matched, n_true)
+        # the average IoU over all matched objects
+        mean_matched_score = _save_divide(sum_iou_matched, tp)
         panoptic_quality   = _save_divide(sum_iou_matched, tp+fp/2+fn/2) 
 
         stats_dict = dict (
@@ -217,7 +220,7 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
 
 
 def matching_dataset(y_true, y_pred, thresh=0.5, criterion='iou', by_image=False, show_progress=True, parallel=False):
-    """matching metrics for list of images, see ``stardist.matching.matching`
+    """matching metrics for list of images, see `stardist.matching.matching`
     """
     len(y_true) == len(y_pred) or _raise(ValueError("y_true and y_pred must have the same length."))
     return matching_dataset_lazy (
