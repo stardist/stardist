@@ -27,7 +27,7 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, valid_dist_only=False, valid_prob_only=False, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          batch_size=batch_size, patch_size=patch_size,
@@ -40,6 +40,8 @@ class StarDistData2D(StarDistDataBase):
             self.b = slice(None),slice(None)
 
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
+        self.valid_dist_only = bool(valid_dist_only)
+        self.valid_prob_only = bool(valid_prob_only)
 
 
     def __getitem__(self, i):
@@ -57,15 +59,15 @@ class StarDistData2D(StarDistDataBase):
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
-        prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
+        prob = np.stack([edt_prob(lbl[self.b],negative_oob=self.valid_prob_only) for lbl in Y])
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
-            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode,negative_oob=self.valid_dist_only)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
         else:
-            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y])
-            dist_mask = prob
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode,negative_oob=self.valid_dist_only) for lbl in Y])
+            dist_mask = np.abs(prob)
 
         X = np.stack(X)
         if X.ndim == 3: # input image has no channel axis
@@ -201,6 +203,8 @@ class Config2D(BaseConfig):
         self.train_batch_size          = 4
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
+        self.train_valid_dist_only     = False
+        self.train_valid_prob_only     = False
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
@@ -351,6 +355,8 @@ class StarDist2D(StarDistBase):
             b                = self.config.train_completion_crop,
             use_gpu          = self.config.use_gpu,
             foreground_prob  = self.config.train_foreground_only,
+            valid_dist_only  = self.config.train_valid_dist_only,
+            valid_prob_only  = self.config.train_valid_prob_only,
         )
 
         # generate validation data and store in numpy arrays

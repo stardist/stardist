@@ -14,6 +14,7 @@ __kernel void star_dist(__global float* dst, read_only image2d_t src) {
 
     const int i = get_global_id(0), j = get_global_id(1);
     const int Nx = get_global_size(0), Ny = get_global_size(1);
+    const int ind = i*N_RAYS + j*N_RAYS*Nx;
 
     const float2 origin = (float2)(i,j);
     const int value = read_imageui(src,sampler,origin).x;
@@ -21,7 +22,7 @@ __kernel void star_dist(__global float* dst, read_only image2d_t src) {
     if (value == 0) {
         // background pixel -> nothing to do, write all zeros
         for (int k = 0; k < N_RAYS; k++) {
-            dst[k + i*N_RAYS + j*N_RAYS*Nx] = 0;
+            dst[k + ind] = 0;
         }
     } else {
         float st_rays = (2*M_PI) / N_RAYS; // step size for ray angles
@@ -29,19 +30,25 @@ __kernel void star_dist(__global float* dst, read_only image2d_t src) {
         for (int k = 0; k < N_RAYS; k++) {
             const float phi = k*st_rays; // current ray angle phi
             const float2 dir = pol2cart(1,phi); // small vector in direction of ray
+            const float t_corr = .5f/fmax(fabs(dir.x),fabs(dir.y));
             float2 offset = 0; // offset vector to be added to origin
             // find radius that leaves current object
             while (1) {
                 offset += dir;
-                const int offset_value = read_imageui(src,sampler,round(origin+offset)).x;
+                const float2 offset_position = round(origin+offset);
+                const int offset_value = read_imageui(src,sampler,offset_position).x;
                 if (offset_value != value) {
-                  // small correction as we overshoot the boundary
-                  const float t_corr = .5f/fmax(fabs(dir.x),fabs(dir.y));
-                  offset += (t_corr-1.f)*dir;
+                    const bool outside = (offset_position.x < 0 || offset_position.x >= Nx ||
+                                          offset_position.y < 0 || offset_position.y >= Ny);
+                    // if (i==15 && j==15 && k==1)
+                    //     printf("%02f %02f -> %d\n", offset_position.x, offset_position.y, outside);
 
-                  const float dist = sqrt(offset.x*offset.x + offset.y*offset.y);
-                  dst[k + i*N_RAYS + j*N_RAYS*Nx] = dist;
-                  break;
+                    // small correction as we overshoot the boundary
+                    offset += (t_corr-1.f)*dir;
+
+                    const float dist = sqrt(offset.x*offset.x + offset.y*offset.y);
+                    dst[k + ind] = outside ? -dist : dist;
+                    break;
                 }
             }
         }

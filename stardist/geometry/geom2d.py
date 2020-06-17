@@ -12,7 +12,7 @@ from ..lib.stardist2d import c_star_dist
 
 
 
-def _ocl_star_dist(a, n_rays=32):
+def _ocl_star_dist(a, n_rays=32, negative_oob=False):
     from gputools import OCLProgram, OCLArray, OCLImage
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
     n_rays = int(n_rays)
@@ -20,15 +20,17 @@ def _ocl_star_dist(a, n_rays=32):
     dst = OCLArray.empty(a.shape+(n_rays,), dtype=np.float32)
     program = OCLProgram(path_absolute("kernels/stardist2d.cl"), build_options=['-D', 'N_RAYS=%d' % n_rays])
     program.run_kernel('star_dist', src.shape, None, dst.data, src)
-    return dst.get()
+    return dst.get() if negative_oob else np.abs(dst.get())
 
 
-def _cpp_star_dist(a, n_rays=32):
+def _cpp_star_dist(a, n_rays=32, negative_oob=False):
+    not negative_oob or _raise(NotImplementedError("negative_oob"))
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
     return c_star_dist(a.astype(np.uint16,copy=False), int(n_rays))
 
 
-def _py_star_dist(a, n_rays=32):
+def _py_star_dist(a, n_rays=32, negative_oob=False):
+    not negative_oob or _raise(NotImplementedError("negative_oob"))
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
     n_rays = int(n_rays)
     a = a.astype(np.uint16,copy=False)
@@ -64,17 +66,17 @@ def _py_star_dist(a, n_rays=32):
     return dst
 
 
-def star_dist(a, n_rays=32, mode='cpp'):
+def star_dist(a, n_rays=32, mode='cpp', negative_oob=False):
     """'a' assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
 
     n_rays >= 3 or _raise(ValueError("need 'n_rays' >= 3"))
 
     if mode == 'python':
-        return _py_star_dist(a, n_rays)
+        return _py_star_dist(a, n_rays, negative_oob)
     elif mode == 'cpp':
-        return _cpp_star_dist(a, n_rays)
+        return _cpp_star_dist(a, n_rays, negative_oob)
     elif mode == 'opencl':
-        return _ocl_star_dist(a, n_rays)
+        return _ocl_star_dist(a, n_rays, negative_oob)
     else:
         _raise(ValueError("Unknown mode %s" % mode))
 

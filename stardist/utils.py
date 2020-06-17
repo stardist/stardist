@@ -73,7 +73,7 @@ def _edt_prob(lbl_img, anisotropy=None):
     return prob
 
 
-def edt_prob(lbl_img, anisotropy=None):
+def edt_prob(lbl_img, anisotropy=None, negative_oob=False):
     """Perform EDT on each labeled object and normalize."""
     def grow(sl,interior):
         return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
@@ -99,6 +99,13 @@ def edt_prob(lbl_img, anisotropy=None):
         mask = grown_mask[shrink_slice]
         edt = dist_func(grown_mask)[shrink_slice][mask]
         prob[sl][mask] = edt/(np.max(edt)+1e-10)
+        if negative_oob and not all(map(all,interior)):
+            ss = tuple(slice(1,-1) for _ in range(lbl_img.ndim))
+            _edt = dist_func(np.pad(grown_mask,1))[ss][shrink_slice][mask]
+            mask_invalid = np.abs(edt - _edt) > 1e-2
+            tmp = prob[sl][mask]
+            tmp[mask_invalid] *= -1
+            prob[sl][mask] = tmp
     if constant_img:
         prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
     return prob
@@ -284,8 +291,3 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
 
     verbose > 1 and print('\n',opt, flush=True)
     return opt.x, -opt.fun
-
-    
-    
-    
-    

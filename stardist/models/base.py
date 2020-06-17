@@ -7,6 +7,7 @@ import math
 from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
+import tensorflow as tf
 
 import keras.backend as K
 from keras.utils import Sequence
@@ -38,7 +39,7 @@ def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, 
     return _loss
 
 def masked_loss(mask, penalty, reg_weight, norm_by_mask):
-    loss = lambda y_true, y_pred: penalty(y_true - y_pred)
+    loss = lambda y_true, y_pred: tf.where(y_true < 0, K.zeros_like(y_true), penalty(y_true - y_pred))
     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # TODO: should we use norm_by_mask=True in the loss or only in a metric?
@@ -62,9 +63,12 @@ def masked_metric_mse(mask):
     return relevant_mse
 
 def kld(y_true, y_pred):
-    y_true = K.clip(y_true, K.epsilon(), 1)
-    y_pred = K.clip(y_pred, K.epsilon(), 1)
-    return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
+    def _kld(y_true, y_pred):
+        y_true = K.clip(y_true, K.epsilon(), 1)
+        y_pred = K.clip(y_pred, K.epsilon(), 1)
+        return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
+    return tf.where(y_true < 0, K.zeros_like(y_true), _kld(y_true, y_pred))
+
 
 
 
@@ -218,7 +222,7 @@ class StarDistBase(BaseModel):
 
         input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
         dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss](input_mask, reg_weight=self.config.train_background_reg)
-        prob_loss = 'binary_crossentropy'
+        prob_loss = lambda y_true, y_pred: tf.where(y_true < 0, K.zeros_like(y_true), K.binary_crossentropy(y_true, y_pred))
         self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
                                             metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
