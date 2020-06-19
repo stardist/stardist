@@ -25,7 +25,7 @@ Please [cite the paper(s)](#how-to-cite) if you are using this code in your rese
 ## Overview
 
 The following figure illustrates the general approach for 2D images. The training data consists of corresponding pairs of input (i.e. raw) images and fully annotated label images (i.e. every pixel is labeled with a unique object id or 0 for background). 
-A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum supression (NMS) of these candidates.  
+A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum suppression (NMS) of these candidates.  
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_2d.png)
 
@@ -83,7 +83,6 @@ Currently we provide some pretrained models in 2D that might already be suitable
 You can access these pretrained models from `stardist.models.StarDist2D`
 
 ```python
-
 from stardist.models import StarDist2D 
 
 # prints a list of available models 
@@ -91,7 +90,6 @@ StarDist2D.from_pretrained()
 
 # creates a pretrained model
 model = StarDist2D.from_pretrained('2D_versatile_fluo')
-
 ```
 
 
@@ -142,10 +140,10 @@ To properly build `stardist` you need to install a OpenMP-enabled GCC compiler, 
     CC=gcc-9 CXX=g++-9 pip install stardist
 
 If you use `conda` on macOS and after `import stardist` see errors similar to the following:
-``` 
-Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next
-```
-please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporay workaround.  
+
+    Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next
+
+please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
 
 ### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.5 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
@@ -157,7 +155,7 @@ We currently provide a ImageJ/Fiji plugin that can be used to run pretrained Sta
 
 
 ## How to cite 
-``` 
+```bibtex
 @inproceedings{schmidt2018,
   author    = {Uwe Schmidt and Martin Weigert and Coleman Broaddus and Gene Myers},
   title     = {Cell Detection with Star-Convex Polygons},
@@ -173,6 +171,7 @@ We currently provide a ImageJ/Fiji plugin that can be used to run pretrained Sta
   title     = {Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy},
   booktitle = {The IEEE Winter Conference on Applications of Computer Vision (WACV)},
   month     = {March},
-  year      = {2020}
+  year      = {2020},
+  doi       = {10.1109/WACV45572.2020.9093435}
 }
 ```
