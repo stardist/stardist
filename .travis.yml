@@ -27,6 +27,7 @@ matrix:
       env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='llvmlite<0.32.0'
     - os: linux
       python: 3.6
+      if: branch = master
     - os: linux
       python: 3.7
       dist: xenial
