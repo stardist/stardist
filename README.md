@@ -44,15 +44,15 @@ If you want to know more about the concepts and practical applications of StarDi
 
 This package requires Python 3.5 (or newer).
 
-Please first [install TensorFlow 1.x](https://www.tensorflow.org/install)
+1. Please first [install TensorFlow 1.x](https://www.tensorflow.org/install)
 by following the official instructions. (**Do not choose TensorFlow 2.x**)
 For [GPU support](https://www.tensorflow.org/install/gpu), it is very
 important to install the specific versions of CUDA and cuDNN that are
 compatible with the respective version of TensorFlow.
 
-*StarDist* can then be installed with `pip`:
+2. *StarDist* can then be installed with `pip`:
 
-    pip install stardist
+    `pip install stardist`
 
 #### Notes
 
