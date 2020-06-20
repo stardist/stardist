@@ -126,6 +126,31 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
+def test_stardistdata_sequence():
+    from stardist.models import StarDistData3D
+    from stardist import Rays_GoldenSpiral
+    from keras.utils import Sequence
+    
+    x = np.zeros((10,32,48,64), np.uint16)
+    x[:,10:-10,10:-10] = 1
+    
+    class MyData(Sequence):
+        def __init__(self, dtype):
+            self.dtype = dtype
+        def __getitem__(self,n):
+            return x[n]
+        def __len__(self):
+            return len(x)
+
+    X = MyData(np.float32)
+    Y = MyData(np.uint16)
+    s = StarDistData3D(X,Y,
+                       batch_size=1, patch_size=(32,32,32),
+                       rays=Rays_GoldenSpiral(64))
+    (img, mask), (prob, dist) = s[0]
+    return (img, mask), (prob, dist), s
+
+
 def test_mesh_export():
     from stardist.geometry import export_to_obj_file3D
     
@@ -143,6 +168,4 @@ def test_mesh_export():
     
 
 if __name__ == '__main__':
-    # model, lbl = test_load_and_predict_with_overlap()
-
-    s = test_mesh_export()
+    model, lbl = test_load_and_predict_with_overlap()
