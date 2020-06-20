@@ -131,6 +131,13 @@ def test_stardistdata_multiclass(n_channel = 1):
     (img, mask), (prob, prob_class, dist) = s[0]
     return (img, mask), (prob, prob_class, dist), s
 
+def test_multiclass_backwardcompatibility():
+    """checks whether n_classes=None gives old stardist model without class head"""
+
+    conf_old = Config2D(n_classes=None, train_loss_weights=(1, 1, .2))
+
+    model_old = StarDist2D(conf_old, name=  None, basedir = None)
+    
 
 def render_label_example():
     model_path = path_model2d()
@@ -196,4 +203,9 @@ if __name__ == '__main__':
     # (img, mask), (prob, prob_class, dist), s = test_stardistdata(3)    
     # (img, mask), (prob, prob_class, dist), s = test_stardistdata_multiclass(2)    
 
-    X,Y, model = test_model(".", 32, (2,2), n_channel = 3, n_classes = 5)
+    # X,Y, model = test_model(".", 32, (2,2), n_channel = 3, n_classes = 5)
+
+    # test_optimize_thresholds()
+
+
+    test_multiclass_backwardcompatibility()

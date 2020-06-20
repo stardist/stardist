@@ -245,15 +245,17 @@ class StarDistBase(BaseModel):
         dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss](input_mask, reg_weight=self.config.train_background_reg)
         prob_loss = 'binary_crossentropy'
 
+
         if self.config.train_focal_loss:
-            print("using focal loss")
+            print("using focal loss" )
             prob_class_loss = focal_loss_categorical(self.class_weights,gamma=2)
         else:
-            prob_class_loss = 'categorical_crossentropy'
-
-        self.keras_model.compile(optimizer, loss=[prob_loss, prob_class_loss, dist_loss],
-                                            loss_weights = list(self.config.train_loss_weights),
-                                            metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
+            prob_class_loss = focal_loss_categorical(self.class_weights,gamma=1) if self.config.train_class_weights else 'categorical_crossentropy'
+     
+        self.keras_model.compile(optimizer,
+                                 loss=[prob_loss, prob_class_loss, dist_loss],
+                                 loss_weights = list(self.config.train_loss_weights),
+                                 metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
 
         self.callbacks = []
         if self.basedir is not None:

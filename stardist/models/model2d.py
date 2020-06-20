@@ -8,7 +8,7 @@ from collections import defaultdict
 from distutils.version import LooseVersion
 import keras
 import keras.backend as K
-from keras.layers import Input, Conv2D, MaxPooling2D
+from keras.layers import Input, Conv2D, MaxPooling2D, Lambda
 from keras.models import Model
 
 from csbdeep.models import BaseConfig
@@ -111,6 +111,9 @@ class Config2D(BaseConfig):
         Recommended to use a power of 2 (default: 32).
     n_channel_in : int
         Number of channels of given input image (default: 1).
+    n_classes : int or None
+        Number of output classes to use for multiclass prediction.
+        if None, no class prediction will be performed and network will not contain any class prediction head (to ensure backward compatibility)
     grid : (int,int)
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
@@ -170,7 +173,7 @@ class Config2D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, n_classes = 1, grid=(1,1), backbone='unet', **kwargs):
+    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, n_classes = None, grid=(1,1), backbone='unet', **kwargs):
         """See class docstring."""
 
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+n_rays)
@@ -205,7 +208,7 @@ class Config2D(BaseConfig):
             self.net_input_shape       = self.n_channel_in,None,None
             self.net_mask_shape        = 1,None,None
 
-        self.train_focal_loss          = True
+        self.train_focal_loss          = False
         self.train_class_weights       = True
 
         self.train_shape_completion    = False
@@ -304,7 +307,11 @@ class StarDist2D(StarDistBase):
 
         output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
 
-        output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
+        if self.config.n_classes is None:
+            output_prob_class  = Lambda(lambda x:x[...,:2])(inp)
+            
+        else:
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
                               name='prob_class', padding='same', activation='softmax')(unet)
         
         output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
@@ -355,6 +362,8 @@ class StarDist2D(StarDistBase):
 
         if self.config.n_channel_in>1:
             assert X[0].shape[-1]==self.config.n_channel_in
+
+        if self.config.n_classes is not None:
             assert Y[0].shape[-1]==self.config.n_classes
 
             
@@ -395,26 +404,28 @@ class StarDist2D(StarDistBase):
         Xv, Mv, Pv, PCv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(PCv,axis=0), np.concatenate(Dv,axis=0)
         data_val = [[Xv,Mv],[Pv,PCv,Dv]]
 
-        # class weights
-        freq_bg = np.sum(tuple(np.prod(y.shape) for y in Y))
-        freq = np.sum(np.stack(tuple(np.count_nonzero(y,axis = (0,1)) for y in Y)),0)
-        freq = np.concatenate([[freq_bg], freq])
+        if self.config.n_classes is not None and self.config.n_classes>1:
+            # class weights
+            freq_bg = np.sum(tuple(np.prod(y.shape) for y in Y))
+            freq = np.sum(np.stack(tuple(np.count_nonzero(y,axis = (0,1)) for y in Y)),0)
+            freq = np.concatenate([[freq_bg], freq])
 
-        if self.config.train_class_weights:
-            class_weights = 1./np.sqrt(1+freq)
-            class_weights = class_weights/np.min(class_weights)
-            class_weights = np.clip(class_weights,1,1000)
-            class_weights = class_weights.reshape((1,1,1,len(class_weights)))
-            print(f"Updating class_weights: {np.round(class_weights,1)} ")
-            K.set_value(self.class_weights, class_weights)
+            if self.config.train_class_weights:
+                class_weights = 1./np.sqrt(1+freq)
+                class_weights = class_weights/np.min(class_weights)
+                class_weights = np.clip(class_weights,1,1000)
+                class_weights = class_weights.reshape((1,1,1,len(class_weights)))
+                print(f"Updating class_weights: {np.round(class_weights,1)} ")
+                K.set_value(self.class_weights, class_weights)
 
         data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
 
         for cb in self.callbacks:
             if isinstance(cb,CARETensorBoard):
                 cb.output_slices = [[slice(None)]*4, [slice(None)]*4, [slice(None)]*4]
-                _n = min(3, self.config.n_classes)
-                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_classes//_n)*_n,self.config.n_classes//_n)
+                # show prob map for maximal three classes
+                _n = min(3, self.config.n_classes+1)
+                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,((self.config.n_classes+1)//_n)*_n,(self.config.n_classes+1)//_n)
 
                 # show dist for three rays
                 _n = min(3, self.config.n_rays)
