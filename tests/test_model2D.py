@@ -228,6 +228,19 @@ def test_stardistdata_sequence():
     (img, mask), (prob, dist) = s[0]
     return (img, mask), (prob, dist), s
 
+
+def print_receptive_fields():
+    for backbone in ("unet",):
+        for n_depth in (1,2,3):
+            for grid in ((1,1),(2,2)):
+                conf  = Config2D(backbone = backbone,
+                                 grid = grid, 
+                                 unet_n_depth=n_depth)
+                model = StarDist2D(conf, None, None)
+                fov   = model._compute_receptive_field()
+                print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
+    
+
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)
     # im = render_label_pred_example()

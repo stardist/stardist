@@ -166,6 +166,24 @@ def test_mesh_export():
                              "mesh.obj",scale = (.2,.1,.1))
     return s
     
+def print_receptive_fields():
+    backbone = "unet"
+    for n_depth in (1,2,3):
+        for grid in ((1,1,1),(2,2,2)):
+            conf  = Config3D(backbone = backbone,
+                             grid = grid,
+                             unet_n_depth=n_depth)
+            model = StarDist3D(conf, None, None)
+            fov   = model._compute_receptive_field()
+            print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
+    backbone = "resnet":
+    for grid in ((1,1,1),(2,2,2)):
+        conf  = Config3D(backbone = backbone,
+                         grid = grid)
+            model = StarDist3D(conf, None, None)
+            fov   = model._compute_receptive_field()
+            print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
+                
 if __name__ == '__main__':
     model, lbl = test_load_and_predict_with_overlap()

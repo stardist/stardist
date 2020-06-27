@@ -304,7 +304,7 @@ class StarDist3D(StarDistBase):
         elif self.config.backbone == "resnet":
             return self._build_resnet()
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(self.config.backbone)
 
 
     def _build_unet(self):
