@@ -176,13 +176,13 @@ def print_receptive_fields():
             model = StarDist3D(conf, None, None)
             fov   = model._compute_receptive_field()
             print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
-    backbone = "resnet":
+    backbone = "resnet"
     for grid in ((1,1,1),(2,2,2)):
         conf  = Config3D(backbone = backbone,
                          grid = grid)
-            model = StarDist3D(conf, None, None)
-            fov   = model._compute_receptive_field()
-            print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
+        model = StarDist3D(conf, None, None)
+        fov   = model._compute_receptive_field()
+        print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
                 
 if __name__ == '__main__':
