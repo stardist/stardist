@@ -10,7 +10,7 @@ from .geometry import star_dist3D, polyhedron_to_label, relabel_image_stardist3D
 from .plot.plot import random_label_cmap, draw_polygons, _draw_polygons
 from .plot.render import render_label, render_label_pred
 from .rays3d import rays_from_json, Rays_Cartesian, Rays_SubDivide, Rays_Tetra, Rays_Octo, Rays_GoldenSpiral
-
+from .sample_patches import sample_patches
 
 def py35_deprecation():
     import sys

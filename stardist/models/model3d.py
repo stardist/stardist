@@ -17,7 +17,7 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.utils.tf import CARETensorBoard
 
 from .base import StarDistBase, StarDistDataBase
-from .sample_patches import sample_patches
+from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label

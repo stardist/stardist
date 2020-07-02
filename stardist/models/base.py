@@ -18,7 +18,7 @@ from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normaliz
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.data import Resizer
 
-from .sample_patches import get_valid_inds
+from ..sample_patches import get_valid_inds
 from ..utils import _is_power_of_2, optimize_threshold
 from .pretrained import get_model_details, get_model_instance, get_registered_models
 
