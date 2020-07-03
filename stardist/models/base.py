@@ -12,7 +12,7 @@ import keras.backend as K
 from keras.utils import Sequence
 from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, TensorBoard
-from csbdeep.models.base_model import BaseModel, suppress_without_basedir
+from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
@@ -72,7 +72,9 @@ class StarDistDataBase(Sequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
-        X = [x.astype(np.float32, copy=False) for x in X]
+        if isinstance(X, (np.ndarray, tuple, list)):
+            X = [x.astype(np.float32, copy=False) for x in X]
+
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
 
         # sanity checks
@@ -81,7 +83,12 @@ class StarDistDataBase(Sequence):
         assert nD in (2,3)
         x_ndim = X[0].ndim
         assert x_ndim in (nD,nD+1)
-        assert all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y))
+
+        if isinstance(X, (np.ndarray, tuple, list)) and \
+           isinstance(Y, (np.ndarray, tuple, list)):
+            all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y)) or _raise("images and masks should have corresponding shapes/dimensions")
+            all(x.shape[:nD]>=patch_size for x in X) or _raise("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size))
+
         if x_ndim == nD:
             self.n_channel = None
         else:
@@ -669,15 +676,13 @@ class StarDistBase(BaseModel):
         return tuple(overlap.get(a,0) for a in query_axes)
 
 
-    @suppress_without_basedir(warn=True)
     def export_TF(self, fname=None, single_output=True, upsample_grid=True):
-        """export model to tensorflow SavedModel format that can be used e.g. 
-        in the Fiji plugin 
-        
+        """Export model to TensorFlow's SavedModel format that can be used e.g. in the Fiji plugin
+
         Parameters
         ----------
         fname : str
-            Path of the zip file to store the model 
+            Path of the zip file to store the model
             If None, the default path "<modeldir>/TF_SavedModel.zip" is used
         single_output: bool
             If set, concatenates the two model outputs into a single output (note: this is currently mandatory for further use in Fiji)
@@ -686,6 +691,9 @@ class StarDistBase(BaseModel):
         """
         from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
         from keras.models import Model
+
+        if self.basedir is None and fname is None:
+            raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
 
         grid = self.config.grid
         prob = self.keras_model.outputs[0]

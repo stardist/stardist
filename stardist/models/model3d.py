@@ -304,7 +304,7 @@ class StarDist3D(StarDistBase):
         elif self.config.backbone == "resnet":
             return self._build_resnet()
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(self.config.backbone)
 
 
     def _build_unet(self):
@@ -386,10 +386,10 @@ class StarDist3D(StarDistBase):
 
         Parameters
         ----------
-        X : :class:`numpy.ndarray`
-            Array of input images.
-        Y : :class:`numpy.ndarray`
-            Array of label masks.
+        X : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Input images
+        Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Label masks
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable

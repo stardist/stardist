@@ -292,10 +292,10 @@ class StarDist2D(StarDistBase):
 
         Parameters
         ----------
-        X : :class:`numpy.ndarray`
-            Array of input images.
-        Y : :class:`numpy.ndarray`
-            Array of label masks.
+        X : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Input images
+        Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Label masks
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable

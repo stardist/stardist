@@ -139,9 +139,33 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
+def test_stardistdata_sequence():
+    from stardist.models import StarDistData3D
+    from stardist import Rays_GoldenSpiral
+    from keras.utils import Sequence
+    
+    x = np.zeros((10,32,48,64), np.uint16)
+    x[:,10:-10,10:-10] = 1
+    
+    class MyData(Sequence):
+        def __init__(self, dtype):
+            self.dtype = dtype
+        def __getitem__(self,n):
+            return x[n]
+        def __len__(self):
+            return len(x)
+
+    X = MyData(np.float32)
+    Y = MyData(np.uint16)
+    s = StarDistData3D(X,Y,
+                       batch_size=1, patch_size=(32,32,32),
+                       rays=Rays_GoldenSpiral(64))
+    (img, mask), (prob, dist) = s[0]
+    return (img, mask), (prob, dist), s
+
+
 def test_mesh_export():
     from stardist.geometry import export_to_obj_file3D
-    from stardist.rays3d import rays_from_json
     
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
@@ -155,6 +179,24 @@ def test_mesh_export():
                              "mesh.obj",scale = (.2,.1,.1))
     return s
     
+def print_receptive_fields():
+    backbone = "unet"
+    for n_depth in (1,2,3):
+        for grid in ((1,1,1),(2,2,2)):
+            conf  = Config3D(backbone = backbone,
+                             grid = grid,
+                             unet_n_depth=n_depth)
+            model = StarDist3D(conf, None, None)
+            fov   = model._compute_receptive_field()
+            print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
+    backbone = "resnet"
+    for grid in ((1,1,1),(2,2,2)):
+        conf  = Config3D(backbone = backbone,
+                         grid = grid)
+        model = StarDist3D(conf, None, None)
+        fov   = model._compute_receptive_field()
+        print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
+                
 if __name__ == '__main__':
     s = test_mesh_export()

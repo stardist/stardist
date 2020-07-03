@@ -71,7 +71,7 @@ setup(
     author_email='uschmidt@mpi-cbg.de, mweigert@mpi-cbg.de',
     license='BSD 3-Clause License',
     packages=find_packages(),
-    python_requires='>=3.5',
+    python_requires='>=3.6',
 
     cmdclass={'build_ext': build_ext_openmp},
 
@@ -98,7 +98,6 @@ setup(
         'Topic :: Scientific/Engineering',
         'License :: OSI Approved :: BSD License',
 
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
