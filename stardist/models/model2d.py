@@ -27,10 +27,10 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, length, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
-                         batch_size=batch_size, patch_size=patch_size,
+                         batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.shape_completion = bool(shape_completion)
@@ -43,9 +43,7 @@ class StarDistData2D(StarDistDataBase):
 
 
     def __getitem__(self, i):
-        idx = slice(i*self.batch_size,(i+1)*self.batch_size)
-        idx = list(self.perm[idx])
-
+        idx = self.batch(i)
         arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                  patch_size=self.patch_size, n_samples=1,
                                  valid_inds=self.get_valid_inds(k)) for k in idx]

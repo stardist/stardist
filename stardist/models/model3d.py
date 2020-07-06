@@ -28,11 +28,11 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, length, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
-                         batch_size=batch_size, patch_size=patch_size,
+                         batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.rays = rays
@@ -47,9 +47,7 @@ class StarDistData3D(StarDistDataBase):
 
 
     def __getitem__(self, i):
-        idx = slice(i*self.batch_size,(i+1)*self.batch_size)
-        idx = list(self.perm[idx])
-
+        idx = self.batch(i)
         arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                  patch_size=self.patch_size, n_samples=1,
                                  valid_inds=self.get_valid_inds(k)) for k in idx]

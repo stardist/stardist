@@ -16,6 +16,7 @@ from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
+from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
@@ -68,9 +69,11 @@ def kld(y_true, y_pred):
 
 
 
-class StarDistDataBase(Sequence):
+class StarDistDataBase(RollingSequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
@@ -97,11 +100,10 @@ class StarDistDataBase(Sequence):
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
-        self.batch_size = batch_size
+        # self.batch_size = batch_size
         self.n_rays = n_rays
         self.patch_size = patch_size
         self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
-        self.perm = np.random.permutation(len(self.X))
         self.use_gpu = bool(use_gpu)
         if augmenter is None:
             augmenter = lambda *args: args
@@ -121,14 +123,6 @@ class StarDistDataBase(Sequence):
         self.sample_ind_cache = sample_ind_cache
         self._ind_cache_fg  = {}
         self._ind_cache_all = {}
-
-
-    def __len__(self):
-        return int(np.ceil(len(self.X) / float(self.batch_size)))
-
-
-    def on_epoch_end(self):
-        self.perm = np.random.permutation(len(self.X))
 
 
     def get_valid_inds(self, k, foreground_prob=None):
