@@ -89,7 +89,7 @@ class StarDistData3D(StarDistDataBase):
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
 
-        return [X,dist_mask], [prob,dist]
+        return [X], [prob,dist]
 
 
 
@@ -227,6 +227,7 @@ class Config3D(BaseConfig):
         else:
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
+        # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,None,self.n_channel_in
             self.net_mask_shape        = None,None,None,1
@@ -311,15 +312,9 @@ class StarDist3D(StarDistBase):
 
     def _build_unet(self):
         assert self.config.backbone == 'unet'
+        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img = Input(self.config.net_input_shape, name='input')
-        if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
-        else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
-        input_mask = Input(grid_shape, name='dist_mask')
-
-        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         # maxpool input image to grid size
         pooled = np.array([1,1,1])
@@ -339,19 +334,11 @@ class StarDist3D(StarDistBase):
 
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img], [output_prob,output_dist])
 
 
     def _build_resnet(self):
         assert self.config.backbone == 'resnet'
-
-        input_img = Input(self.config.net_input_shape, name='input')
-        if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
-        else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
-        input_mask = Input(grid_shape, name='dist_mask')
-
         n_filter = self.config.resnet_n_filter_base
         resnet_kwargs = dict (
             kernel_size        = self.config.resnet_kernel_size,
@@ -360,6 +347,8 @@ class StarDist3D(StarDistBase):
             kernel_initializer = self.config.resnet_kernel_init,
             activation         = self.config.resnet_activation,
         )
+
+        input_img = Input(self.config.net_input_shape, name='input')
 
         layer = input_img
         layer = Conv3D(n_filter, (7,7,7), padding="same", kernel_initializer=self.config.resnet_kernel_init)(layer)
@@ -379,7 +368,7 @@ class StarDist3D(StarDistBase):
 
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(layer)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(layer)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img], [output_prob,output_dist])
 
 
     def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
@@ -456,23 +445,25 @@ class StarDist3D(StarDistBase):
 
         if self.config.train_tensorboard:
             # only show middle slice of 3D inputs/outputs
-            input_slices, output_slices = [[slice(None)]*5,[slice(None)]*5], [[slice(None)]*5,[slice(None)]*5]
+            input_slices, output_slices = [[slice(None)]*5], [[slice(None)]*5,[slice(None)]*5]
             i = axes_dict(self.config.axes)['Z']
+            channel = axes_dict(self.config.axes)['C']
             _n_in  = _data_val.patch_size[i] // 2
             _n_out = _data_val.patch_size[i] // (2 * (self.config.grid[i] if self.config.grid is not None else 1))
             input_slices[0][1+i] = _n_in
-            input_slices[1][1+i] = _n_out
             output_slices[0][1+i] = _n_out
             output_slices[1][1+i] = _n_out
             # show dist for three rays
             _n = min(3, self.config.n_rays)
-            output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
             if IS_TF_1:
                 for cb in self.callbacks:
                     if isinstance(cb,CARETensorBoard):
                         cb.input_slices = input_slices
                         cb.output_slices = output_slices
-                        cb.output_target_shapes = [None, (None,)*(self.config.n_dim+1)+(data_val[1][1].shape[-1],)]
+                        # target image for dist includes dist_mask and thus has more channels than dist output
+                        cb.output_target_shapes = [None,[slice(None)]*5]
+                        cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
             elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
                                                            n_images=3, prob_out=False, input_slices=input_slices, output_slices=output_slices))

@@ -122,8 +122,8 @@ def test_stardistdata():
     img, mask = real_image3d()
     s = StarDistData3D([img, img], [mask, mask], batch_size=1,
                        patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_stardistdata_sequence():
@@ -148,8 +148,8 @@ def test_stardistdata_sequence():
     s = StarDistData3D(X,Y,
                        batch_size=1, patch_size=(32,32,32),
                        rays=Rays_GoldenSpiral(64), length=1)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_mesh_export():

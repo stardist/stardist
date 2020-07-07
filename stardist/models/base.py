@@ -220,7 +220,6 @@ class StarDistBase(BaseModel):
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
-        # input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
         masked_dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
 
@@ -325,8 +324,7 @@ class StarDistBase(BaseModel):
         x = resizer.before(x, axes_net, axes_net_div_by)
 
         def predict_direct(tile):
-            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            prob, dist = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
             return prob[0], dist[0]
 
         if np.prod(n_tiles) > 1:
@@ -525,12 +523,11 @@ class StarDistBase(BaseModel):
         # print(img_size)
         assert all(_is_power_of_2(s) for s in img_size)
         mid = tuple(s//2 for s in img_size)
-        dummy = np.empty((1,)+img_size+(1,), dtype=np.float32)
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict([x,dummy])[0][0,...,0]
-        y0 = self.keras_model.predict([z,dummy])[0][0,...,0]
+        y  = self.keras_model.predict(x)[0][0,...,0]
+        y0 = self.keras_model.predict(z)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)

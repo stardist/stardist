@@ -102,8 +102,8 @@ def test_stardistdata():
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def render_label_example():
@@ -183,8 +183,8 @@ def test_stardistdata_sequence():
     Y = MyData(np.uint16)
     s = StarDistData2D(X,Y,
                        batch_size=1, patch_size=(100,100), n_rays=32, length=1)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def print_receptive_fields():
