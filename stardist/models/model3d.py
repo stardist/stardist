@@ -462,7 +462,7 @@ class StarDist3D(StarDistBase):
                         cb.input_slices = input_slices
                         cb.output_slices = output_slices
                         # target image for dist includes dist_mask and thus has more channels than dist output
-                        cb.output_target_shapes = [None,[slice(None)]*5]
+                        cb.output_target_shapes = [None,[None]*5]
                         cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
             elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
