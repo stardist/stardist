@@ -220,26 +220,45 @@ class StarDistBase(BaseModel):
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
-        input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
-        dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss](input_mask, reg_weight=self.config.train_background_reg)
+        # input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
+        masked_dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
+
+        def split_dist_true_mask(dist_true_mask):
+            return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)
+
+        def dist_loss(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_dist_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
+
+        def relevant_mae(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_metric_mae(dist_mask)(dist_true, dist_pred)
+
+        def relevant_mse(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_metric_mse(dist_mask)(dist_true, dist_pred)
+
         self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
+                                            metrics={'prob': kld, 'dist': [relevant_mae, relevant_mse]})
 
         self.callbacks = []
         if self.basedir is not None:
             self.callbacks += self._checkpoint_callbacks()
 
             if self.config.train_tensorboard:
-                # self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
-                self.callbacks.append(CARETensorBoard(log_dir=str(self.logdir), prefix_with_timestamp=False, n_images=3, write_images=True, prob_out=False))
+                if IS_TF_1:
+                    self.callbacks.append(CARETensorBoard(log_dir=str(self.logdir), prefix_with_timestamp=False, n_images=3, write_images=True, prob_out=False))
+                else:
+                    self.callbacks.append(TensorBoard(log_dir=str(self.logdir/'logs'), write_graph=False, profile_batch=0))
 
         if self.config.train_reduce_lr is not None:
             rlrop_params = self.config.train_reduce_lr
             if 'verbose' not in rlrop_params:
                 rlrop_params['verbose'] = True
-            self.callbacks.append(ReduceLROnPlateau(**rlrop_params))
+            # TF2: add as first callback to put 'lr' in the logs for TensorBoard
+            self.callbacks.insert(0,ReduceLROnPlateau(**rlrop_params))
 
         self._model_prepared = True
 

@@ -121,7 +121,7 @@ def test_stardistdata():
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
     s = StarDistData3D([img, img], [mask, mask], batch_size=1,
-                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64))
+                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
     (img, mask), (prob, dist) = s[0]
     return (img, mask), (prob, dist), s
 
@@ -129,11 +129,12 @@ def test_stardistdata():
 def test_stardistdata_sequence():
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
-    from keras.utils import Sequence
-    
+    from csbdeep.utils.tf import keras_import
+    Sequence = keras_import('utils','Sequence')
+
     x = np.zeros((10,32,48,64), np.uint16)
     x[:,10:-10,10:-10] = 1
-    
+
     class MyData(Sequence):
         def __init__(self, dtype):
             self.dtype = dtype
@@ -146,26 +147,26 @@ def test_stardistdata_sequence():
     Y = MyData(np.uint16)
     s = StarDistData3D(X,Y,
                        batch_size=1, patch_size=(32,32,32),
-                       rays=Rays_GoldenSpiral(64))
+                       rays=Rays_GoldenSpiral(64), length=1)
     (img, mask), (prob, dist) = s[0]
     return (img, mask), (prob, dist), s
 
 
 def test_mesh_export():
     from stardist.geometry import export_to_obj_file3D
-    
+
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
                        basedir=str(model_path.parent))
     img, mask = real_image3d()
-    x = normalize(img, 1, 99.8)    
+    x = normalize(img, 1, 99.8)
     labels, polys = model.predict_instances(x, nms_thresh=.5,
                                         overlap_label=-3)
 
     s = export_to_obj_file3D(polys,
                              "mesh.obj",scale = (.2,.1,.1))
     return s
-    
+
 def print_receptive_fields():
     backbone = "unet"
     for n_depth in (1,2,3):
@@ -184,6 +185,6 @@ def print_receptive_fields():
         fov   = model._compute_receptive_field()
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
-                
+
 if __name__ == '__main__':
     model, lbl = test_load_and_predict_with_overlap()

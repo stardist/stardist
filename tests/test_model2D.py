@@ -101,7 +101,7 @@ def test_stardistdata():
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
-                       batch_size=1, patch_size=(30, 40), n_rays=32)
+                       batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
     (img, mask), (prob, dist) = s[0]
     return (img, mask), (prob, dist), s
 
@@ -144,7 +144,7 @@ def test_pretrained_scales():
     from scipy.ndimage import zoom
     from stardist.matching import matching
     from skimage.measure import regionprops
-    
+
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
@@ -208,11 +208,12 @@ def test_model(tmpdir, n_rays, grid, n_channel):
 
 def test_stardistdata_sequence():
     from stardist.models import StarDistData2D
-    from keras.utils import Sequence
-    
+    from csbdeep.utils.tf import keras_import
+    Sequence = keras_import('utils','Sequence')
+
     x = np.zeros((100,100), np.uint16)
     x[10:-10,10:-10] = 1
-    
+
     class MyData(Sequence):
         def __init__(self, dtype):
             self.dtype = dtype
@@ -224,7 +225,7 @@ def test_stardistdata_sequence():
     X = MyData(np.float32)
     Y = MyData(np.uint16)
     s = StarDistData2D(X,Y,
-                       batch_size=1, patch_size=(100,100), n_rays=32)
+                       batch_size=1, patch_size=(100,100), n_rays=32, length=1)
     (img, mask), (prob, dist) = s[0]
     return (img, mask), (prob, dist), s
 
@@ -234,12 +235,12 @@ def print_receptive_fields():
         for n_depth in (1,2,3):
             for grid in ((1,1),(2,2)):
                 conf  = Config2D(backbone = backbone,
-                                 grid = grid, 
+                                 grid = grid,
                                  unet_n_depth=n_depth)
                 model = StarDist2D(conf, None, None)
                 fov   = model._compute_receptive_field()
                 print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
-    
+
 
 if __name__ == '__main__':
     # test_model("tmpdir", 32, (1, 1), 1)

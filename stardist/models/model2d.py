@@ -76,6 +76,9 @@ class StarDistData2D(StarDistDataBase):
         prob      = prob[self.ss_grid]
         dist      = dist[self.ss_grid]
 
+        # append dist_mask to dist as additional channel
+        dist = np.concatenate([dist,dist_mask],axis=-1)
+
         return [X,dist_mask], [prob,dist]
 
 
@@ -352,34 +355,37 @@ class StarDist2D(StarDistBase):
         )
 
         # generate validation data and store in numpy arrays
-        data_val = StarDistData2D(*validation_data, batch_size=1, **data_kwargs)
-        n_data_val = len(data_val)
+        n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
-        Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
-        for i,k in enumerate(ids):
-            (Xv[i],Mv[i]),(Pv[i],Dv[i]) = data_val[k]
-        Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
-        data_val = [[Xv,Mv],[Pv,Dv]]
+        _data_val = StarDistData2D(*validation_data, batch_size=n_take, length=1, **data_kwargs)
+        data_val = _data_val[0]
 
-        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
+        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
 
-        for cb in self.callbacks:
-            if isinstance(cb,CARETensorBoard):
-                # show dist for three rays
-                _n = min(3, self.config.n_rays)
-                cb.output_slices = [[slice(None)]*4,[slice(None)]*4]
-                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+        if self.config.train_tensorboard:
+            # show dist for three rays
+            _n = min(3, self.config.n_rays)
+            output_slices = [[slice(None)]*4,[slice(None)]*4]
+            output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+            if IS_TF_1:
+                for cb in self.callbacks:
+                    if isinstance(cb,CARETensorBoard):
+                        cb.output_slices = output_slices
+                        cb.output_target_shapes = [None, (None,)*(self.config.n_dim+1)+(data_val[1][1].shape[-1],)]
+            elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
+                self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
+                                                           n_images=3, prob_out=False, output_slices=output_slices))
 
-        history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
-                                                 epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1)
+        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        history = fit(iter(data_train), validation_data=data_val,
+                      epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
