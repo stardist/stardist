@@ -5,16 +5,17 @@ import warnings
 import math
 from tqdm import tqdm
 
-from distutils.version import LooseVersion
-import keras
-import keras.backend as K
-from keras.layers import Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate
-from keras.models import Model
 
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
+from distutils.version import LooseVersion
+
+keras = keras_import()
+K = keras_import('backend')
+Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate = keras_import('layers', 'Input', 'Conv3D', 'MaxPooling3D', 'UpSampling3D', 'Add', 'Concatenate')
+Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase
 from ..sample_patches import sample_patches

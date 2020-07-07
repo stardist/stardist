@@ -1,8 +1,10 @@
 from pathlib import Path
-from keras.utils import get_file
 from csbdeep.utils import _raise
 from collections import OrderedDict
 from warnings import warn
+
+from csbdeep.utils.tf import keras_import
+get_file = keras_import('utils', 'get_file')
 
 
 _MODELS = {}

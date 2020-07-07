@@ -5,7 +5,8 @@ from .model3d import Config3D, StarDist3D, StarDistData3D
 from .pretrained import register_model, register_aliases, clear_models_and_aliases
 
 from csbdeep.utils import backend_channels_last
-import keras.backend as K
+from csbdeep.utils.tf import keras_import
+K = keras_import('backend')
 if not backend_channels_last():
     raise NotImplementedError(
         "Keras is configured to use the '%s' image data format, which is currently not supported. "

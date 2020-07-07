@@ -8,12 +8,15 @@ from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
 
-import keras.backend as K
-from keras.utils import Sequence
-from keras.optimizers import Adam
-from keras.callbacks import ReduceLROnPlateau, TensorBoard
 from csbdeep.models.base_model import BaseModel
-from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
+from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
+
+import tensorflow as tf
+K = keras_import('backend')
+Sequence = keras_import('utils', 'Sequence')
+Adam = keras_import('optimizers', 'Adam')
+ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')
+
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
 from csbdeep.internals.train import RollingSequence
@@ -543,8 +546,8 @@ class StarDistBase(BaseModel):
         upsample_grid: bool
             If set, upsamples the output to the input shape (note: this is currently mandatory for further use in Fiji)
         """
-        from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
-        from keras.models import Model
+        Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose = keras_import('layers', 'Concatenate', 'UpSampling2D', 'UpSampling3D', 'Conv2DTranspose', 'Conv3DTranspose')
+        Model = keras_import('models', 'Model')
 
         if self.basedir is None and fname is None:
             raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
