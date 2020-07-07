@@ -40,10 +40,13 @@ matrix:
     - if: branch = tf2
       os: linux
       python: 3.7
-      env: TENSORFLOW='tensorflow' EXTRA='git+https://github.com/CSBDeep/CSBDeep.git@tf2' INSTALL_FROM_SOURCE=1
+      env: TENSORFLOW='tensorflow' EXTRA='' INSTALL_FROM_SOURCE=1
 
 install:
   - pip install $TENSORFLOW $EXTRA
+  - if [ "$TRAVIS_BRANCH" = "tf2" ]; then
+       pip install git+https://github.com/CSBDeep/CSBDeep.git@tf2
+    fi;
   - if [[ -n $INSTALL_FROM_SOURCE ]]; then
        pip install .;
     else
