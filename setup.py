@@ -59,7 +59,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/mpicbg-csbd/stardist',
     author='Uwe Schmidt, Martin Weigert',
-    author_email='uschmidt@mpi-cbg.de, mweigert@mpi-cbg.de',
+    author_email='uschmidt@mpi-cbg.de, martin.weigert@epfl.ch',
     license='BSD 3-Clause License',
     packages=find_packages(),
     python_requires='>=3.6',
@@ -94,7 +94,7 @@ setup(
     ],
 
     install_requires=[
-        'csbdeep>=0.4.0',
+        'csbdeep>=0.6.0',
         'scikit-image',
         'numba',
     ],
