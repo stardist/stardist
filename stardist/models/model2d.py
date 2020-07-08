@@ -18,7 +18,7 @@ from csbdeep.utils.tf import CARETensorBoard
 from skimage.segmentation import clear_border
 
 from .base import StarDistBase, StarDistDataBase
-from .sample_patches import sample_patches
+from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
@@ -291,10 +291,10 @@ class StarDist2D(StarDistBase):
 
         Parameters
         ----------
-        X : :class:`numpy.ndarray`
-            Array of input images.
-        Y : :class:`numpy.ndarray`
-            Array of label masks.
+        X : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Input images
+        Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
+            Label masks
         validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
             Tuple of X,Y validation arrays.
         augmenter : None or callable

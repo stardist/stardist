@@ -78,6 +78,15 @@ def rays_from_json(d):
 
 ################################################################
 
+class Rays_Explicit(Rays_Base):
+    def __init__(self, vertices0, faces0):
+        self.vertices0, self.faces0 = vertices0, faces0
+        super().__init__(vertices0=list(vertices0), faces0=list(faces0))
+        
+    def setup_vertices_faces(self):
+        return self.vertices0, self.faces0
+    
+
 class Rays_Cartesian(Rays_Base):
     def __init__(self, n_rays_x=11, n_rays_z=5):
         super().__init__(n_rays_x=n_rays_x, n_rays_z=n_rays_z)
