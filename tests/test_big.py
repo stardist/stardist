@@ -4,11 +4,11 @@ import pytest
 
 from csbdeep.utils import normalize
 from stardist.matching import matching, relabel_sequential
-from stardist import calculate_extents
+from stardist import calculate_extents, polyhedron_to_label
 from stardist.models import StarDist2D, StarDist3D
 from utils import real_image2d, real_image3d, path_model2d, path_model3d
 
-from stardist.big import BlockND, render_polygons
+from stardist.big import BlockND, render_polygons, repaint_labels
 
 
 
@@ -70,6 +70,7 @@ def test_tiling3D(block_size, context, grid):
     assert max_sizes == tuple(calculate_extents(lbl, func=np.max))
 
     reassemble(lbl, 'ZYX', block_size, min_overlap, context, grid)
+
 
 
 @pytest.mark.parametrize('use_channel', [False, True])
@@ -140,6 +141,60 @@ def test_predict3D():
                        res_polys["prob"][res_inds],atol=1e-2)
 
     return ref_polys, res_polys
+
+
+
+def test_repaint2D():
+    np.random.seed(42)
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
+
+    img = real_image2d()[0]
+    img = normalize(img, 1, 99.8)
+
+    # get overlapping polygon predictions, wiggle them a bit, render reference label image
+    polys = model.predict_instances(img, nms_thresh=0.97)[1]
+    polys['coord'] += np.random.normal(scale=3, size=polys['coord'].shape[:2]+(1,))
+    labels = render_polygons(polys, img.shape)
+
+    # shuffle polygon probabilities/scores and render label image
+    polys2 = {k:v.copy() for k,v in polys.items()}
+    np.random.shuffle(polys2['prob'])
+    labels2 = render_polygons(polys2, img.shape)
+    assert not np.all(labels == labels2)
+
+    # repaint all labels (which are visible in the reference label image)
+    repaint_ids = set(np.unique(labels)) - {0}
+    repaint_labels(labels2, list(repaint_ids), polys)
+    assert np.all(labels == labels2)
+
+
+
+def test_repaint3D():
+    np.random.seed(42)
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+
+    img = real_image3d()[0]
+    img = normalize(img, 1, 99.8)
+
+    # get overlapping polygon predictions, wiggle them a bit, render reference label image
+    polys = model.predict_instances(img, nms_thresh=0.95)[1]
+    polys['dist'] += np.random.normal(scale=3, size=polys['dist'].shape[:1]+(1,))
+    polys['dist'] = np.maximum(1, polys['dist'])
+    labels = polyhedron_to_label(polys['dist'], polys['points'], polys['rays'], img.shape, prob=polys['prob'])
+
+    # shuffle polygon probabilities/scores and render label image
+    polys2 = {k:v.copy() if isinstance(v,np.ndarray) else v for k,v in polys.items()}
+    np.random.shuffle(polys2['prob'])
+    labels2 = polyhedron_to_label(polys2['dist'], polys2['points'], polys2['rays'], img.shape, prob=polys2['prob'])
+    assert np.count_nonzero(labels != labels2) > 10000
+
+    # repaint all labels (which are visible in the reference label image)
+    repaint_ids = set(np.unique(labels)) - {0}
+    repaint_labels(labels2, list(repaint_ids), polys)
+    assert np.count_nonzero(labels != labels2) < 10 # TODO: why not 0?
+
 
 
 if __name__ == '__main__':
