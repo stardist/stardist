@@ -7,12 +7,29 @@ from skimage.draw import polygon
 from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict
 from itertools import product
 
-from .matching import relabel_sequential
-from .geometry import polyhedron_to_label
+from .geometry import polygons_to_label, polyhedron_to_label
 
 
-class Tile:
 
+OBJECT_KEYS = set(('prob', 'points', 'coord', 'dist'))
+COORD_KEYS = set(('points', 'coord'))
+
+
+
+class Block:
+    """One-dimensional block as part of a chain.
+
+    There are no explicit start and end positions. Instead, each block is
+    aware of its predecessor and successor and derives such things (recursively)
+    based on its neighbors.
+
+    Blocks overlap with one another (at least min_overlap + 2*context) and
+    have a read region (the entire block) and a write region (ignoring context).
+    Given a query interval, Block.is_responsible will return true for only one
+    block of a chain (or raise an exception if the interval is larger than
+    min_overlap or even the entire block without context).
+
+    """
     def __init__(self, size, min_overlap, context, pred):
         self.size = int(size)
         self.min_overlap = int(min_overlap)
@@ -38,7 +55,7 @@ class Tile:
 
     def add_succ(self):
         assert self.succ is None and not self.frozen
-        self.succ = Tile(self.size, self.min_overlap, self.context, self)
+        self.succ = Block(self.size, self.min_overlap, self.context, self)
         return self.succ
 
     def decrease_stride(self, amount):
@@ -47,6 +64,7 @@ class Tile:
         self.stride -= amount
 
     def freeze(self):
+        """Call on first block to freeze entire chain (after construction is done)"""
         assert not self.frozen and (self.at_begin or self.pred.frozen)
         self._start = self.start
         self._frozen = True
@@ -59,6 +77,7 @@ class Tile:
 
     @property
     def slice_crop_context(self):
+        """Crop context relative to read region"""
         return slice(self.context_start, self.size - self.context_end)
 
     @property
@@ -66,8 +85,18 @@ class Tile:
         return slice(self.start + self.context_start, self.end - self.context_end)
 
     def is_responsible(self, bbox):
-        # bbox is the 1D bounding box / interval
-        # coordinates are relative to size without context
+        """Reponsibility for query interval bbox, which is assumed to be smaller than min_overlap.
+
+        If the assumption is met, only one block of a chain will return true.
+        If violated, one or more blocks of a chain may raise a NotFullyVisible exception.
+        The exception will have an argument that is
+            False if bbox is larger than min_overlap, and
+            True if bbox is even larger than the entire block without context.
+
+        bbox: (int,int)
+            1D bounding box interval with coordinates relative to size without context
+
+        """
         bmin, bmax = bbox
 
         r_start = 0 if self.at_begin else (self.pred.overlap - self.pred.context_end - self.context_start)
@@ -78,10 +107,10 @@ class Tile:
 
         if bmin == 0 and bmax >= r_start:
             if bmax == r_end:
-                # object spans the entire tile, i.e. is probably larger than tile_size (minus the context)
+                # object spans the entire block, i.e. is probably larger than size (minus the context)
                 raise NotFullyVisible(True)
             if not self.at_begin:
-                # object spans the entire overlap region, i.e. is only partially visible here and also by the predecessor tile
+                # object spans the entire overlap region, i.e. is only partially visible here and also by the predecessor block
                 raise NotFullyVisible(False)
 
         # object ends before responsible region start
@@ -126,10 +155,10 @@ class Tile:
 
     @property
     def chain(self):
-        tiles = [self]
-        while not tiles[-1].at_end:
-            tiles.append(tiles[-1].succ)
-        return tiles
+        blocks = [self]
+        while not blocks[-1].at_end:
+            blocks.append(blocks[-1].succ)
+        return blocks
 
     def __iter__(self):
         return iter(self.chain)
@@ -137,34 +166,47 @@ class Tile:
     # ------------------------
 
     @staticmethod
-    def get_tiling(size, tile_size, min_overlap, context, grid=1):
+    def cover(size, block_size, min_overlap, context, grid=1, verbose=True):
+        """Return chain of grid-aligned blocks to cover the interval [0,size].
 
-        assert 0 <= min_overlap+2*context < tile_size <= size
-        assert 0 < grid <= tile_size
-        tile_size = _grid_divisible(grid, tile_size, name='tile_size')
-        min_overlap = _grid_divisible(grid, min_overlap, name='min_overlap')
-        context = _grid_divisible(grid, context, name='context')
-        assert all(v % grid == 0 for v in (tile_size, min_overlap, context))
+        Parameters block_size, min_overlap, and context will be used
+        for all blocks of the chain. Only the size of the last block
+        may differ.
+
+        Except for the last block, start and end positions of all blocks will
+        be multiples of grid. To that end, the provided block parameters may
+        be increased to achieve that.
+
+        Note that parameters must be chosen such that the write regions of only
+        neighboring blocks are overlapping.
+
+        """
+        assert 0 <= min_overlap+2*context < block_size <= size
+        assert 0 < grid <= block_size
+        block_size = _grid_divisible(grid, block_size, name='block_size', verbose=verbose)
+        min_overlap = _grid_divisible(grid, min_overlap, name='min_overlap', verbose=verbose)
+        context = _grid_divisible(grid, context, name='context', verbose=verbose)
 
         # allow size not to be divisible by grid
         size_orig = size
         size = _grid_divisible(grid, size, name='size', verbose=False)
 
         # divide all sizes by grid
+        assert all(v % grid == 0 for v in (size, block_size, min_overlap, context))
         size //= grid
-        tile_size //= grid
+        block_size //= grid
         min_overlap //= grid
         context //= grid
 
-        # compute tiling in grid-multiples
-        t = first = Tile(tile_size, min_overlap, context, None)
+        # compute cover in grid-multiples
+        t = first = Block(block_size, min_overlap, context, None)
         while t.end < size:
             t = t.add_succ()
         last = t
 
         # [print(t) for t in first]
 
-        # move tiles around to make it fit
+        # move blocks around to make it fit
         excess = last.end - size
         t = first
         while excess > 0:
@@ -173,15 +215,15 @@ class Tile:
             t = t.succ
             if (t == last): t = first
 
-        # make a copy of the tiling and multiply sizes by grid
+        # make a copy of the cover and multiply sizes by grid
         if grid > 1:
             size *= grid
-            tile_size *= grid
+            block_size *= grid
             min_overlap *= grid
             context *= grid
             #
             _t = _first = first
-            t = first = Tile(tile_size, min_overlap, context, None)
+            t = first = Block(block_size, min_overlap, context, None)
             t.stride = _t.stride*grid
             while not _t.at_end:
                 _t = _t.succ
@@ -189,239 +231,203 @@ class Tile:
                 t.stride = _t.stride*grid
             last = t
 
-            # change size of last tile
+            # change size of last block
             # will be padded internally to the same size
             # as the others by model.predict_instances
             size_delta = size - size_orig
             last.size -= size_delta
-            assert size_delta < grid
+            assert 0 <= size_delta < grid
 
         # for efficiency (to not determine starts recursively from now on)
         first.freeze()
 
-        tiles = first.chain
+        blocks = first.chain
 
         # sanity checks
         assert first.start == 0 and last.end == size_orig
-        assert all(t.overlap-2*context >= min_overlap for t in tiles if t != last)
-        assert all (t.start % grid == 0 and t.end % grid == 0 for t in tiles if t != last)
+        assert all(t.overlap-2*context >= min_overlap for t in blocks if t != last)
+        assert all(t.start % grid == 0 and t.end % grid == 0 for t in blocks if t != last)
         # print(); [print(t) for t in first]
 
-        # only neighboring tiles should be overlapping
-        if len(tiles) >= 3:
-            for t in tiles[:-2]:
+        # only neighboring blocks should be overlapping
+        if len(blocks) >= 3:
+            for t in blocks[:-2]:
                 assert t.slice_write.stop <= t.succ.succ.slice_write.start
 
-        return tiles
+        return blocks
 
 
 
-class TileND:
+class BlockND:
+    """N-dimensional block.
 
-    def __init__(self, id, tiles, axes):
+    Each BlockND simply consists of a 1-dimensional Block per axis and also
+    has an id (which should be unique). The n-dimensional region represented
+    by each BlockND is the intersection of all 1D Blocks per axis.
+
+    See `Block`.
+
+    """
+    def __init__(self, id, blocks, axes):
         self.id = id
-        self.tiles = tuple(tiles)
-        self.axes = axes_check_and_normalize(axes, length=len(self.tiles))
-        self.axis_to_tile = dict(zip(self.axes,self.tiles))
+        self.blocks = tuple(blocks)
+        self.axes = axes_check_and_normalize(axes, length=len(self.blocks))
+        self.axis_to_block = dict(zip(self.axes,self.blocks))
 
-    def tiles_for_axes(self, axes=None):
+    def blocks_for_axes(self, axes=None):
         axes = self.axes if axes is None else axes_check_and_normalize(axes)
-        return tuple(self.axis_to_tile[a] for a in axes)
+        return tuple(self.axis_to_block[a] for a in axes)
 
     def slice_read(self, axes=None):
-        return tuple(t.slice_read for t in self.tiles_for_axes(axes))
+        return tuple(t.slice_read for t in self.blocks_for_axes(axes))
 
     def slice_crop_context(self, axes=None):
-        return tuple(t.slice_crop_context for t in self.tiles_for_axes(axes))
+        return tuple(t.slice_crop_context for t in self.blocks_for_axes(axes))
 
     def slice_write(self, axes=None):
-        return tuple(t.slice_write for t in self.tiles_for_axes(axes))
+        return tuple(t.slice_write for t in self.blocks_for_axes(axes))
 
     def read(self, x, axes=None):
+        """Read block "read region" from x (numpy.ndarray or similar)"""
         return x[self.slice_read(axes)]
 
     def crop_context(self, labels, axes=None):
         return labels[self.slice_crop_context(axes)]
 
     def write(self, x, labels, axes=None):
+        """Write (only entries > 0 of) labels to block "write region" of x (numpy.ndarray or similar)"""
+        s = self.slice_write(axes)
         mask = labels > 0
-        x[self.slice_write(axes)][mask] = labels[mask]
+        # x[s][mask] = labels[mask] # doesn't work with zarr
+        region = x[s]
+        region[mask] = labels[mask]
+        x[s] = region
 
-    def is_responsible(self, slice, axes=None):
-        return all(t.is_responsible((s.start,s.stop)) for t,s in zip(self.tiles_for_axes(axes),slice))
+    def is_responsible(self, slices, axes=None):
+        return all(t.is_responsible((s.start,s.stop)) for t,s in zip(self.blocks_for_axes(axes),slices))
 
     def __repr__(self):
-        slices =  ','.join(f'{a}={t.start:03}:{t.end:03}' for t,a in zip(self.tiles,self.axes))
+        slices =  ','.join(f'{a}={t.start:03}:{t.end:03}' for t,a in zip(self.blocks,self.axes))
         return f'{self.__class__.__name__}({self.id}|{slices})'
 
     def __iter__(self):
-        return iter(self.tiles)
+        return iter(self.blocks)
 
-    def filter_objects(self, lbl, polys, polys_sort_by='prob', axes=None):
-        # todo: option to update lbl in-place
-        assert np.issubdtype(lbl.dtype, np.integer)
-        ndim = len(self.tiles_for_axes(axes))
+    # ------------------------
+
+    def filter_objects(self, labels, polys, axes=None):
+        """Filter out objects that block is not responsible for.
+
+        Given label image 'labels' and dictionary 'polys' of polygon/polyhedron objects,
+        only retain those objects that this block is responsible for.
+
+        This function will return a triple (labels, polys, problem_ids) of the modified
+        label image and dictionary, and additionally a tuple of all "problematic" label ids,
+        which violated the assumption that objects must be smaller than min_overlap,
+        and therefore are potentially incompletely drawn.
+
+        Parameter 'polys' can be None, in this case will only return filtered label image,
+        and will not allow for problematic objects that violate the size assumption.
+
+        Notes
+        -----
+        - Important: It is assumed that the object label ids in 'labels' and
+          the entries in 'polys' are sorted in the same way.
+        - Does not modify 'labels' and 'polys', but returns modified copies.
+
+        Example
+        -------
+        >>> labels, polys = model.predict_instances(block.read(img))
+        >>> labels = block.crop_context(labels)
+        >>> labels, polys, problems = block.filter_objects(labels, polys)
+
+        """
+        # TODO: option to update labels in-place
+        assert np.issubdtype(labels.dtype, np.integer)
+        ndim = len(self.blocks_for_axes(axes))
         assert ndim in (2,3)
-        assert lbl.ndim == ndim and lbl.shape == tuple(s.stop-s.start for s in self.slice_crop_context(axes))
+        assert labels.ndim == ndim and labels.shape == tuple(s.stop-s.start for s in self.slice_crop_context(axes))
 
-        lbl_filtered = np.zeros_like(lbl)
-        problem_labels = []
-        for r in regionprops(lbl):
-            slices = tuple(slice(r.bbox[i],r.bbox[i+lbl.ndim]) for i in range(lbl.ndim))
+        labels_filtered = np.zeros_like(labels)
+        problem_ids = []
+        for r in regionprops(labels):
+            slices = tuple(slice(r.bbox[i],r.bbox[i+labels.ndim]) for i in range(labels.ndim))
             try:
                 if self.is_responsible(slices, axes):
-                    lbl_filtered[slices][r.image] = r.label
+                    labels_filtered[slices][r.image] = r.label
             except NotFullyVisible as e:
-                problem_labels.append(r.label)
-                lbl_filtered[slices][r.image] = r.label
+                shape_block_write = tuple(s.stop-s.start for s in self.slice_write(axes))
+                shape_object = tuple(s.stop-s.start for s in slices)
+                shape_min_overlap = tuple(t.min_overlap for t in self.blocks_for_axes(axes))
+
+                if e.args[0]: # object larger than block write region
+                    assert any(o >= b for o,b in zip(shape_object,shape_block_write))
+                    # problem, since this object will probably be saved by another block too
+                    raise RuntimeError(f"Found object of shape {shape_object}, larger than an entire block's write region of shape {shape_block_write}. Increase 'block_size' to avoid this problem.")
+                    # print("found object larger than 'block_size'")
+                else:
+                    assert any(o >= b for o,b in zip(shape_object,shape_min_overlap))
+                    # print("found object larger than 'min_overlap'")
+
+                # keep object, because will be dealt with later, i.e.
                 # render the poly again into the label image, but this is not
                 # ideal since the assumption is that the object outside that
                 # region is not reliable because it's in the context
-                object_larger_than_tile = e.args[0]
-                if object_larger_than_tile:
-                    # problem, since this object will probably be saved by another tile too
-                    # raise NotImplementedError("found object larger than 'tile_size'")
-                    print("found object larger than 'tile_size'")
-                else:
-                    # problem, but maybe fine
-                    # raise NotImplementedError("found object larger than 'min_overlap'")
-                    print("found object larger than 'min_overlap'")
+                labels_filtered[slices][r.image] = r.label
+                problem_ids.append(r.label)
 
         if polys is None:
-            assert len(problem_labels) == 0
-            return lbl_filtered
+            assert len(problem_ids) == 0
+            return labels_filtered
         else:
-            # it is assumed that ids in 'lbl' map to entries in 'polys'
-            coord_keys = ('points','coord') if ndim == 2 else ('points',)
-            assert isinstance(polys,dict) and coord_keys is not None and all(k in polys for k in list(coord_keys)+[polys_sort_by])
-            filtered_labels = np.unique(lbl_filtered)
+            # it is assumed that ids in 'labels' map to entries in 'polys'
+            # coord_keys = ('points','coord') if ndim == 2 else ('points',)
+            assert isinstance(polys,dict) and any(k in polys for k in COORD_KEYS)
+            filtered_labels = np.unique(labels_filtered)
             filtered_ind = [i-1 for i in filtered_labels if i > 0]
-            polys_out = {k: (v[filtered_ind] if isinstance(v,np.ndarray) else v) for k,v in polys.items()}
-            for k in coord_keys:
-                polys_out[k] = self.translate_coordinates(polys_out[k], axes=axes)
+            polys_out = {k: (v[filtered_ind] if k in OBJECT_KEYS else v) for k,v in polys.items()}
+            for k in COORD_KEYS:
+                if k in polys_out.keys():
+                    polys_out[k] = self.translate_coordinates(polys_out[k], axes=axes)
 
-        return lbl_filtered, polys_out, tuple(problem_labels)
+        return labels_filtered, polys_out, tuple(problem_ids)
 
-    def translate_coordinates(self, coordinates, context=False, axes=None):
-        ndim = len(self.tiles_for_axes(axes))
+    def translate_coordinates(self, coordinates, axes=None):
+        """Translate local block coordinates (of read region) to global ones based on block position"""
+        ndim = len(self.blocks_for_axes(axes))
         assert isinstance(coordinates, np.ndarray) and coordinates.ndim >= 2 and coordinates.shape[1] == ndim
-        start = [sl_read.start + bool(context)*sl_crop.start for sl_read,sl_crop in zip(self.slice_read(axes),self.slice_crop_context(axes))]
+        start = [s.start for s in self.slice_read(axes)]
         shape = tuple(1 if d!=1 else ndim for d in range(coordinates.ndim))
         start = np.array(start).reshape(shape)
         return coordinates + start
 
+    # ------------------------
 
+    @staticmethod
+    def cover(shape, axes, block_size, min_overlap, context, grid=1):
+        """Return grid-aligned n-dimensional blocks to cover region
+        of the given shape with axes semantics.
 
-class NotFullyVisible(Exception):
-    pass
+        Parameters block_size, min_overlap, and context can be different per
+        dimension/axis (if provided as list) or the same (if provided as
+        scalar value).
 
+        See `Block.cover`.
 
+        """
+        shape = tuple(shape)
+        n = len(shape)
+        axes = axes_check_and_normalize(axes, length=n)
+        if np.isscalar(block_size):  block_size  = n*[block_size]
+        if np.isscalar(min_overlap): min_overlap = n*[min_overlap]
+        if np.isscalar(context):     context     = n*[context]
+        if np.isscalar(grid):        grid        = n*[grid]
+        assert n == len(block_size) == len(min_overlap) == len(context) == len(grid)
 
-def get_tiling(shape, axes, tile_size, min_overlap, context, grid=1):
-    shape = tuple(shape)
-    axes = axes_check_and_normalize(axes, length=len(shape))
-    n = len(shape)
-    if np.isscalar(tile_size): tile_size = (tile_size,)*n
-    if np.isscalar(min_overlap): min_overlap = (min_overlap,)*n
-    if np.isscalar(context): context = (context,)*n
-    if np.isscalar(grid): grid = (grid,)*n
-    assert n == len(tile_size) == len(min_overlap) == len(context) == len(grid)
-
-    tiling = [Tile.get_tiling(_size, _tile_size, _min_overlap, _context, _grid)
-              for _size, _tile_size, _min_overlap, _context, _grid
-              in  zip(shape, tile_size, min_overlap, context, grid)]
-
-    return tuple(TileND(i,tiles,axes) for i,tiles in enumerate(product(*tiling)))
-
-
-
-def predict_big(model, img, axes, tile_size, min_overlap, context, show_progress=True, **kwargs):
-    n = img.ndim
-    axes = axes_check_and_normalize(axes, length=n)
-
-    if np.isscalar(tile_size): tile_size = (tile_size,)*n
-    if np.isscalar(min_overlap): min_overlap = (min_overlap,)*n
-    if np.isscalar(context): context = (context,)*n
-
-    # TODO: do properly
-    # if any(_context < (_overlap//2) for _context,_overlap in zip(context,model._axes_tile_overlap(axes))):
-    #    print("context too small")
-
-    grid = model._axes_div_by(axes)
-    axes_out = model._axes_out.replace('C','')
-    shape_dict = dict(zip(axes,img.shape))
-    shape_out = tuple(shape_dict[a] for a in axes_out)
-
-    if 'C' in axes:
-        # TODO: tell user if values have been changed
-        i = axes_dict(axes)['C']
-        tile_size = list(tile_size)
-        min_overlap = list(min_overlap)
-        context = list(context)
-        # don't tile channel axis
-        tile_size[i] = img.shape[i]
-        # overlap and context for channel axis not needed
-        min_overlap[i] = 0
-        context[i] = 0
-
-    # print('DEBUG:')
-    # print(f'img.shape = {img.shape}, axes={axes}, axes_out={axes_out}')
-    # print(f'tile_size = {tile_size}, min_overlap={min_overlap}, context={context}')
-    # print(flush=True)
-
-    tiles = get_tiling(img.shape, axes, tile_size, min_overlap, context, grid)
-    output = np.zeros(shape_out, dtype=np.int32)
-    polys_all = {}
-    labels_incomplete = []
-    label_offset = 1
-
-    if show_progress:
-        tiles = tqdm(tiles)
-
-    for tile in tiles:
-        block, polys = model.predict_instances(tile.read(img, axes=axes), **kwargs)
-        block = tile.crop_context(block, axes=axes_out)
-        block, polys, incomplete = tile.filter_objects(block, polys, axes=axes_out)
-        # TODO: replace relabel_sequential with efficient variant (had some of that in my matching lib)
-        block, fwd_map, _ = relabel_sequential(block, label_offset)
-        if len(incomplete) > 0:
-            labels_incomplete.extend([fwd_map[i] for i in incomplete])
-        tile.write(output, block, axes=axes_out)
-        for k,v in polys.items():
-            polys_all.setdefault(k,[]).append(v)
-        label_offset += len(polys['prob'])
-
-    polys_all = {k: (np.concatenate(v) if isinstance(v[0], np.ndarray) else v[0]) for k,v in polys_all.items()}
-
-    if len(labels_incomplete) > 0:
-        repaint_labels(output, labels_incomplete, polys_all)
-
-    return output, polys_all, labels_incomplete
-
-
-
-def _grid_divisible(grid, size, name=None, verbose=True):
-    if size % grid == 0:
-        return size
-    _size = size
-    size = math.ceil(size / grid) * grid
-    if verbose:
-        print(f"changing {'value' if name is None else name} from {_size} to {size} to be evenly divisible by {grid} (grid)")
-    assert size % grid == 0
-    return size
-
-
-
-def render_polygons(polys, shape):
-    # TODO: this function doesn't belong here
-    # -> should really refactor polygons_to_label...
-    assert isinstance(polys,dict) and all(k in polys for k in ('prob','coord','points'))
-    from stardist import polygons_to_label
-    ind = np.arange(len(polys['prob']),dtype=np.int)
-    coord  = np.expand_dims(polys['coord'], 1)
-    prob   = np.expand_dims(polys['prob'], 1)
-    points = np.stack([ind,np.zeros_like(ind)],axis=-1)
-    return polygons_to_label(coord, prob, points, shape=shape)
+        # compute cover for each dimension
+        cover_1d = [Block.cover(*args) for args in zip(shape, block_size, min_overlap, context, grid)]
+        # return cover as Cartesian product of 1-dimensional blocks
+        return tuple(BlockND(i,blocks,axes) for i,blocks in enumerate(product(*cover_1d)))
 
 
 
@@ -473,9 +479,26 @@ class Polyhedron:
 
 
 
-def repaint_labels(output, labels, polys):
+def repaint_labels(output, labels, polys, show_progress=True):
+    """Repaint object instances in correct order based on probability scores.
+
+    Does modify output in-place, but will only write sparsely where needed.
+
+    output: numpy.ndarray or similar
+        Label image (integer-valued)
+    labels: iterable of int
+        List of integer label ids that occur in output
+    polys: dict
+        Dictionary of polygon/polyhedra properties.
+        Assumption is that the label id (-1) corresponds to the index in the polys dict
+
+    """
     assert output.ndim in (2,3)
 
+    if show_progress:
+        labels = tqdm(labels, leave=True)
+
+    # TODO: inelegant to have so much duplicated code here
     if output.ndim == 2:
         coord = lambda i: polys['coord'][i-1]
         prob  = lambda i: polys['prob'][i-1]
@@ -527,3 +550,46 @@ def repaint_labels(output, labels, polys):
             crop = output[poly_i.slice]
             crop[crop==i] = 0 # delete all remnants of i in crop
             crop[mask]    = i # paint i where mask still active
+
+
+
+############
+
+
+
+def predict_big(model, *args, **kwargs):
+    from .models import StarDist2D, StarDist3D
+    if isinstance(model,(StarDist2D,StarDist3D)):
+        dst = model.__class__.__name__
+    else:
+        dst = '{StarDist2D, StarDist3D}'
+    raise RuntimeError(f"This function has moved to {dst}.predict_instances_big.")
+
+
+
+class NotFullyVisible(Exception):
+    pass
+
+
+
+def _grid_divisible(grid, size, name=None, verbose=True):
+    if size % grid == 0:
+        return size
+    _size = size
+    size = math.ceil(size / grid) * grid
+    if bool(verbose):
+        print(f"{verbose if isinstance(verbose,str) else ''}increasing '{'value' if name is None else name}' from {_size} to {size} to be evenly divisible by {grid} (grid)", flush=True)
+    assert size % grid == 0
+    return size
+
+
+
+def render_polygons(polys, shape):
+    # TODO: this function doesn't belong here
+    # -> should really refactor polygons_to_label...
+    assert isinstance(polys,dict) and all(k in polys for k in ('prob','coord','points'))
+    ind = np.arange(len(polys['prob']),dtype=np.int)
+    coord  = np.expand_dims(polys['coord'], 1)
+    prob   = np.expand_dims(polys['prob'], 1)
+    points = np.stack([ind,np.zeros_like(ind)],axis=-1)
+    return polygons_to_label(coord, prob, points, shape=shape)

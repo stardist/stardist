@@ -8,7 +8,7 @@ from stardist import calculate_extents
 from stardist.models import StarDist2D, StarDist3D
 from utils import real_image2d, real_image3d, path_model2d, path_model3d
 
-from stardist.big import get_tiling, predict_big, render_polygons
+from stardist.big import BlockND, render_polygons
 
 
 
@@ -28,24 +28,24 @@ def repeat(mask, reps):
 
 
 
-def reassemble(lbl, axes, tile_size, min_overlap, context, grid):
-    tiles = get_tiling(lbl.shape, axes=axes, tile_size=tile_size, min_overlap=min_overlap, context=context, grid=grid)
-    # print(len(tiles))
+def reassemble(lbl, axes, block_size, min_overlap, context, grid):
+    blocks = BlockND.cover(lbl.shape, axes=axes, block_size=block_size, min_overlap=min_overlap, context=context, grid=grid)
+    # print(len(blocks))
     result = np.zeros_like(lbl)
 
-    for tile in tiles:
-        block = tile.read(lbl)
-        block = tile.crop_context(block)
-        block = tile.filter_objects(block, polys=None)
-        tile.write(result, block)
+    for block in blocks:
+        x = block.read(lbl)
+        x = block.crop_context(x)
+        x = block.filter_objects(x, polys=None)
+        block.write(result, x)
 
     assert np.all(lbl == result)
 
 
 
 @pytest.mark.parametrize('grid', [1, 3, 6])
-@pytest.mark.parametrize('tile_size, context', [(40,0), (55,3), (80,10), (128,17), (256,80), (512,93)])
-def test_tiling2D(tile_size, context, grid):
+@pytest.mark.parametrize('block_size, context', [(40,0), (55,3), (80,10), (128,17), (256,80), (512,93)])
+def test_tiling2D(block_size, context, grid):
     lbl = real_image2d()[1]
     lbl = lbl.astype(np.int32)
 
@@ -54,13 +54,13 @@ def test_tiling2D(tile_size, context, grid):
     lbl = repeat(lbl, 4)
     assert max_sizes == tuple(calculate_extents(lbl, func=np.max))
 
-    reassemble(lbl, 'YX', tile_size, min_overlap, context, grid)
+    reassemble(lbl, 'YX', block_size, min_overlap, context, grid)
 
 
 
 @pytest.mark.parametrize('grid', [1, 3])
-@pytest.mark.parametrize('tile_size, context', [((33,71,64),3), ((48,96,96),0), ((62,97,93),(0,11,9))])
-def test_tiling3D(tile_size, context, grid):
+@pytest.mark.parametrize('block_size, context', [((33,71,64),3), ((48,96,96),0), ((62,97,93),(0,11,9))])
+def test_tiling3D(block_size, context, grid):
     lbl = real_image3d()[1]
     lbl = lbl.astype(np.int32)
 
@@ -69,7 +69,7 @@ def test_tiling3D(tile_size, context, grid):
     lbl = repeat(lbl, (2,4,4))
     assert max_sizes == tuple(calculate_extents(lbl, func=np.max))
 
-    reassemble(lbl, 'ZYX', tile_size, min_overlap, context, grid)
+    reassemble(lbl, 'ZYX', block_size, min_overlap, context, grid)
 
 
 @pytest.mark.parametrize('use_channel', [False, True])
@@ -86,8 +86,8 @@ def test_predict2D(use_channel):
         img = img[...,np.newaxis]
         axes += 'C'
 
-    ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys, res_problems = predict_big(model, img, axes=axes, tile_size=288, min_overlap=32, context=96)
+    ref_labels, ref_polys = model.predict_instances(img, axes=axes)
+    res_labels, res_polys, res_problems = model.predict_instances_big(img, axes=axes, block_size=288, min_overlap=32, context=96)
     assert len(res_problems) == 0
 
     m = matching(ref_labels, res_labels)
@@ -121,24 +121,23 @@ def test_predict3D():
     img = repeat(img, 2)
 
     ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys, res_problems = predict_big(model, img, axes='ZYX',
-                                                      tile_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
+    res_labels, res_polys, res_problems = model.predict_instances_big(img, axes='ZYX', block_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
     assert len(res_problems) == 0
 
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
-    # compare 
+    # compare
     # sort them first lexicographic
     ref_inds = np.lexsort(ref_polys["points"].T)
     res_inds = np.lexsort(res_polys["points"].T)
 
     assert np.allclose(ref_polys["dist"][ref_inds],
-                       res_polys["dist"][res_inds])
+                       res_polys["dist"][res_inds],atol=1e-2)
     assert np.allclose(ref_polys["points"][ref_inds],
-                       res_polys["points"][res_inds])
+                       res_polys["points"][res_inds],atol=1e-2)
     assert np.allclose(ref_polys["prob"][ref_inds],
-                       res_polys["prob"][res_inds])
+                       res_polys["prob"][res_inds],atol=1e-2)
 
     return ref_polys, res_polys
 
