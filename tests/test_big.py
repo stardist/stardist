@@ -8,7 +8,7 @@ from stardist import calculate_extents, polyhedron_to_label
 from stardist.models import StarDist2D, StarDist3D
 from utils import real_image2d, real_image3d, path_model2d, path_model3d
 
-from stardist.big import BlockND, render_polygons, repaint_labels
+from stardist.big import BlockND, render_polygons, repaint_labels, Polygon, Polyhedron
 
 
 
@@ -194,6 +194,42 @@ def test_repaint3D():
     repaint_ids = set(np.unique(labels)) - {0}
     repaint_labels(labels2, list(repaint_ids), polys)
     assert np.count_nonzero(labels != labels2) < 10 # TODO: why not 0?
+
+
+
+def test_polygons_order_2D():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
+
+    img = real_image2d()[0]
+    img = normalize(img, 1, 99.8)
+    labels, polys = model.predict_instances(img)
+
+    for i,coord in enumerate(polys['coord'], start=1):
+        # polygon representing object with id i
+        p = Polygon(coord, shape_max=labels.shape)
+        # mask of object with id i in label image (can be occluded)
+        mask_i = labels[p.slice] == i
+        # where mask_i is on, p.mask must be too
+        assert np.count_nonzero(mask_i) > 0 and np.all(p.mask[mask_i])
+
+
+
+def test_polyhedra_order_3D():
+    model_path = path_model3d()
+    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
+
+    img = real_image3d()[0]
+    img = normalize(img, 1, 99.8)
+    labels, polys = model.predict_instances(img)
+
+    for i,(dist,point) in enumerate(zip(polys['dist'],polys['points']), start=1):
+        # polygon representing object with id i
+        p = Polyhedron(dist, point, polys['rays'], shape_max=labels.shape)
+        # mask of object with id i in label image (can be occluded)
+        mask_i = labels[p.slice] == i
+        # where mask_i is on, p.mask must be too
+        assert np.count_nonzero(mask_i) > 0 and np.all(p.mask[mask_i])
 
 
 

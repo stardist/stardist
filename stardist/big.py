@@ -448,8 +448,8 @@ class Polygon:
         if shape_max is None:
             shape_max = (np.inf, np.inf)
         coord = np.concatenate(coords, axis=1)
-        mins = np.maximum(0,         np.floor(np.min(coord,axis=1)) - 10).astype(int)
-        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=1)) + 10).astype(int)
+        mins = np.maximum(0,         np.floor(np.min(coord,axis=1))).astype(int)
+        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=1))).astype(int)
         return tuple(zip(tuple(mins),tuple(maxs)))
 
 
@@ -473,8 +473,8 @@ class Polyhedron:
         coord = np.concatenate(coord, axis=0)
         if shape_max is None:
             shape_max = (np.inf, np.inf, np.inf)
-        mins = np.maximum(0,         np.floor(np.min(coord,axis=0)) - 10).astype(int)
-        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=0)) + 10).astype(int)
+        mins = np.maximum(0,         np.floor(np.min(coord,axis=0))).astype(int)
+        maxs = np.minimum(shape_max, np.ceil (np.max(coord,axis=0))).astype(int)
         return tuple(zip(tuple(mins),tuple(maxs)))
 
 
