@@ -45,7 +45,7 @@ def reassemble(lbl, axes, block_size, min_overlap, context, grid):
 
 @pytest.mark.parametrize('grid', [1, 3, 6])
 @pytest.mark.parametrize('block_size, context', [(40,0), (55,3), (80,10), (128,17), (256,80), (512,93)])
-def test_tiling2D(block_size, context, grid):
+def test_cover2D(block_size, context, grid):
     lbl = real_image2d()[1]
     lbl = lbl.astype(np.int32)
 
@@ -60,7 +60,7 @@ def test_tiling2D(block_size, context, grid):
 
 @pytest.mark.parametrize('grid', [1, 3])
 @pytest.mark.parametrize('block_size, context', [((33,71,64),3), ((48,96,96),0), ((62,97,93),(0,11,9))])
-def test_tiling3D(block_size, context, grid):
+def test_cover3D(block_size, context, grid):
     lbl = real_image3d()[1]
     lbl = lbl.astype(np.int32)
 
