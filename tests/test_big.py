@@ -5,8 +5,7 @@ import pytest
 from csbdeep.utils import normalize
 from stardist.matching import matching, relabel_sequential
 from stardist import calculate_extents, polyhedron_to_label
-from stardist.models import StarDist2D, StarDist3D
-from utils import real_image2d, real_image3d, path_model2d, path_model3d
+from utils import real_image2d, real_image3d
 
 from stardist.big import BlockND, render_polygons, repaint_labels, Polygon, Polyhedron
 
@@ -74,10 +73,8 @@ def test_cover3D(block_size, context, grid):
 
 
 @pytest.mark.parametrize('use_channel', [False, True])
-def test_predict2D(use_channel):
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
-
+def test_predict2D(model2d, use_channel):
+    model = model2d
     img = real_image2d()[0]
     img = normalize(img, 1, 99.8)
     img = repeat(img, 2)
@@ -113,10 +110,8 @@ def test_predict2D(use_channel):
 
 
 
-def test_predict3D():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
-
+def test_predict3D(model3d):
+    model = model3d
     img = real_image3d()[0]
     img = normalize(img, 1, 99.8)
     img = repeat(img, 2)
@@ -144,11 +139,9 @@ def test_predict3D():
 
 
 
-def test_repaint2D():
+def test_repaint2D(model2d):
     np.random.seed(42)
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
-
+    model = model2d
     img = real_image2d()[0]
     img = normalize(img, 1, 99.8)
 
@@ -170,11 +163,9 @@ def test_repaint2D():
 
 
 
-def test_repaint3D():
+def test_repaint3D(model3d):
     np.random.seed(42)
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
-
+    model = model3d
     img = real_image3d()[0]
     img = normalize(img, 1, 99.8)
 
@@ -197,10 +188,8 @@ def test_repaint3D():
 
 
 
-def test_polygons_order_2D():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name, basedir=str(model_path.parent))
-
+def test_polygons_order_2D(model2d):
+    model = model2d
     img = real_image2d()[0]
     img = normalize(img, 1, 99.8)
     labels, polys = model.predict_instances(img)
@@ -215,10 +204,8 @@ def test_polygons_order_2D():
 
 
 
-def test_polyhedra_order_3D():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name, basedir=str(model_path.parent))
-
+def test_polyhedra_order_3D(model3d):
+    model = model3d
     img = real_image3d()[0]
     img = normalize(img, 1, 99.8)
     labels, polys = model.predict_instances(img)
@@ -234,4 +221,5 @@ def test_polyhedra_order_3D():
 
 
 if __name__ == '__main__':
-    a, b = test_predict2D(False)
+    from conftest import model2d
+    a, b = test_predict2D(model2d(), False)

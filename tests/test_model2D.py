@@ -1,8 +1,10 @@
 import sys
 import numpy as np
 import pytest
+from pathlib import Path
 from stardist.models import Config2D, StarDist2D
 from stardist.matching import matching
+from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d
@@ -50,10 +52,8 @@ def test_model(tmpdir, n_rays, grid, n_channel):
             _X, _Y, validation_data=(X[-1:], Y[-1:]))
 
 
-def test_load_and_predict():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_load_and_predict(model2d):
+    model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
     prob, dist = model.predict(x, n_tiles=(2, 3))
@@ -69,10 +69,8 @@ def test_load_and_predict():
     return labels
 
 
-def test_load_and_export_TF():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_load_and_export_TF(model2d):
+    model = model2d
     assert any(g>1 for g in model.config.grid)
     # model.export_TF(single_output=False, upsample_grid=False)
     # model.export_TF(single_output=False, upsample_grid=True)
@@ -80,10 +78,8 @@ def test_load_and_export_TF():
     model.export_TF(single_output=True, upsample_grid=True)
 
 
-def test_optimize_thresholds():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_optimize_thresholds(model2d):
+    model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
 
@@ -106,10 +102,8 @@ def test_stardistdata():
     return (img, mask), (prob, dist), s
 
 
-def render_label_example():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def render_label_example(model2d):
+    model = model2d
     img, y_gt = real_image2d()
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
@@ -121,10 +115,9 @@ def render_label_example():
     plt.show()
     return im
 
-def render_label_pred_example():
-    model_path = path_model2d()
-    model = StarDist2D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+
+def render_label_pred_example(model2d):
+    model = model2d
     img, y_gt = real_image2d()
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
@@ -140,11 +133,12 @@ def render_label_pred_example():
     plt.show()
     return im
 
+
 def test_pretrained_scales():
     from scipy.ndimage import zoom
     from stardist.matching import matching
     from skimage.measure import regionprops
-    
+
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
@@ -159,7 +153,7 @@ def test_pretrained_scales():
     accs = tuple(matching(mask, pred_scale(s)).accuracy for s in scales)
     print("scales   ", np.round(scales,2))
     print("accuracy ", np.round(accs,2))
-    
+
     return accs
 
 
@@ -209,10 +203,10 @@ def test_model(tmpdir, n_rays, grid, n_channel):
 def test_stardistdata_sequence():
     from stardist.models import StarDistData2D
     from keras.utils import Sequence
-    
+
     x = np.zeros((100,100), np.uint16)
     x[10:-10,10:-10] = 1
-    
+
     class MyData(Sequence):
         def __init__(self, dtype):
             self.dtype = dtype
@@ -229,20 +223,27 @@ def test_stardistdata_sequence():
     return (img, mask), (prob, dist), s
 
 
+def test_imagej_rois_export(tmpdir, model2d):
+    img = normalize(real_image2d()[0], 1, 99.8)
+    labels, polys = model2d.predict_instances(img)
+    export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
+
+
 def print_receptive_fields():
     for backbone in ("unet",):
         for n_depth in (1,2,3):
             for grid in ((1,1),(2,2)):
                 conf  = Config2D(backbone = backbone,
-                                 grid = grid, 
+                                 grid = grid,
                                  unet_n_depth=n_depth)
                 model = StarDist2D(conf, None, None)
                 fov   = model._compute_receptive_field()
                 print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
-    
+
 
 if __name__ == '__main__':
+    from conftest import model2d
     # test_model("tmpdir", 32, (1, 1), 1)
-    # im = render_label_pred_example()
+    # im = render_label_pred_example(model2d())
     accs = test_pretrained_scales()
 
