@@ -388,10 +388,12 @@ class StarDist2D(StarDistBase):
 
         coord = dist_to_coord(dist, grid=self.config.grid)
         inds = non_maximum_suppression(coord, prob, grid=self.config.grid,
-                                         prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+                                       prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
+        # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
+        inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
-        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
         return labels, dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
 

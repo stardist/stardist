@@ -507,7 +507,7 @@ class StarDist3D(StarDistBase):
 
         # TODO: convert to polyhedra faces?
         return labels, dict(dist=disti, points=points, prob=probi, rays=rays,
-                            rays_vertices = rays.vertices,rays_faces=rays.faces) 
+                            rays_vertices = rays.vertices,rays_faces=rays.faces)
 
 
     def _axes_div_by(self, query_axes):
