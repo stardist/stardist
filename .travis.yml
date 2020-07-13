@@ -44,9 +44,6 @@ matrix:
 
 install:
   - pip install $TENSORFLOW $EXTRA
-  - if [ "$TRAVIS_BRANCH" = "tf2" ]; then
-       pip install "git+https://github.com/CSBDeep/CSBDeep.git@dev";
-    fi;
   - if [[ -n $INSTALL_FROM_SOURCE ]]; then
        pip install .;
     else
