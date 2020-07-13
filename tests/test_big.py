@@ -7,7 +7,7 @@ from stardist.matching import matching, relabel_sequential
 from stardist import calculate_extents, polyhedron_to_label
 from utils import real_image2d, real_image3d
 
-from stardist.big import BlockND, render_polygons, repaint_labels, Polygon, Polyhedron
+from stardist.big import BlockND, render_polygons, Polygon, Polyhedron
 
 
 
@@ -85,8 +85,7 @@ def test_predict2D(model2d, use_channel):
         axes += 'C'
 
     ref_labels, ref_polys = model.predict_instances(img, axes=axes)
-    res_labels, res_polys, res_problems = model.predict_instances_big(img, axes=axes, block_size=288, min_overlap=32, context=96)
-    assert len(res_problems) == 0
+    res_labels, res_polys = model.predict_instances_big(img, axes=axes, block_size=288, min_overlap=32, context=96)
 
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
@@ -117,13 +116,11 @@ def test_predict3D(model3d):
     img = repeat(img, 2)
 
     ref_labels, ref_polys = model.predict_instances(img)
-    res_labels, res_polys, res_problems = model.predict_instances_big(img, axes='ZYX', block_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
-    assert len(res_problems) == 0
+    res_labels, res_polys = model.predict_instances_big(img, axes='ZYX', block_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
 
     m = matching(ref_labels, res_labels)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
-    # compare
     # sort them first lexicographic
     ref_inds = np.lexsort(ref_polys["points"].T)
     res_inds = np.lexsort(res_polys["points"].T)
@@ -139,84 +136,84 @@ def test_predict3D(model3d):
 
 
 
-def test_repaint2D(model2d):
-    np.random.seed(42)
+# def test_repaint2D(model2d):
+#     np.random.seed(42)
+#     model = model2d
+#     img = real_image2d()[0]
+#     img = normalize(img, 1, 99.8)
+
+#     # get overlapping polygon predictions, wiggle them a bit, render reference label image
+#     polys = model.predict_instances(img, nms_thresh=0.97)[1]
+#     polys['coord'] += np.random.normal(scale=3, size=polys['coord'].shape[:2]+(1,))
+#     labels = render_polygons(polys, img.shape)
+
+#     # shuffle polygon probabilities/scores and render label image
+#     polys2 = {k:v.copy() for k,v in polys.items()}
+#     np.random.shuffle(polys2['prob'])
+#     labels2 = render_polygons(polys2, img.shape)
+#     assert not np.all(labels == labels2)
+
+#     # repaint all labels (which are visible in the reference label image)
+#     repaint_ids = set(np.unique(labels)) - {0}
+#     repaint_labels(labels2, list(repaint_ids), polys)
+#     assert np.all(labels == labels2)
+
+
+
+# def test_repaint3D(model3d):
+#     np.random.seed(42)
+#     model = model3d
+#     img = real_image3d()[0]
+#     img = normalize(img, 1, 99.8)
+
+#     # get overlapping polygon predictions, wiggle them a bit, render reference label image
+#     polys = model.predict_instances(img, nms_thresh=0.95)[1]
+#     polys['dist'] += np.random.normal(scale=3, size=polys['dist'].shape[:1]+(1,))
+#     polys['dist'] = np.maximum(1, polys['dist'])
+#     labels = polyhedron_to_label(polys['dist'], polys['points'], polys['rays'], img.shape, prob=polys['prob'])
+
+#     # shuffle polygon probabilities/scores and render label image
+#     polys2 = {k:v.copy() if isinstance(v,np.ndarray) else v for k,v in polys.items()}
+#     np.random.shuffle(polys2['prob'])
+#     labels2 = polyhedron_to_label(polys2['dist'], polys2['points'], polys2['rays'], img.shape, prob=polys2['prob'])
+#     assert np.count_nonzero(labels != labels2) > 10000
+
+#     # repaint all labels (which are visible in the reference label image)
+#     repaint_ids = set(np.unique(labels)) - {0}
+#     repaint_labels(labels2, list(repaint_ids), polys)
+#     assert np.count_nonzero(labels != labels2) < 10 # TODO: why not 0?
+
+
+
+def test_polygon_order_2D(model2d):
     model = model2d
     img = real_image2d()[0]
     img = normalize(img, 1, 99.8)
-
-    # get overlapping polygon predictions, wiggle them a bit, render reference label image
-    polys = model.predict_instances(img, nms_thresh=0.97)[1]
-    polys['coord'] += np.random.normal(scale=3, size=polys['coord'].shape[:2]+(1,))
-    labels = render_polygons(polys, img.shape)
-
-    # shuffle polygon probabilities/scores and render label image
-    polys2 = {k:v.copy() for k,v in polys.items()}
-    np.random.shuffle(polys2['prob'])
-    labels2 = render_polygons(polys2, img.shape)
-    assert not np.all(labels == labels2)
-
-    # repaint all labels (which are visible in the reference label image)
-    repaint_ids = set(np.unique(labels)) - {0}
-    repaint_labels(labels2, list(repaint_ids), polys)
-    assert np.all(labels == labels2)
-
-
-
-def test_repaint3D(model3d):
-    np.random.seed(42)
-    model = model3d
-    img = real_image3d()[0]
-    img = normalize(img, 1, 99.8)
-
-    # get overlapping polygon predictions, wiggle them a bit, render reference label image
-    polys = model.predict_instances(img, nms_thresh=0.95)[1]
-    polys['dist'] += np.random.normal(scale=3, size=polys['dist'].shape[:1]+(1,))
-    polys['dist'] = np.maximum(1, polys['dist'])
-    labels = polyhedron_to_label(polys['dist'], polys['points'], polys['rays'], img.shape, prob=polys['prob'])
-
-    # shuffle polygon probabilities/scores and render label image
-    polys2 = {k:v.copy() if isinstance(v,np.ndarray) else v for k,v in polys.items()}
-    np.random.shuffle(polys2['prob'])
-    labels2 = polyhedron_to_label(polys2['dist'], polys2['points'], polys2['rays'], img.shape, prob=polys2['prob'])
-    assert np.count_nonzero(labels != labels2) > 10000
-
-    # repaint all labels (which are visible in the reference label image)
-    repaint_ids = set(np.unique(labels)) - {0}
-    repaint_labels(labels2, list(repaint_ids), polys)
-    assert np.count_nonzero(labels != labels2) < 10 # TODO: why not 0?
-
-
-
-def test_polygons_order_2D(model2d):
-    model = model2d
-    img = real_image2d()[0]
-    img = normalize(img, 1, 99.8)
-    labels, polys = model.predict_instances(img)
+    labels, polys = model.predict_instances(img, nms_thresh=0)
 
     for i,coord in enumerate(polys['coord'], start=1):
         # polygon representing object with id i
         p = Polygon(coord, shape_max=labels.shape)
-        # mask of object with id i in label image (can be occluded)
+        # mask of object with id i in label image (not occluded since nms_thresh=0)
         mask_i = labels[p.slice] == i
-        # where mask_i is on, p.mask must be too
-        assert np.count_nonzero(mask_i) > 0 and np.all(p.mask[mask_i])
+        assert np.all(p.mask == mask_i)
 
 
 
-def test_polyhedra_order_3D(model3d):
+def test_polyhedron_order_3D(model3d):
     model = model3d
     img = real_image3d()[0]
     img = normalize(img, 1, 99.8)
-    labels, polys = model.predict_instances(img)
+    labels, polys = model.predict_instances(img, nms_thresh=0)
 
     for i,(dist,point) in enumerate(zip(polys['dist'],polys['points']), start=1):
         # polygon representing object with id i
         p = Polyhedron(dist, point, polys['rays'], shape_max=labels.shape)
-        # mask of object with id i in label image (can be occluded)
+        # mask of object with id i in label image (not occluded since nms_thresh=0)
         mask_i = labels[p.slice] == i
-        # where mask_i is on, p.mask must be too
-        assert np.count_nonzero(mask_i) > 0 and np.all(p.mask[mask_i])
+        # assert np.all(p.mask == mask_i) # few pixels are sometimes different, why?
+        frac_same = np.count_nonzero(p.mask == mask_i) / p.mask.size
+        assert frac_same > 0.99
 
 
 

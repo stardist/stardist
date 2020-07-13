@@ -422,8 +422,8 @@ class StarDistBase(BaseModel):
         -------
         >>> img.shape
         (20000, 20000)
-        >>> labels, polys, problem_ids = model.predict_instances_big(img, axes='YX', block_size=4096,
-                                                                     min_overlap=128, context=128, n_tiles=(4,4))
+        >>> labels, polys = model.predict_instances_big(img, axes='YX', block_size=4096,
+                                                        min_overlap=128, context=128, n_tiles=(4,4))
 
         Parameters
         ----------
@@ -454,12 +454,11 @@ class StarDistBase(BaseModel):
 
         Returns
         -------
-        (:class:`numpy.ndarray` or False, dict, tuple)
-            Returns the label image, a dictionary with the details (coordinates, etc.) of all remaining polygons/polyhedra,
-            and a tuple of all label ids that violated the 'min_overlap' assumption.
+        (:class:`numpy.ndarray` or False, dict)
+            Returns the label image and a dictionary with the details (coordinates, etc.) of the polygons/polyhedra.
 
         """
-        from ..big import _grid_divisible, BlockND, repaint_labels, OBJECT_KEYS
+        from ..big import _grid_divisible, BlockND, OBJECT_KEYS#, repaint_labels
         from ..matching import relabel_sequential
 
         n = img.ndim
@@ -510,7 +509,7 @@ class StarDistBase(BaseModel):
                 labels_out.shape == shape_out or _raise(ValueError(f"'labels_out' must have shape {shape_out} (axes {axes_out})."))
 
         polys_all = {}
-        problem_ids = []
+        # problem_ids = []
         label_offset = 1
 
         kwargs_override = dict(axes=axes, overlap_label=None)
@@ -525,13 +524,14 @@ class StarDistBase(BaseModel):
         for block in blocks:
             labels, polys = self.predict_instances(block.read(img, axes=axes), **kwargs)
             labels = block.crop_context(labels, axes=axes_out)
-            labels, polys, incomplete = block.filter_objects(labels, polys, axes=axes_out)
+            labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
-            labels, fwd_map, _ = relabel_sequential(labels, label_offset)
-            if len(incomplete) > 0:
-                problem_ids.extend([fwd_map[i] for i in incomplete])
-                if show_progress:
-                    blocks.set_postfix_str(f"found {len(problem_ids)} problematic {'object' if len(problem_ids)==1 else 'objects'}")
+            labels = relabel_sequential(labels, label_offset)[0]
+            # labels, fwd_map, _ = relabel_sequential(labels, label_offset)
+            # if len(incomplete) > 0:
+            #     problem_ids.extend([fwd_map[i] for i in incomplete])
+            #     if show_progress:
+            #         blocks.set_postfix_str(f"found {len(problem_ids)} problematic {'object' if len(problem_ids)==1 else 'objects'}")
             if labels_out is not None:
                 block.write(labels_out, labels, axes=axes_out)
             for k,v in polys.items():
@@ -540,13 +540,13 @@ class StarDistBase(BaseModel):
 
         polys_all = {k: (np.concatenate(v) if k in OBJECT_KEYS else v[0]) for k,v in polys_all.items()}
 
-        if labels_out is not None and len(problem_ids) > 0:
-            # if show_progress:
-            #     blocks.write('')
-            # print(f"Found {len(problem_ids)} objects that violate the 'min_overlap' assumption.", file=sys.stderr, flush=True)
-            repaint_labels(labels_out, problem_ids, polys_all, show_progress=False)
+        # if labels_out is not None and len(problem_ids) > 0:
+        #     # if show_progress:
+        #     #     blocks.write('')
+        #     # print(f"Found {len(problem_ids)} objects that violate the 'min_overlap' assumption.", file=sys.stderr, flush=True)
+        #     repaint_labels(labels_out, problem_ids, polys_all, show_progress=False)
 
-        return labels_out, polys_all, tuple(problem_ids)
+        return labels_out, polys_all#, tuple(problem_ids)
 
 
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], predict_kwargs=None, optimize_kwargs=None, save_to_json=True):

@@ -321,13 +321,11 @@ class BlockND:
         Given label image 'labels' and dictionary 'polys' of polygon/polyhedron objects,
         only retain those objects that this block is responsible for.
 
-        This function will return a triple (labels, polys, problem_ids) of the modified
-        label image and dictionary, and additionally a tuple of all "problematic" label ids,
-        which violated the assumption that objects must be smaller than min_overlap,
-        and therefore are potentially incompletely drawn.
+        This function will return a pair (labels, polys) of the modified label image and dictionary.
+        It will raise a RuntimeError if an object is found in the overlap area
+        of neighboring blocks that violates the assumption to be smaller than 'min_overlap'.
 
-        Parameter 'polys' can be None, in this case will only return filtered label image,
-        and will not allow for problematic objects that violate the size assumption.
+        If parameter 'polys' is None, only the filtered label image will be returned.
 
         Notes
         -----
@@ -339,7 +337,7 @@ class BlockND:
         -------
         >>> labels, polys = model.predict_instances(block.read(img))
         >>> labels = block.crop_context(labels)
-        >>> labels, polys, problems = block.filter_objects(labels, polys)
+        >>> labels, polys = block.filter_objects(labels, polys)
 
         """
         # TODO: option to update labels in-place
@@ -349,39 +347,39 @@ class BlockND:
         assert labels.ndim == ndim and labels.shape == tuple(s.stop-s.start for s in self.slice_crop_context(axes))
 
         labels_filtered = np.zeros_like(labels)
-        problem_ids = []
+        # problem_ids = []
         for r in regionprops(labels):
             slices = tuple(slice(r.bbox[i],r.bbox[i+labels.ndim]) for i in range(labels.ndim))
             try:
                 if self.is_responsible(slices, axes):
                     labels_filtered[slices][r.image] = r.label
             except NotFullyVisible as e:
-                shape_block_write = tuple(s.stop-s.start for s in self.slice_write(axes))
+                # shape_block_write = tuple(s.stop-s.start for s in self.slice_write(axes))
                 shape_object = tuple(s.stop-s.start for s in slices)
                 shape_min_overlap = tuple(t.min_overlap for t in self.blocks_for_axes(axes))
+                raise RuntimeError(f"Found object of shape {shape_object}, which violates the assumption of being smaller than 'min_overlap' {shape_min_overlap}. Increase 'min_overlap' to avoid this problem.")
 
-                if e.args[0]: # object larger than block write region
-                    assert any(o >= b for o,b in zip(shape_object,shape_block_write))
-                    # problem, since this object will probably be saved by another block too
-                    raise RuntimeError(f"Found object of shape {shape_object}, larger than an entire block's write region of shape {shape_block_write}. Increase 'block_size' to avoid this problem.")
-                    # print("found object larger than 'block_size'")
-                else:
-                    assert any(o >= b for o,b in zip(shape_object,shape_min_overlap))
-                    # print("found object larger than 'min_overlap'")
+                # if e.args[0]: # object larger than block write region
+                #     assert any(o >= b for o,b in zip(shape_object,shape_block_write))
+                #     # problem, since this object will probably be saved by another block too
+                #     raise RuntimeError(f"Found object of shape {shape_object}, larger than an entire block's write region of shape {shape_block_write}. Increase 'block_size' to avoid this problem.")
+                #     # print("found object larger than 'block_size'")
+                # else:
+                #     assert any(o >= b for o,b in zip(shape_object,shape_min_overlap))
+                #     # print("found object larger than 'min_overlap'")
 
-                # keep object, because will be dealt with later, i.e.
-                # render the poly again into the label image, but this is not
-                # ideal since the assumption is that the object outside that
-                # region is not reliable because it's in the context
-                labels_filtered[slices][r.image] = r.label
-                problem_ids.append(r.label)
+                # # keep object, because will be dealt with later, i.e.
+                # # render the poly again into the label image, but this is not
+                # # ideal since the assumption is that the object outside that
+                # # region is not reliable because it's in the context
+                # labels_filtered[slices][r.image] = r.label
+                # problem_ids.append(r.label)
 
         if polys is None:
-            assert len(problem_ids) == 0
+            # assert len(problem_ids) == 0
             return labels_filtered
         else:
             # it is assumed that ids in 'labels' map to entries in 'polys'
-            # coord_keys = ('points','coord') if ndim == 2 else ('points',)
             assert isinstance(polys,dict) and any(k in polys for k in COORD_KEYS)
             filtered_labels = np.unique(labels_filtered)
             filtered_ind = [i-1 for i in filtered_labels if i > 0]
@@ -390,7 +388,7 @@ class BlockND:
                 if k in polys_out.keys():
                     polys_out[k] = self.translate_coordinates(polys_out[k], axes=axes)
 
-        return labels_filtered, polys_out, tuple(problem_ids)
+        return labels_filtered, polys_out#, tuple(problem_ids)
 
     def translate_coordinates(self, coordinates, axes=None):
         """Translate local block coordinates (of read region) to global ones based on block position"""
@@ -479,77 +477,93 @@ class Polyhedron:
 
 
 
-def repaint_labels(output, labels, polys, show_progress=True):
-    """Repaint object instances in correct order based on probability scores.
+# def repaint_labels(output, labels, polys, show_progress=True):
+#     """Repaint object instances in correct order based on probability scores.
 
-    Does modify output in-place, but will only write sparsely where needed.
+#     Does modify 'output' and 'polys' in-place, but will only write sparsely to 'output' where needed.
 
-    output: numpy.ndarray or similar
-        Label image (integer-valued)
-    labels: iterable of int
-        List of integer label ids that occur in output
-    polys: dict
-        Dictionary of polygon/polyhedra properties.
-        Assumption is that the label id (-1) corresponds to the index in the polys dict
+#     output: numpy.ndarray or similar
+#         Label image (integer-valued)
+#     labels: iterable of int
+#         List of integer label ids that occur in output
+#     polys: dict
+#         Dictionary of polygon/polyhedra properties.
+#         Assumption is that the label id (-1) corresponds to the index in the polys dict
 
-    """
-    assert output.ndim in (2,3)
+#     """
+#     assert output.ndim in (2,3)
 
-    if show_progress:
-        labels = tqdm(labels, leave=True)
+#     if show_progress:
+#         labels = tqdm(labels, leave=True)
 
-    # TODO: inelegant to have so much duplicated code here
-    if output.ndim == 2:
-        coord = lambda i: polys['coord'][i-1]
-        prob  = lambda i: polys['prob'][i-1]
+#     labels_eliminated = set()
 
-        for i in labels:
-            poly_i = Polygon(coord(i), shape_max=output.shape)
+#     # TODO: inelegant to have so much duplicated code here
+#     if output.ndim == 2:
+#         coord = lambda i: polys['coord'][i-1]
+#         prob  = lambda i: polys['prob'][i-1]
 
-            # find all labels that overlap with i (including i)
-            overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
-            overlapping.add(i)
-            # compute bbox union to find area to crop/replace in large output label image
-            bbox_union = Polygon.coords_bbox(*[coord(j) for j in overlapping], shape_max=output.shape)
+#         for i in labels:
+#             if i in labels_eliminated: continue
+#             poly_i = Polygon(coord(i), shape_max=output.shape)
 
-            # crop out label i, including the region that include all overlapping labels
-            poly_i = Polygon(coord(i), bbox=bbox_union)
-            mask = poly_i.mask.copy()
+#             # find all labels that overlap with i (including i)
+#             overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+#             assert i in overlapping
+#             # compute bbox union to find area to crop/replace in large output label image
+#             bbox_union = Polygon.coords_bbox(*[coord(j) for j in overlapping], shape_max=output.shape)
 
-            # remove pixels from mask that belong to labels with higher probability
-            for j in [j for j in overlapping if prob(j) > prob(i)]:
-                mask[ Polygon(coord(j), bbox=bbox_union).mask ] = False
+#             # crop out label i, including the region that include all overlapping labels
+#             poly_i = Polygon(coord(i), bbox=bbox_union)
+#             mask = poly_i.mask.copy()
 
-            crop = output[poly_i.slice]
-            crop[crop==i] = 0 # delete all remnants of i in crop
-            crop[mask]    = i # paint i where mask still active
-    else:
+#             # remove pixels from mask that belong to labels with higher probability
+#             for j in [j for j in overlapping if prob(j) > prob(i)]:
+#                 mask[ Polygon(coord(j), bbox=bbox_union).mask ] = False
 
-        dist = lambda i: polys['dist'][i-1]
-        origin = lambda i: polys['points'][i-1]
-        prob = lambda i: polys['prob'][i-1]
-        rays = polys['rays']
+#             crop = output[poly_i.slice]
+#             crop[crop==i] = 0 # delete all remnants of i in crop
+#             crop[mask]    = i # paint i where mask still active
 
-        for i in labels:
-            poly_i = Polyhedron(dist(i), origin(i), rays, shape_max=output.shape)
+#             labels_remaining = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+#             labels_eliminated.update(overlapping - labels_remaining)
+#     else:
 
-            # find all labels that overlap with i (including i)
-            overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
-            overlapping.add(i)
-            # compute bbox union to find area to crop/replace in large output label image
-            bbox_union = Polyhedron.coords_bbox(*[(dist(j),origin(j)) for j in overlapping], rays=rays, shape_max=output.shape)
+#         dist = lambda i: polys['dist'][i-1]
+#         origin = lambda i: polys['points'][i-1]
+#         prob = lambda i: polys['prob'][i-1]
+#         rays = polys['rays']
 
-            # crop out label i, including the region that include all overlapping labels
-            poly_i = Polyhedron(dist(i), origin(i), rays, bbox=bbox_union)
-            mask = poly_i.mask.copy()
+#         for i in labels:
+#             if i in labels_eliminated: continue
+#             poly_i = Polyhedron(dist(i), origin(i), rays, shape_max=output.shape)
 
-            # remove pixels from mask that belong to labels with higher probability
-            for j in [j for j in overlapping if prob(j) > prob(i)]:
-                mask[ Polyhedron(dist(j), origin(j), rays, bbox=bbox_union).mask ] = False
+#             # find all labels that overlap with i (including i)
+#             overlapping = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+#             assert i in overlapping
+#             # compute bbox union to find area to crop/replace in large output label image
+#             bbox_union = Polyhedron.coords_bbox(*[(dist(j),origin(j)) for j in overlapping], rays=rays, shape_max=output.shape)
 
-            crop = output[poly_i.slice]
-            crop[crop==i] = 0 # delete all remnants of i in crop
-            crop[mask]    = i # paint i where mask still active
+#             # crop out label i, including the region that include all overlapping labels
+#             poly_i = Polyhedron(dist(i), origin(i), rays, bbox=bbox_union)
+#             mask = poly_i.mask.copy()
+
+#             # remove pixels from mask that belong to labels with higher probability
+#             for j in [j for j in overlapping if prob(j) > prob(i)]:
+#                 mask[ Polyhedron(dist(j), origin(j), rays, bbox=bbox_union).mask ] = False
+
+#             crop = output[poly_i.slice]
+#             crop[crop==i] = 0 # delete all remnants of i in crop
+#             crop[mask]    = i # paint i where mask still active
+
+#             labels_remaining = set(np.unique(output[poly_i.slice][poly_i.mask])) - {0}
+#             labels_eliminated.update(overlapping - labels_remaining)
+
+#     if len(labels_eliminated) > 0:
+#         ind = [i-1 for i in labels_eliminated]
+#         for k,v in polys.items():
+#             if k in OBJECT_KEYS:
+#                 polys[k] = np.delete(v, ind, axis=0)
 
 
 
