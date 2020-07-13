@@ -85,7 +85,7 @@ class Block:
         return slice(self.start + self.context_start, self.end - self.context_end)
 
     def is_responsible(self, bbox):
-        """Reponsibility for query interval bbox, which is assumed to be smaller than min_overlap.
+        """Responsibility for query interval bbox, which is assumed to be smaller than min_overlap.
 
         If the assumption is met, only one block of a chain will return true.
         If violated, one or more blocks of a chain may raise a NotFullyVisible exception.
@@ -265,7 +265,7 @@ class BlockND:
     has an id (which should be unique). The n-dimensional region represented
     by each BlockND is the intersection of all 1D Blocks per axis.
 
-    See `Block`.
+    Also see `Block`.
 
     """
     def __init__(self, id, blocks, axes):
@@ -410,7 +410,7 @@ class BlockND:
         dimension/axis (if provided as list) or the same (if provided as
         scalar value).
 
-        See `Block.cover`.
+        Also see `Block.cover`.
 
         """
         shape = tuple(shape)

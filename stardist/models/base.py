@@ -408,7 +408,7 @@ class StarDistBase(BaseModel):
 
     def predict_instances_big(self, img, axes, block_size, min_overlap, context=None,
                               labels_out=None, labels_out_dtype=np.int32, show_progress=True, **kwargs):
-        """Predict instance segmentation from input image for very large images.
+        """Predict instance segmentation from very large input images.
 
         Intended to be used when `predict_instances` cannot be used due to memory limitations.
         This function will break the input image into blocks and process them individually
@@ -446,7 +446,7 @@ class StarDistBase(BaseModel):
             If None, will allocate a numpy array of the correct shape and data type ``labels_out_dtype``.
             If False, will not write the label image (useful if only the dictionary is needed).
         labels_out_dtype: str or dtype
-            Data type of returned label image if ``labels_out=None`` (has not effect otherwise).
+            Data type of returned label image if ``labels_out=None`` (has no effect otherwise).
         show_progress: bool
             Show progress bar for block processing.
         kwargs: dict
