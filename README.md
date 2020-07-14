@@ -104,7 +104,7 @@ Although each of these provide decent annotation tools, we currently recommend u
 
 1. Install [Fiji](https://fiji.sc) and the [Labkit](https://imagej.net/Labkit) plugin
 2. Open the (2D or 3D) image and start Labkit via `Plugins > Segmentation > Labkit`
-3. Sucessively add a new label and annotate a single cell instance with the brush tool (always check the `override` option) until *all* cells are labeled
+3. Successively add a new label and annotate a single cell instance with the brush tool (always check the `override` option) until *all* cells are labeled
 4. Export the label image via `Save Labeling...` and `File format > TIF Image` 
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/labkit_2d_labkit.png)
@@ -128,7 +128,7 @@ To see how this could be done, have a look at the following [example QuPath proj
 
 ## Troubleshooting
 
-Installation requires Python 3.5 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/mpicbg-csbd/stardist/issues) if you have problems that are not resolved by the information below.
+Installation requires Python 3.6 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/mpicbg-csbd/stardist/issues) if you have problems that are not resolved by the information below.
 
 If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wiki/OpenMP) to exploit multiple CPU cores for substantially reduced runtime on modern CPUs. This can be important to prevent slow model training.
 
@@ -146,7 +146,7 @@ If you use `conda` on macOS and after `import stardist` see errors similar to th
 please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
 
 ### Windows
-Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.5 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
+Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.6 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
 
 ## ImageJ/Fiji Plugin
 

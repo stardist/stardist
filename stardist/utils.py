@@ -284,8 +284,3 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
 
     verbose > 1 and print('\n',opt, flush=True)
     return opt.x, -opt.fun
-
-    
-    
-    
-    
