@@ -5,16 +5,17 @@ import warnings
 import math
 from tqdm import tqdm
 
-from distutils.version import LooseVersion
-import keras
-import keras.backend as K
-from keras.layers import Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate
-from keras.models import Model
 
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
+from distutils.version import LooseVersion
+
+keras = keras_import()
+K = keras_import('backend')
+Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate = keras_import('layers', 'Input', 'Conv3D', 'MaxPooling3D', 'UpSampling3D', 'Add', 'Concatenate')
+Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase
 from ..sample_patches import sample_patches
@@ -28,11 +29,11 @@ from ..nms import non_maximum_suppression_3d
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, length, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
-                         batch_size=batch_size, patch_size=patch_size,
+                         batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.rays = rays
@@ -47,9 +48,7 @@ class StarDistData3D(StarDistDataBase):
 
 
     def __getitem__(self, i):
-        idx = slice(i*self.batch_size,(i+1)*self.batch_size)
-        idx = list(self.perm[idx])
-
+        idx = self.batch(i)
         arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                  patch_size=self.patch_size, n_samples=1,
                                  valid_inds=self.get_valid_inds(k)) for k in idx]
@@ -87,7 +86,10 @@ class StarDistData3D(StarDistDataBase):
         prob      = prob[self.ss_grid]
         dist      = dist[self.ss_grid]
 
-        return [X,dist_mask], [prob,dist]
+        # append dist_mask to dist as additional channel
+        dist = np.concatenate([dist,dist_mask],axis=-1)
+
+        return [X], [prob,dist]
 
 
 
@@ -225,6 +227,7 @@ class Config3D(BaseConfig):
         else:
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
+        # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,None,self.n_channel_in
             self.net_mask_shape        = None,None,None,1
@@ -309,15 +312,9 @@ class StarDist3D(StarDistBase):
 
     def _build_unet(self):
         assert self.config.backbone == 'unet'
+        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img = Input(self.config.net_input_shape, name='input')
-        if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
-        else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
-        input_mask = Input(grid_shape, name='dist_mask')
-
-        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         # maxpool input image to grid size
         pooled = np.array([1,1,1])
@@ -337,19 +334,11 @@ class StarDist3D(StarDistBase):
 
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img], [output_prob,output_dist])
 
 
     def _build_resnet(self):
         assert self.config.backbone == 'resnet'
-
-        input_img = Input(self.config.net_input_shape, name='input')
-        if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
-        else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
-        input_mask = Input(grid_shape, name='dist_mask')
-
         n_filter = self.config.resnet_n_filter_base
         resnet_kwargs = dict (
             kernel_size        = self.config.resnet_kernel_size,
@@ -358,6 +347,8 @@ class StarDist3D(StarDistBase):
             kernel_initializer = self.config.resnet_kernel_init,
             activation         = self.config.resnet_activation,
         )
+
+        input_img = Input(self.config.net_input_shape, name='input')
 
         layer = input_img
         layer = Conv3D(n_filter, (7,7,7), padding="same", kernel_initializer=self.config.resnet_kernel_init)(layer)
@@ -377,7 +368,7 @@ class StarDist3D(StarDistBase):
 
         output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(layer)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(layer)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img], [output_prob,output_dist])
 
 
     def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
@@ -412,8 +403,6 @@ class StarDist3D(StarDistBase):
         ``History`` object
             See `Keras training history <https://keras.io/models/model/#fit>`_.
 
-
-
         """
         if seed is not None:
             # https://keras.io/getting-started/faq/#how-can-i-obtain-reproducible-results-using-keras-during-development
@@ -447,43 +436,48 @@ class StarDist3D(StarDistBase):
         )
 
         # generate validation data and store in numpy arrays
-        # data_val = StarDistData3D(*validation_data, batch_size=1, augment=False, **data_kwargs)
-        _data_val = StarDistData3D(*validation_data, batch_size=1, **data_kwargs)
-        n_data_val = len(_data_val)
+        n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
-        Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
-        for i,k in enumerate(ids):
-            (Xv[i],Mv[i]),(Pv[i],Dv[i]) = _data_val[k]
-        Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
-        data_val = [[Xv,Mv],[Pv,Dv]]
+        _data_val = StarDistData3D(*validation_data, batch_size=n_take, length=1, **data_kwargs)
+        data_val = _data_val[0]
 
-        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
+        data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
 
-        for cb in self.callbacks:
-            if isinstance(cb,CARETensorBoard):
-                # only show middle slice of 3D inputs/outputs
-                cb.input_slices, cb.output_slices = [[slice(None)]*5,[slice(None)]*5], [[slice(None)]*5,[slice(None)]*5]
-                i = axes_dict(self.config.axes)['Z']
-                _n_in  = _data_val.patch_size[i] // 2
-                _n_out = _data_val.patch_size[i] // (2 * (self.config.grid[i] if self.config.grid is not None else 1))
-                cb.input_slices[0][1+i] = _n_in
-                cb.input_slices[1][1+i] = _n_out
-                cb.output_slices[0][1+i] = _n_out
-                cb.output_slices[1][1+i] = _n_out
-                # show dist for three rays
-                _n = min(3, self.config.n_rays)
-                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+        if self.config.train_tensorboard:
+            # only show middle slice of 3D inputs/outputs
+            input_slices, output_slices = [[slice(None)]*5], [[slice(None)]*5,[slice(None)]*5]
+            i = axes_dict(self.config.axes)['Z']
+            channel = axes_dict(self.config.axes)['C']
+            _n_in  = _data_val.patch_size[i] // 2
+            _n_out = _data_val.patch_size[i] // (2 * (self.config.grid[i] if self.config.grid is not None else 1))
+            input_slices[0][1+i] = _n_in
+            output_slices[0][1+i] = _n_out
+            output_slices[1][1+i] = _n_out
+            # show dist for three rays
+            _n = min(3, self.config.n_rays)
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+            if IS_TF_1:
+                for cb in self.callbacks:
+                    if isinstance(cb,CARETensorBoard):
+                        cb.input_slices = input_slices
+                        cb.output_slices = output_slices
+                        # target image for dist includes dist_mask and thus has more channels than dist output
+                        cb.output_target_shapes = [None,[None]*5]
+                        cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
+            elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
+                self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
+                                                           n_images=3, prob_out=False, input_slices=input_slices, output_slices=output_slices))
 
-        history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
-                                                 epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1)
+        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        history = fit(iter(data_train), validation_data=data_val,
+                      epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
 
@@ -492,7 +486,7 @@ class StarDist3D(StarDistBase):
                                                           prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
-        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label = overlap_label, verbose=verbose)
+        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
 
         # map the overlap_label to something positive and back
         # (as relabel_sequential doesn't like negative values)

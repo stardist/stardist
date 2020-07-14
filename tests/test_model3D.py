@@ -114,15 +114,16 @@ def test_stardistdata():
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
     s = StarDistData3D([img, img], [mask, mask], batch_size=1,
-                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64))
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_stardistdata_sequence():
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
-    from keras.utils import Sequence
+    from csbdeep.utils.tf import keras_import
+    Sequence = keras_import('utils','Sequence')
 
     x = np.zeros((10,32,48,64), np.uint16)
     x[:,10:-10,10:-10] = 1
@@ -139,9 +140,9 @@ def test_stardistdata_sequence():
     Y = MyData(np.uint16)
     s = StarDistData3D(X,Y,
                        batch_size=1, patch_size=(32,32,32),
-                       rays=Rays_GoldenSpiral(64))
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       rays=Rays_GoldenSpiral(64), length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_mesh_export(model3d):

@@ -7,43 +7,43 @@
 
 language: python
 
-branches:
-  only:
-    - master
-    - dev
+# branches:
+#   only:
+#     - master
+#     - dev
 
 env:
-  - TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA=''
+  - TENSORFLOW='tensorflow<2' EXTRA=''
 
 matrix:
   include:
     - if: branch = master
       os: linux
-      python: 3.7
-      dist: xenial
-    - if: branch = master
-      os: linux
       python: 3.6
     - if: branch = master
       os: linux
-      python: 3.5
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='llvmlite<0.32.0'
-    - if: branch = master
-      os: linux
-      python: 3.5
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='llvmlite<0.32.0' INSTALL_FROM_SOURCE=1
-    - if: branch = dev
+      python: 3.7
+    # - if: branch = master
+    #   os: linux
+    #   python: 3.7
+    #   env: TENSORFLOW='tensorflow<2' EXTRA='' INSTALL_FROM_SOURCE=1
+    - os: linux
+      python: 3.6
+      env: TENSORFLOW='tensorflow<2' EXTRA='' INSTALL_FROM_SOURCE=1
+    - os: linux
+      python: 3.7
+      env: TENSORFLOW='tensorflow<2' EXTRA='' INSTALL_FROM_SOURCE=1
+    - if: branch = tf2
       os: linux
       python: 3.7
-      dist: xenial
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='' INSTALL_FROM_SOURCE=1
-    - if: branch = dev
+      env: TENSORFLOW='tensorflow' EXTRA='' INSTALL_FROM_SOURCE=1
+    - if: branch = tf2
       os: linux
-      python: 3.6
-      env: TENSORFLOW='tensorflow<2' KERAS='keras' EXTRA='' INSTALL_FROM_SOURCE=1
+      python: 3.8
+      env: TENSORFLOW='tensorflow' EXTRA='' INSTALL_FROM_SOURCE=1
 
 install:
-  - pip install $TENSORFLOW $KERAS $EXTRA
+  - pip install $TENSORFLOW $EXTRA
   - if [[ -n $INSTALL_FROM_SOURCE ]]; then
        pip install .;
     else

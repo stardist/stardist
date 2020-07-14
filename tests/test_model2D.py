@@ -97,9 +97,9 @@ def test_stardistdata():
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
-                       batch_size=1, patch_size=(30, 40), n_rays=32)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def render_label_example(model2d):
@@ -157,52 +157,10 @@ def test_pretrained_scales():
     return accs
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel', [(17, (1, 1), None), (32, (2, 4), 1), (4, (8, 2), 2)])
-def test_model(tmpdir, n_rays, grid, n_channel):
-    img = circle_image(shape=(160, 160))
-    imgs = np.repeat(img[np.newaxis], 3, axis=0)
-
-    if n_channel is not None:
-        imgs = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
-    else:
-        n_channel = 1
-
-    X = imgs+.6*np.random.uniform(0, 1, imgs.shape)
-    Y = (imgs if imgs.ndim == 3 else imgs[..., 0]).astype(int)
-
-    conf = Config2D(
-        n_rays=n_rays,
-        grid=grid,
-        n_channel_in=n_channel,
-        use_gpu=False,
-        train_epochs=1,
-        train_steps_per_epoch=2,
-        train_batch_size=2,
-        train_loss_weights=(4, 1),
-        train_patch_size=(128, 128),
-    )
-
-    model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]))
-    ref = model.predict(X[0])
-    res = model.predict(X[0], n_tiles=(
-        (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
-    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
-
-    # ask to train only with foreground patches when there are none
-    # include a constant label image that must trigger a warning
-    conf.train_foreground_only = 1
-    conf.train_steps_per_epoch = 1
-    _X = X[:2]
-    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
-    with pytest.warns(UserWarning):
-        StarDist2D(conf, name='stardist', basedir=None).train(
-            _X, _Y, validation_data=(X[-1:], Y[-1:]))
-
-
 def test_stardistdata_sequence():
     from stardist.models import StarDistData2D
-    from keras.utils import Sequence
+    from csbdeep.utils.tf import keras_import
+    Sequence = keras_import('utils','Sequence')
 
     x = np.zeros((100,100), np.uint16)
     x[10:-10,10:-10] = 1
@@ -218,9 +176,9 @@ def test_stardistdata_sequence():
     X = MyData(np.float32)
     Y = MyData(np.uint16)
     s = StarDistData2D(X,Y,
-                       batch_size=1, patch_size=(100,100), n_rays=32)
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       batch_size=1, patch_size=(100,100), n_rays=32, length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_imagej_rois_export(tmpdir, model2d):

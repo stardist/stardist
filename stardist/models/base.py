@@ -8,14 +8,18 @@ from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
 
-import keras.backend as K
-from keras.utils import Sequence
-from keras.optimizers import Adam
-from keras.callbacks import ReduceLROnPlateau, TensorBoard
 from csbdeep.models.base_model import BaseModel
-from csbdeep.utils.tf import CARETensorBoard, export_SavedModel
+from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
+
+import tensorflow as tf
+K = keras_import('backend')
+Sequence = keras_import('utils', 'Sequence')
+Adam = keras_import('optimizers', 'Adam')
+ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')
+
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
 from csbdeep.internals.predict import tile_iterator
+from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
@@ -67,9 +71,11 @@ def kld(y_true, y_pred):
 
 
 
-class StarDistDataBase(Sequence):
+class StarDistDataBase(RollingSequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
@@ -96,11 +102,10 @@ class StarDistDataBase(Sequence):
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
-        self.batch_size = batch_size
+        # self.batch_size = batch_size
         self.n_rays = n_rays
         self.patch_size = patch_size
         self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
-        self.perm = np.random.permutation(len(self.X))
         self.use_gpu = bool(use_gpu)
         if augmenter is None:
             augmenter = lambda *args: args
@@ -120,14 +125,6 @@ class StarDistDataBase(Sequence):
         self.sample_ind_cache = sample_ind_cache
         self._ind_cache_fg  = {}
         self._ind_cache_all = {}
-
-
-    def __len__(self):
-        return int(np.ceil(len(self.X) / float(self.batch_size)))
-
-
-    def on_epoch_end(self):
-        self.perm = np.random.permutation(len(self.X))
 
 
     def get_valid_inds(self, k, foreground_prob=None):
@@ -212,26 +209,44 @@ class StarDistBase(BaseModel):
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
-        input_mask = self.keras_model.inputs[1] # second input layer is mask for dist loss
-        dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss](input_mask, reg_weight=self.config.train_background_reg)
+        masked_dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
+
+        def split_dist_true_mask(dist_true_mask):
+            return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)
+
+        def dist_loss(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_dist_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
+
+        def relevant_mae(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_metric_mae(dist_mask)(dist_true, dist_pred)
+
+        def relevant_mse(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_metric_mse(dist_mask)(dist_true, dist_pred)
+
         self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics={'prob': kld, 'dist': [masked_metric_mae(input_mask),masked_metric_mse(input_mask)]})
+                                            metrics={'prob': kld, 'dist': [relevant_mae, relevant_mse]})
 
         self.callbacks = []
         if self.basedir is not None:
             self.callbacks += self._checkpoint_callbacks()
 
             if self.config.train_tensorboard:
-                # self.callbacks.append(TensorBoard(log_dir=str(self.logdir), write_graph=False))
-                self.callbacks.append(CARETensorBoard(log_dir=str(self.logdir), prefix_with_timestamp=False, n_images=3, write_images=True, prob_out=False))
+                if IS_TF_1:
+                    self.callbacks.append(CARETensorBoard(log_dir=str(self.logdir), prefix_with_timestamp=False, n_images=3, write_images=True, prob_out=False))
+                else:
+                    self.callbacks.append(TensorBoard(log_dir=str(self.logdir/'logs'), write_graph=False, profile_batch=0))
 
         if self.config.train_reduce_lr is not None:
             rlrop_params = self.config.train_reduce_lr
             if 'verbose' not in rlrop_params:
                 rlrop_params['verbose'] = True
-            self.callbacks.append(ReduceLROnPlateau(**rlrop_params))
+            # TF2: add as first callback to put 'lr' in the logs for TensorBoard
+            self.callbacks.insert(0,ReduceLROnPlateau(**rlrop_params))
 
         self._model_prepared = True
 
@@ -298,8 +313,7 @@ class StarDistBase(BaseModel):
         x = resizer.before(x, axes_net, axes_net_div_by)
 
         def predict_direct(tile):
-            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            prob, dist = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
             return prob[0], dist[0]
 
         if np.prod(n_tiles) > 1:
@@ -641,12 +655,11 @@ class StarDistBase(BaseModel):
         # print(img_size)
         assert all(_is_power_of_2(s) for s in img_size)
         mid = tuple(s//2 for s in img_size)
-        dummy = np.empty((1,)+img_size+(1,), dtype=np.float32)
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict([x,dummy])[0][0,...,0]
-        y0 = self.keras_model.predict([z,dummy])[0][0,...,0]
+        y  = self.keras_model.predict(x)[0][0,...,0]
+        y0 = self.keras_model.predict(z)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
@@ -681,8 +694,8 @@ class StarDistBase(BaseModel):
         upsample_grid: bool
             If set, upsamples the output to the input shape (note: this is currently mandatory for further use in Fiji)
         """
-        from keras.layers import Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose
-        from keras.models import Model
+        Concatenate, UpSampling2D, UpSampling3D, Conv2DTranspose, Conv3DTranspose = keras_import('layers', 'Concatenate', 'UpSampling2D', 'UpSampling3D', 'Conv2DTranspose', 'Conv3DTranspose')
+        Model = keras_import('models', 'Model')
 
         if self.basedir is None and fname is None:
             raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
