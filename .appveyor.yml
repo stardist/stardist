@@ -1,10 +1,10 @@
 # tests are much faster when using "Visual Studio 2017" image. why?
 image: Visual Studio 2019
 
-branches:
-  only:
-    - master
-    - dev
+# branches:
+#   only:
+#     - master
+#     - dev
 
 environment:
   matrix:
@@ -30,14 +30,40 @@ environment:
       PYTHON_ARCH: "64"
       INSTALL_COMMAND: "pip install ."
       TF: "tensorflow"
+    - PYTHON: "C:\\Python38-x64"
+      PYTHON_VERSION: "3.8.x"
+      PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install ."
+      TF: "tensorflow"
+
+    #   ### TF 1
     # - PYTHON: "C:\\Python36-x64"
     #   PYTHON_VERSION: "3.6.x"
     #   PYTHON_ARCH: "64"
     #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
     # - PYTHON: "C:\\Python37-x64"
     #   PYTHON_VERSION: "3.7.x"
     #   PYTHON_ARCH: "64"
     #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    #   ### TF 2
+    # - PYTHON: "C:\\Python36-x64"
+    #   PYTHON_VERSION: "3.6.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    # - PYTHON: "C:\\Python37-x64"
+    #   PYTHON_VERSION: "3.7.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    # - PYTHON: "C:\\Python38-x64"
+    #   PYTHON_VERSION: "3.8.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+
 
 init:
   - echo %PYTHON% %PYTHON_VERSION% %PYTHON_ARCH%

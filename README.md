@@ -42,10 +42,10 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package requires Python 3.5 (or newer).
+This package requires Python 3.6 (or newer).
 
-1. Please first [install TensorFlow 1.x](https://www.tensorflow.org/install)
-by following the official instructions. (**Do not choose TensorFlow 2.x**)
+1. Please first [install TensorFlow](https://www.tensorflow.org/install)
+(either TensorFlow 1 or 2) by following the official instructions.
 For [GPU support](https://www.tensorflow.org/install/gpu), it is very
 important to install the specific versions of CUDA and cuDNN that are
 compatible with the respective version of TensorFlow.
