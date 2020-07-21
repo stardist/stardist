@@ -5,20 +5,20 @@ import warnings
 import math
 from tqdm import tqdm
 
-from distutils.version import LooseVersion
-import keras
-import keras.backend as K
-from keras.layers import Input, Conv2D, MaxPooling2D
-from keras.models import Model
-
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import CARETensorBoard
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
+from distutils.version import LooseVersion
+
+keras = keras_import()
+K = keras_import('backend')
+Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
+Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase
-from .sample_patches import sample_patches
+from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
@@ -27,10 +27,10 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, length, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
-                         batch_size=batch_size, patch_size=patch_size,
+                         batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.shape_completion = bool(shape_completion)
@@ -43,9 +43,7 @@ class StarDistData2D(StarDistDataBase):
 
 
     def __getitem__(self, i):
-        idx = slice(i*self.batch_size,(i+1)*self.batch_size)
-        idx = list(self.perm[idx])
-
+        idx = self.batch(i)
         arrays = [sample_patches((self.Y[k],) + self.channels_as_tuple(self.X[k]),
                                  patch_size=self.patch_size, n_samples=1,
                                  valid_inds=self.get_valid_inds(k)) for k in idx]
@@ -78,7 +76,10 @@ class StarDistData2D(StarDistDataBase):
         prob      = prob[self.ss_grid]
         dist      = dist[self.ss_grid]
 
-        return [X,dist_mask], [prob,dist]
+        # append dist_mask to dist as additional channel
+        dist = np.concatenate([dist,dist_mask],axis=-1)
+
+        return [X], [prob,dist]
 
 
 
@@ -180,6 +181,7 @@ class Config2D(BaseConfig):
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
+        # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
             self.net_mask_shape        = None,None,1
@@ -255,15 +257,9 @@ class StarDist2D(StarDistBase):
 
     def _build(self):
         self.config.backbone == 'unet' or _raise(NotImplementedError())
+        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img  = Input(self.config.net_input_shape, name='input')
-        if backend_channels_last():
-            grid_shape = tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[:-1])) + (1,)
-        else:
-            grid_shape = (1,) + tuple(n//g if n is not None else None for g,n in zip(self.config.grid, self.config.net_mask_shape[1:]))
-        input_mask = Input(grid_shape, name='dist_mask')
-
-        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         # maxpool input image to grid size
         pooled = np.array([1,1])
@@ -283,7 +279,7 @@ class StarDist2D(StarDistBase):
 
         output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img,input_mask], [output_prob,output_dist])
+        return Model([input_img], [output_prob,output_dist])
 
 
     def train(self, X, Y, validation_data, augmenter=None, seed=None,
@@ -355,28 +351,34 @@ class StarDist2D(StarDistBase):
         )
 
         # generate validation data and store in numpy arrays
-        data_val = StarDistData2D(*validation_data, batch_size=1, **data_kwargs)
-        n_data_val = len(data_val)
+        n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        ids = tuple(np.random.choice(n_data_val, size=n_take, replace=(n_take > n_data_val)))
-        Xv, Mv, Pv, Dv = [None]*n_take, [None]*n_take, [None]*n_take, [None]*n_take
-        for i,k in enumerate(ids):
-            (Xv[i],Mv[i]),(Pv[i],Dv[i]) = data_val[k]
-        Xv, Mv, Pv, Dv = np.concatenate(Xv,axis=0), np.concatenate(Mv,axis=0), np.concatenate(Pv,axis=0), np.concatenate(Dv,axis=0)
-        data_val = [[Xv,Mv],[Pv,Dv]]
+        _data_val = StarDistData2D(*validation_data, batch_size=n_take, length=1, **data_kwargs)
+        data_val = _data_val[0]
 
-        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, **data_kwargs)
+        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
 
-        for cb in self.callbacks:
-            if isinstance(cb,CARETensorBoard):
-                # show dist for three rays
-                _n = min(3, self.config.n_rays)
-                cb.output_slices = [[slice(None)]*4,[slice(None)]*4]
-                cb.output_slices[1][1+axes_dict(self.config.axes)['C']] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+        if self.config.train_tensorboard:
+            # show dist for three rays
+            _n = min(3, self.config.n_rays)
+            channel = axes_dict(self.config.axes)['C']
+            output_slices = [[slice(None)]*4,[slice(None)]*4]
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+            if IS_TF_1:
+                for cb in self.callbacks:
+                    if isinstance(cb,CARETensorBoard):
+                        cb.output_slices = output_slices
+                        # target image for dist includes dist_mask and thus has more channels than dist output
+                        cb.output_target_shapes = [None,[None]*4]
+                        cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
+            elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
+                self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
+                                                           n_images=3, prob_out=False, output_slices=output_slices))
 
-        history = self.keras_model.fit_generator(generator=data_train, validation_data=data_val,
-                                                 epochs=epochs, steps_per_epoch=steps_per_epoch,
-                                                 callbacks=self.callbacks, verbose=1, initial_epoch=initial_epoch)
+        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        history = fit(iter(data_train), validation_data=data_val,
+                      epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
         return history
@@ -393,10 +395,12 @@ class StarDist2D(StarDistBase):
             
         coord = dist_to_coord(dist, grid=self.config.grid)
         inds = non_maximum_suppression(coord, prob, grid=self.config.grid,
-                                         prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+                                       prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
+        # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
+        inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
-        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
         return labels, dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
 

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
+from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d
 
@@ -51,10 +52,8 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
             _X, _Y, validation_data=(X[-1:], Y[-1:]))
 
 
-def test_load_and_predict():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_load_and_predict(model3d):
+    model = model3d
     img, mask = real_image3d()
     x = normalize(img, 1, 99.8)
     prob, dist = model.predict(x, n_tiles=(1, 2, 2))
@@ -67,10 +66,8 @@ def test_load_and_predict():
     return model, labels
 
 
-def test_load_and_predict_with_overlap():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_load_and_predict_with_overlap(model3d):
+    model = model3d
     img, mask = real_image3d()
     x = normalize(img, 1, 99.8)
     prob, dist = model.predict(x, n_tiles=(1, 2, 2))
@@ -99,17 +96,12 @@ def test_load_and_export_TF():
     model_path = path_model3d()
     model = StarDist3D(None, name=model_path.name,
                        basedir=str(model_path.parent))
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
     model.export_TF(single_output=True, upsample_grid=False)
     model.export_TF(single_output=True, upsample_grid=True)
 
 
-def test_optimize_thresholds():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_optimize_thresholds(model3d):
+    model = model3d
     img, mask = real_image3d()
     x = normalize(img, 1, 99.8)
 
@@ -134,19 +126,20 @@ def test_stardistdata():
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
     s = StarDistData3D([img, img], [mask, mask], batch_size=1,
-                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64))
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
 def test_stardistdata_sequence():
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
-    from keras.utils import Sequence
-    
+    from csbdeep.utils.tf import keras_import
+    Sequence = keras_import('utils','Sequence')
+
     x = np.zeros((10,32,48,64), np.uint16)
     x[:,10:-10,10:-10] = 1
-    
+
     class MyData(Sequence):
         def __init__(self, dtype):
             self.dtype = dtype
@@ -159,26 +152,23 @@ def test_stardistdata_sequence():
     Y = MyData(np.uint16)
     s = StarDistData3D(X,Y,
                        batch_size=1, patch_size=(32,32,32),
-                       rays=Rays_GoldenSpiral(64))
-    (img, mask), (prob, dist) = s[0]
-    return (img, mask), (prob, dist), s
+                       rays=Rays_GoldenSpiral(64), length=1)
+    (img,), (prob, dist) = s[0]
+    return (img,), (prob, dist), s
 
 
-def test_mesh_export():
-    from stardist.geometry import export_to_obj_file3D
-    
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
+def test_mesh_export(model3d):
+    model = model3d
     img, mask = real_image3d()
-    x = normalize(img, 1, 99.8)    
+    x = normalize(img, 1, 99.8)
     labels, polys = model.predict_instances(x, nms_thresh=.5,
                                         overlap_label=-3)
 
     s = export_to_obj_file3D(polys,
                              "mesh.obj",scale = (.2,.1,.1))
     return s
-    
+
+
 def print_receptive_fields():
     backbone = "unet"
     for n_depth in (1,2,3):
@@ -197,6 +187,7 @@ def print_receptive_fields():
         fov   = model._compute_receptive_field()
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
-                
+
 if __name__ == '__main__':
-    s = test_mesh_export()
+    from conftest import model3d
+    model, lbl = test_load_and_predict_with_overlap(model3d())

@@ -54,7 +54,7 @@ __kernel void stardist3d(read_only image3d_t lbl, __constant float * rays, __glo
 
 		if (value != read_imageui(lbl,sampler,origin+x_int).x){
 
-		  dist[m + i*N_RAYS + j*N_RAYS*Nx+k*N_RAYS*Nx*Ny] = length(x);
+		  dist[m + i*N_RAYS + j*N_RAYS*Nx+k*N_RAYS*Nx*Ny] = length(x_int);
 		  break;		  
 		}
 	  }

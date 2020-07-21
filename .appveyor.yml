@@ -1,39 +1,69 @@
 # tests are much faster when using "Visual Studio 2017" image. why?
 image: Visual Studio 2019
 
-branches:
-  only:
-    - master
-    - dev
+# branches:
+#   only:
+#     - master
+#     - dev
 
 environment:
   matrix:
-    - PYTHON: "C:\\Python35-x64"
-      PYTHON_VERSION: "3.5.x"
-      PYTHON_ARCH: "64"
-      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
-      INSTALL_COMMAND: "pip install \"llvmlite<0.32.0\" && pip install ."
+      ### TF 1
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "64"
       INSTALL_COMMAND: "pip install ."
+      TF: "tensorflow<2"
     - PYTHON: "C:\\Python37-x64"
       PYTHON_VERSION: "3.7.x"
       PYTHON_ARCH: "64"
       INSTALL_COMMAND: "pip install ."
-    - PYTHON: "C:\\Python35-x64"
-      PYTHON_VERSION: "3.5.x"
-      PYTHON_ARCH: "64"
-      APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017 # doesn't work otherwise
-      INSTALL_COMMAND: "pip install \"llvmlite<0.32.0\" && pip install stardist"
+      TF: "tensorflow<2"
+      ### TF 2
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "64"
-      INSTALL_COMMAND: "pip install stardist"
+      INSTALL_COMMAND: "pip install ."
+      TF: "tensorflow"
     - PYTHON: "C:\\Python37-x64"
       PYTHON_VERSION: "3.7.x"
       PYTHON_ARCH: "64"
-      INSTALL_COMMAND: "pip install stardist"
+      INSTALL_COMMAND: "pip install ."
+      TF: "tensorflow"
+    - PYTHON: "C:\\Python38-x64"
+      PYTHON_VERSION: "3.8.x"
+      PYTHON_ARCH: "64"
+      INSTALL_COMMAND: "pip install ."
+      TF: "tensorflow"
+
+    #   ### TF 1
+    # - PYTHON: "C:\\Python36-x64"
+    #   PYTHON_VERSION: "3.6.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    # - PYTHON: "C:\\Python37-x64"
+    #   PYTHON_VERSION: "3.7.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    #   ### TF 2
+    # - PYTHON: "C:\\Python36-x64"
+    #   PYTHON_VERSION: "3.6.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    # - PYTHON: "C:\\Python37-x64"
+    #   PYTHON_VERSION: "3.7.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+    # - PYTHON: "C:\\Python38-x64"
+    #   PYTHON_VERSION: "3.8.x"
+    #   PYTHON_ARCH: "64"
+    #   INSTALL_COMMAND: "pip install stardist"
+    #   TF: "tensorflow"
+
 
 init:
   - echo %PYTHON% %PYTHON_VERSION% %PYTHON_ARCH%
@@ -42,7 +72,7 @@ install:
   - set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
   - "python --version"
   - "python -m pip install -U pip"
-  - "pip install \"tensorflow<2\" keras pytest"
+  - "pip install \"%TF%\" pytest"
   - "%INSTALL_COMMAND%"
 
 build: none
