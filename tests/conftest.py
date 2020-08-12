@@ -9,7 +9,6 @@ def pytest_addoption(parser):
 def use_gpu(request):
     return request.config.getoption("--use_gpu")
 
-
 def _model2d():
     from utils import path_model2d
     from stardist.models import StarDist2D

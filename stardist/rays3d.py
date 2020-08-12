@@ -56,9 +56,8 @@ class Rays_Base(object):
             if isinstance(x,float):
                 return "%.2f"%x
             return str(x)
-
         return "%s_%s" % (self.__class__.__name__, "_".join("%s_%s" % (k, _conv(v)) for k, v in sorted(self.kwargs.items())))
-
+    
     def to_json(self):
         return {
             "name": self.__class__.__name__,
@@ -71,7 +70,75 @@ class Rays_Base(object):
         assert anisotropy.shape == (3,)
         return np.linalg.norm(self.vertices*anisotropy, axis = -1)
 
+    def volume(self, dist=None):
+        """volume of the starconvex polyhedron spanned by dist (if None, uses dist=1)
+        dist can be a nD array, but the last dimension has to be of length n_rays
+        """
+        if dist is None: dist = np.ones_like(self.vertices)
 
+        dist = np.asarray(dist)
+        
+        if not dist.shape[-1]==len(self.vertices):
+            raise ValueError("last dimension of dist should have length len(rays.vertices)")
+        # all the shuffling below is to allow dist to be an arbitrary sized array (with last dim n_rays)
+        # self.vertices -> (n_rays,3)
+        # dist -> (m,n,..., n_rays)
+        
+        # dist  -> (m,n,..., n_rays, 3)
+        dist = np.repeat(np.expand_dims(dist,-1), 3, axis = -1)
+        # verts  -> (m,n,..., n_rays, 3)
+        verts = np.broadcast_to(self.vertices, dist.shape)
+
+        # dist, verts  -> (n_rays, m,n, ..., 3)        
+        dist = np.moveaxis(dist,-2,0)
+        verts = np.moveaxis(verts,-2,0)
+
+        # vs -> (n_faces, 3, m, n, ..., 3)
+        vs = (dist*verts)[self.faces]
+        # vs -> (n_faces, m, n, ..., 3, 3)
+        vs = np.moveaxis(vs, 1,-2)
+        # vs -> (n_faces * m * n, 3, 3)        
+        vs = vs.reshape((len(self.faces)*int(np.prod(dist.shape[1:-1])),3,3))
+        d = np.linalg.det(list(vs)).reshape((len(self.faces),)+dist.shape[1:-1])
+        
+        return -1./6*np.sum(d, axis = 0)
+    
+    def surface(self, dist=None):
+        """surface area of the starconvex polyhedron spanned by dist (if None, uses dist=1)"""
+        dist = np.asarray(dist)
+        
+        if not dist.shape[-1]==len(self.vertices):
+            raise ValueError("last dimension of dist should have length len(rays.vertices)")
+
+        # self.vertices -> (n_rays,3)
+        # dist -> (m,n,..., n_rays)
+        
+        # all the shuffling below is to allow dist to be an arbitrary sized array (with last dim n_rays)
+        
+        # dist  -> (m,n,..., n_rays, 3)
+        dist = np.repeat(np.expand_dims(dist,-1), 3, axis = -1)
+        # verts  -> (m,n,..., n_rays, 3)
+        verts = np.broadcast_to(self.vertices, dist.shape)
+
+        # dist, verts  -> (n_rays, m,n, ..., 3)        
+        dist = np.moveaxis(dist,-2,0)
+        verts = np.moveaxis(verts,-2,0)
+
+        # vs -> (n_faces, 3, m, n, ..., 3)
+        vs = (dist*verts)[self.faces]
+        # vs -> (n_faces, m, n, ..., 3, 3)
+        vs = np.moveaxis(vs, 1,-2)
+        # vs -> (n_faces * m * n, 3, 3)        
+        vs = vs.reshape((len(self.faces)*int(np.prod(dist.shape[1:-1])),3,3))
+       
+        pa = vs[...,1,:]-vs[...,0,:]
+        pb = vs[...,2,:]-vs[...,0,:]
+
+        d = .5*np.linalg.norm(np.cross(list(pa), list(pb)), axis = -1)
+        d = d.reshape((len(self.faces),)+dist.shape[1:-1])
+        return np.sum(d, axis = 0)
+
+    
 def rays_from_json(d):
     return eval(d["name"])(**d["kwargs"])
 

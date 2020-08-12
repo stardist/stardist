@@ -95,8 +95,30 @@ def test_speed(noises = (0,0.1,.2), n_rays = 32):
         print("noise = {noise:.2f}\t t = {t:.2f} s".format(noise=noise,t=t))        
     return ts
 
+
+def test_rays_volume_area(n_rays = 187):
+    from skimage.measure import regionprops
+    from skimage.segmentation import find_boundaries
+    
+    rays =  Rays_GoldenSpiral(n_rays)
+    shape = (55,56,58)
+    center = np.array(shape)//2
+
+    dist = .4*np.random.uniform(.3*np.min(shape),.5*np.min(shape), n_rays)
+    
+    lbl = polyhedron_to_label([dist], [center], rays = rays, shape = shape)
+
+    volume1 = rays.volume(dist)
+    volume2 = np.mean(rays.volume(np.broadcast_to(dist,(13,17)+dist.shape)))
+    volume3 = regionprops(lbl)[0].area
+
+    surface1 = rays.surface(dist)
+    surface2 = np.mean(rays.surface(np.broadcast_to(dist,(13,17)+dist.shape)))
+    surface3 = np.sum(find_boundaries(lbl, mode=  "outer"))
+
+    print(volume1, volume2, volume3)
+    print(surface1, surface2, surface3)
+    return lbl
+
 if __name__ == '__main__':
-    np.random.seed(42)
-    # lbl = test_nms_and_label(.2, shape=(44, 55, 66), noise=.2)
-    # lbl = test_nms_and_label(.2, shape=(128,128,128), noise=.2)
-    (points1, probi1, disti1),(points2, probi2, disti2) = test_nms_kdtree()
+    lbl = test_rays_volume_area()
