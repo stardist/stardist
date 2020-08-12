@@ -402,8 +402,8 @@ class StarDistBase(BaseModel):
         x = resizer.before(x, axes_net, axes_net_div_by)
 
         def predict_direct(tile):
-            sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            sh = list(tile.shape); sh[channel] = 1; 
+            prob, dist = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
             return prob[0], dist[0]
         
         def _prep(prob, dist):

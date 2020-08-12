@@ -189,5 +189,6 @@ def print_receptive_fields():
 
 
 if __name__ == '__main__':
-    from conftest import model3d
-    model, lbl = test_load_and_predict_with_overlap(model3d())
+    pass
+    # from conftest import model3d
+    # model, lbl = test_load_and_predict_with_overlap(model3d())
