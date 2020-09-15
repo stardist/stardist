@@ -487,7 +487,7 @@ class StarDist3D(StarDistBase):
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
         labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
-        return labels, dict() 
+
         # map the overlap_label to something positive and back
         # (as relabel_sequential doesn't like negative values)
         if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
