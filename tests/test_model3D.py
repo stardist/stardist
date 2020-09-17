@@ -79,15 +79,6 @@ def test_load_and_predict_with_overlap(model3d):
     return model, labels
 
 
-def test_load_and_export_TF(model3d):
-    model = model3d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def test_optimize_thresholds(model3d):
     model = model3d
     img, mask = real_image3d()
@@ -155,6 +146,15 @@ def test_mesh_export(model3d):
     s = export_to_obj_file3D(polys,
                              "mesh.obj",scale = (.2,.1,.1))
     return s
+
+
+def test_load_and_export_TF(model3d):
+    model = model3d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
 
 
 def print_receptive_fields():

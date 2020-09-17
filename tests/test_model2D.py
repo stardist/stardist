@@ -69,15 +69,6 @@ def test_load_and_predict(model2d):
     return labels
 
 
-def test_load_and_export_TF(model2d):
-    model = model2d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def test_optimize_thresholds(model2d):
     model = model2d
     img, mask = real_image2d()
@@ -185,6 +176,15 @@ def test_imagej_rois_export(tmpdir, model2d):
     img = normalize(real_image2d()[0], 1, 99.8)
     labels, polys = model2d.predict_instances(img)
     export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
+
+
+def test_load_and_export_TF(model2d):
+    model = model2d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
 
 
 def print_receptive_fields():
