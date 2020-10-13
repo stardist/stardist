@@ -135,9 +135,9 @@ If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wi
 
 ### macOS
 The default Apple C/C++ compiler (`clang`) does not come with OpenMP support and the package build will likely fail.
-To properly build `stardist` you need to install a OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (which will currently install `gcc-9`/`g++-9`). After that, you can build the package like this (adjust compiler names/paths as necessary):
+To properly build `stardist` you need to install an OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (e.g. installing `gcc-10`/`g++-10` or newer). After that, you can build the package like this (adjust compiler names/paths as necessary):
 
-    CC=gcc-9 CXX=g++-9 pip install stardist
+    CC=gcc-10 CXX=g++-10 pip install stardist
 
 If you use `conda` on macOS and after `import stardist` see errors similar to the following:
 
