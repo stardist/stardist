@@ -70,6 +70,72 @@ def kld(y_true, y_pred):
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
 
+def masked_iou_loss(mask, reg_weight=0, norm_by_mask=True):
+    def iou_loss(y_true, y_pred):
+        axis = -1 if backend_channels_last() else 1 
+        # inter = K.sum(K.square(K.minimum(y_true,y_pred)), axis = axis)
+        # union = K.sum(K.square(K.maximum(y_true,y_pred)), axis = axis)
+        
+        # inter = K.mean(K.minimum(y_true,y_pred), axis = axis)
+        # union = K.mean(K.maximum(y_true,y_pred), axis = axis)
+
+        # inter = K.mean(K.square(K.minimum(y_true,K.maximum(0.,y_pred))), axis = axis)
+        # union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
+        # inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis = axis)
+        # union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
+
+        # inter = K.mean(K.minimum(y_true,y_pred), axis = axis)
+        # union = K.mean(K.maximum(y_true,y_pred), axis = axis)
+        
+        inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis = axis)
+        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
+
+        iou = inter/(union+K.epsilon())
+        iou = K.expand_dims(iou,axis)
+        
+        loss = 1. - iou # + 0.005*K.abs(y_true-y_pred)
+
+        # a = K.shape(inter)
+        # a = K.square(K.minimum(y_true,y_pred))[0,100,100]
+        # # a = union[0,100,100]-inter[0,100,100]
+        # a = tf.Print(a,[a])
+        # b = K.cast(K.sum(a), tf.float32)
+        # inter = inter + b
+
+        # inter = tf.Print(inter,[inter])
+
+        # inter = tf.Print(inter,[inter])
+        # union = tf.Print(union,[union])
+        
+
+        
+        return loss
+    
+    return generic_masked_loss(mask, iou_loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
+
+def masked_iou_metric(mask, reg_weight=0, norm_by_mask=True):
+    def iou_metric(y_true, y_pred):
+        axis = -1 if backend_channels_last() else 1
+        y_pred = K.maximum(0., y_pred)
+        inter = K.mean(K.square(K.minimum(y_true,y_pred)), axis = axis)
+        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
+        iou = inter/(union+K.epsilon())
+        loss = K.expand_dims(iou,axis)
+        return loss
+    return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
+
+
+
+# def kld(y_true, y_pred):
+#     y_true = K.clip(y_true, K.epsilon(), 1)
+#     y_pred = K.clip(y_pred, K.epsilon(), 1)
+#     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
+
+
+# def masked_loss(mask, penalty, reg_weight, norm_by_mask):
+#     loss = lambda y_true, y_pred: penalty(y_true - y_pred)
+#     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
+
 
 class StarDistDataBase(RollingSequence):
 
@@ -209,7 +275,10 @@ class StarDistBase(BaseModel):
         if optimizer is None:
             optimizer = Adam(lr=self.config.train_learning_rate)
 
-        masked_dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
+        masked_dist_loss = {'mse': masked_loss_mse,
+                            'mae': masked_loss_mae,
+                            'iou': masked_iou_loss,
+                            }[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
 
         def split_dist_true_mask(dist_true_mask):
@@ -218,6 +287,13 @@ class StarDistBase(BaseModel):
         def dist_loss(dist_true_mask, dist_pred):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
             return masked_dist_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
+        def dist_iou_loss(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_iou_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
+
+        def dist_iou_metric(dist_true_mask, dist_pred):
+            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
+            return masked_iou_metric(dist_mask, reg_weight=0)(dist_true, dist_pred)
 
         def relevant_mae(dist_true_mask, dist_pred):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
@@ -229,7 +305,9 @@ class StarDistBase(BaseModel):
 
         self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics={'prob': kld, 'dist': [relevant_mae, relevant_mse]})
+                                            metrics={'prob': kld,
+                                                     'dist': [relevant_mae, relevant_mse,
+                                                              dist_iou_metric]})
 
         self.callbacks = []
         if self.basedir is not None:
