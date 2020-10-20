@@ -19,7 +19,7 @@ Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase
 from ..sample_patches import sample_patches
-from ..utils import edt_prob, _normalize_grid
+from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
 
@@ -27,9 +27,12 @@ from ..nms import non_maximum_suppression
 
 class StarDistData2D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, n_rays, length, patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, n_rays, length,
+                 n_classes = None, classes = None,
+                 patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
+                         classes = classes, n_classes = n_classes, 
                          batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
@@ -55,7 +58,9 @@ class StarDistData2D(StarDistDataBase):
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
+            
         prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
+
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
@@ -65,21 +70,28 @@ class StarDistData2D(StarDistDataBase):
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y])
             dist_mask = prob
 
+            
         X = np.stack(X)
         if X.ndim == 3: # input image has no channel axis
             X = np.expand_dims(X,-1)
         prob = np.expand_dims(prob,-1)
         dist_mask = np.expand_dims(dist_mask,-1)
-
+        
         # subsample wth given grid
-        dist_mask = dist_mask[self.ss_grid]
-        prob      = prob[self.ss_grid]
-        dist      = dist[self.ss_grid]
+        dist_mask  = dist_mask[self.ss_grid]
+        prob       = prob[self.ss_grid]
+        dist       = dist[self.ss_grid]
+        
 
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
 
-        return [X], [prob,dist]
+        if self.n_classes is None:
+            return [X], [prob,dist]
+        else:
+            prob_class = np.stack(tuple((mask_to_categorical(y, self.classes[k], self.n_classes) for y,k in zip(Y, idx))))            
+            prob_class = prob_class[self.ss_grid]
+            return [X], [prob,dist, prob_class]
 
 
 
@@ -154,7 +166,7 @@ class Config2D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, grid=(1,1), backbone='unet', **kwargs):
+    def __init__(self, axes='YX', n_rays=32, n_channel_in=1, grid=(1,1), n_classes = None,  backbone='unet', **kwargs):
         """See class docstring."""
 
         super().__init__(axes=axes, n_channel_in=n_channel_in, n_channel_out=1+n_rays)
@@ -163,6 +175,7 @@ class Config2D(BaseConfig):
         self.n_rays                    = int(n_rays)
         self.grid                      = _normalize_grid(grid,2)
         self.backbone                  = str(backbone).lower()
+        self.n_classes                 = None if n_classes is None else int(n_classes)
 
         # default config (can be overwritten by kwargs below)
         if self.backbone == 'unet':
@@ -196,7 +209,7 @@ class Config2D(BaseConfig):
         self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
-        self.train_loss_weights        = 1,0.2
+        self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,.1)
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
@@ -213,8 +226,11 @@ class Config2D(BaseConfig):
         for k in ('n_dim', 'n_channel_out'):
             try: del kwargs[k]
             except KeyError: pass
-
+        
         self.update_parameters(False, **kwargs)
+
+        if not len(self.train_loss_weights) == (2 if self.n_classes is None else 3):
+            raise ValueError(f"Wrong length of train_loss_weights={self.train_loss_weights} for n_classes={self.n_classes} (e.g. has to be 3 if n_classes is set)")
 
 
 
@@ -279,10 +295,18 @@ class StarDist2D(StarDistBase):
 
         output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img], [output_prob,output_dist])
+
+        # attach extra classification head when self.n_classes is given 
+        if self.config.n_classes is not None:
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
+                                        name='prob_class', padding='same', activation='softmax')(unet)
+            return Model([input_img], [output_prob,output_dist, output_prob_class])
+        
+        else:
+            return Model([input_img], [output_prob,output_dist])
 
 
-    def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, classes = None, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
         Parameters
@@ -323,9 +347,13 @@ class StarDist2D(StarDistBase):
         if steps_per_epoch is None:
             steps_per_epoch = self.config.train_steps_per_epoch
 
+        if self.config.n_classes is not None and classes is None:
+            warnings.warn("Ignoringg given classes as n_classes is set to None")
+            
         validation_data is not None or _raise(ValueError())
-        ((isinstance(validation_data,(list,tuple)) and len(validation_data)==2)
-            or _raise(ValueError('validation_data must be a pair of numpy arrays')))
+        
+        ((isinstance(validation_data,(list,tuple)) and len(validation_data)== (2 if self.config.n_classes is None else 3))
+            or _raise(ValueError(f'validation_data must be a {"pair" if self.config.n_classes is None else "triple"} of numpy arrays')))
 
         patch_size = self.config.train_patch_size
         axes = self.config.axes.replace('C','')
@@ -347,15 +375,22 @@ class StarDist2D(StarDistBase):
             b                = self.config.train_completion_crop,
             use_gpu          = self.config.use_gpu,
             foreground_prob  = self.config.train_foreground_only,
+            n_classes        = self.config.n_classes
         )
 
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        _data_val = StarDistData2D(*validation_data, batch_size=n_take, length=1, **data_kwargs)
+        _data_val = StarDistData2D(X = validation_data[0], Y = validation_data[1],
+                                classes = None if self.config.n_classes is None else validation_data[2],
+                                batch_size=n_take, length=1, **data_kwargs)
+        
         data_val = _data_val[0]
 
-        data_train = StarDistData2D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
+        data_train = StarDistData2D(X, Y,
+                                    classes = classes,
+                                    batch_size=self.config.train_batch_size, augmenter=augmenter,
+                                    length=epochs*steps_per_epoch, **data_kwargs)
 
         if self.config.train_tensorboard:
             # show dist for three rays
@@ -363,6 +398,13 @@ class StarDist2D(StarDistBase):
             channel = axes_dict(self.config.axes)['C']
             output_slices = [[slice(None)]*4,[slice(None)]*4]
             output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+
+            if self.config.n_classes is not None:
+                _n = min(3, self.config.n_classes)
+                output_slices += [[slice(None)]*4]
+                output_slices[2][1+channel] = slice(1,((self.config.n_classes+1)//_n)*_n,
+                                                    self.config.n_classes//_n)
+
             if IS_TF_1:
                 for cb in self.callbacks:
                     if isinstance(cb,CARETensorBoard):

@@ -73,7 +73,9 @@ def kld(y_true, y_pred):
 
 class StarDistDataBase(RollingSequence):
 
-    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length, use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+    def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
+                 n_classes = None, classes = None, 
+                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
         super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
 
@@ -83,7 +85,19 @@ class StarDistDataBase(RollingSequence):
         # Y = [y.astype(np.uint16,  copy=False) for y in Y]
 
         # sanity checks
-        assert len(X)==len(Y) and len(X)>0
+        len(X)==len(Y) and len(X)>0 or _raise(ValueError("X and Y should have same length!"))
+
+        
+        if classes is None:
+            # set classes to None for all imgs (i.e. defaults to every labels assigned  same class)
+            classes = (None,)*len(X)
+        else:
+            n_classes is not None or warnings.warn("Ignoring given classes as n_classes is set to None")
+
+        len(classes)==len(X) or _raise(ValueError("X and classes should have same length!"))
+            
+        self.n_classes, self.classes =  n_classes, classes
+        
         nD = len(patch_size)
         assert nD in (2,3)
         x_ndim = X[0].ndim
@@ -211,6 +225,7 @@ class StarDistBase(BaseModel):
 
         masked_dist_loss = {'mse': masked_loss_mse, 'mae': masked_loss_mae}[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
+        prob_class_loss = 'categorical_crossentropy'
 
         def split_dist_true_mask(dist_true_mask):
             return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)
@@ -227,7 +242,13 @@ class StarDistBase(BaseModel):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
-        self.keras_model.compile(optimizer, loss=[prob_loss, dist_loss],
+
+        if self.config.n_classes is None:
+            loss=[prob_loss, dist_loss]
+        else:
+            loss=[prob_loss, dist_loss, prob_class_loss]
+                     
+        self.keras_model.compile(optimizer, loss=loss,
                                             loss_weights = list(self.config.train_loss_weights),
                                             metrics={'prob': kld, 'dist': [relevant_mae, relevant_mse]})
 

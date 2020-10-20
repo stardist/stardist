@@ -5,6 +5,7 @@ import warnings
 import os
 import datetime
 from tqdm import tqdm
+from collections import defaultdict
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
@@ -284,3 +285,46 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
 
     verbose > 1 and print('\n',opt, flush=True)
     return opt.x, -opt.fun
+
+
+def _invert_dict(d):
+    """ return  v-> [k_1,k_2,k_3....] for k,v in d"""
+    res = defaultdict(list)
+    for k,v in d.items():
+        res[v].append(k)
+    return res 
+
+def mask_to_categorical(y, classes, n_classes):
+    """generates a multi-channel categorical class map from a  2d label image y and a class dict (label_id -> class_id)
+    class_id should be (1, ..., n_classes), 0 is background 
+
+    if classes is None, then all labels are class 1 by default 
+    return shape is (y.shape,n_classes+1 ) (first channel is background)
+
+    """
+    if not y.ndim ==2 and not np.issubdtype(y.dtype, np.integer):
+        raise ValueError("2d integer mask expected!")
+    if not n_classes>=1:
+        raise ValueError("n_classes should be >= 1!")
+
+    if classes is None:
+        cls_to_label = {1:np.unique(y[y>0]).tolist()}
+    else:
+        cls_to_label = _invert_dict(classes)
+        
+    cls_keys = tuple(cls_to_label.keys())
+
+    if not min(cls_keys)>=1 and max(cls_keys)<=n_classes:
+        raise ValueError("")
+
+    
+    y_mask = np.zeros(y.shape+(n_classes+1,), np.bool)
+    y_mask[...,0] = (y==0)
+
+    for cls, labels in cls_to_label.items():
+        y_mask[...,cls] = np.isin(y, labels)
+    
+    return y_mask
+    
+    
+    

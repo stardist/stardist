@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import pytest
 from pathlib import Path
-from stardist.models import Config2D, StarDist2D
+from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
@@ -187,6 +187,73 @@ def test_load_and_export_TF(model2d):
     model.export_TF(single_output=True, upsample_grid=True)
 
 
+def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
+    img, mask = real_image2d()
+    imgs = normalize(img,1,99.8) 
+
+    if n_channel is not None:
+        img = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
+    else:
+        n_channel = 1
+
+    X, Y = [img], [mask]
+
+    if n_classes is not None:
+        classes = [dict((label,np.random.randint(1, n_classes+1)) for label in set(np.unique(mask))-{0})]
+    else:
+        classes = None
+
+
+    conf = Config2D(
+        n_rays=48,
+        grid=(2,2),
+        n_channel_in=n_channel,
+        n_classes = n_classes,
+        use_gpu=False,
+        train_epochs=1,
+        train_steps_per_epoch=2,
+        train_batch_size=2,
+        train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
+        train_patch_size=(128, 128),
+    )
+
+    s = StarDistData2D(X,Y,
+                       classes = classes, 
+                       n_classes = n_classes,
+                       batch_size=1, patch_size=(100,100),
+                       n_rays=32, length=1)
+    
+    # (img, ), (prob, dist, prob_classes) = s[0]
+    # (img, ), (prob, dist) = s[0]
+
+    model = StarDist2D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
+    model.prepare_for_training()
+    return model
+    model.train(X, Y, classes = classes, validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
+
+    return model
+    ref = model.predict(X[0])
+    res = model.predict(X[0], n_tiles=(
+        (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
+    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
+
+    # ask to train only with foreground patches when there are none
+    # include a constant label image that must trigger a warning
+    conf.train_foreground_only = 1
+    conf.train_steps_per_epoch = 1
+    _X = X[:2]
+    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
+    with pytest.warns(UserWarning):
+        StarDist2D(conf, name='stardist', basedir=None).train(
+            _X, _Y, validation_data=(X[-1:], Y[-1:]))
+
+        
+@pytest.mark.parametrize('n_classes', (None, 2))
+@pytest.mark.parametrize('n_channel', (None, 3 ))
+def test_model_multiclass(tmpdir, n_classes, n_channel):
+    return _test_model_multiclass(n_classes, n_channel, basedir = tmpdir)
+
+    
 def print_receptive_fields():
     for backbone in ("unet",):
         for n_depth in (1,2,3):
@@ -200,8 +267,6 @@ def print_receptive_fields():
 
 
 if __name__ == '__main__':
-    from conftest import model2d
-    # test_model("tmpdir", 32, (1, 1), 1)
-    # im = render_label_pred_example(model2d())
-    accs = test_pretrained_scales()
+    # from conftest import model2d
 
+    res = _test_model_multiclass(2,3)

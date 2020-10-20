@@ -273,7 +273,7 @@ def dist_to_coord3D(dist, points, rays_vertices):
     return points[:,np.newaxis]+dist[...,np.newaxis]*rays_vertices 
 
 
-def export_to_obj_file3D(polys, fname = None, scale = 1, single_mesh = True, uv_map = False):
+def export_to_obj_file3D(polys, fname = None, scale = 1, single_mesh = True, uv_map = False , name= "poly"):
     """ exports 3D mesh result to obj file format """
 
     try:
@@ -320,7 +320,7 @@ def export_to_obj_file3D(polys, fname = None, scale = 1, single_mesh = True, uv_
 
         # new object
         if i==0 or not single_mesh:
-            obj_str += f"o poly_{i:d}\n"
+            obj_str += f"o {name}_{i:d}\n"
 
         # vertex coords
         for x,y,z in xs:
