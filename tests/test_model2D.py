@@ -235,13 +235,13 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
 
     # return model
     # res = model.predict(X[0])
-    # res = model.predict_instances(X[0])
+    res = model.predict_instances(X[0])
 
-    img = np.tile(img, (4,4))
-    labels, res = model.predict_instances_big(img, axes='YX',
-                                              block_size=256,
-                                              min_overlap=8, context=8, n_tiles=(2,2))
-    return labels, res
+    # img = np.tile(img, (4,4))
+    # labels, res = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
+    #                                           block_size=256,
+    #                                           min_overlap=8, context=8)
+    return  res
 
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
@@ -279,12 +279,10 @@ def print_receptive_fields():
 if __name__ == '__main__':
     # from conftest import model2d
 
-    res = _test_model_multiclass(2)
+    # res = _test_model_multiclass(2)
 
 
-    # img, mask = real_image2d()
-    # img = normalize(img,1,99.8)
-    # model = StarDist2D.from_pretrained("2D_versatile_fluo")
-    # labels, res = model.predict_instances_big(img, axes='YX',
-    #                                           block_size=128,
-    #                                           min_overlap=64, context=64, n_tiles=(2,2))
+    img, mask = real_image2d()
+    img = np.tile(normalize(img,1,99.8),(8,8))
+    model = StarDist2D.from_pretrained("2D_versatile_fluo")
+    labels, res = model.predict_instances_big(img, axes='YX',block_size=512, min_overlap=16, context=16, n_tiles=(2,2))

@@ -290,18 +290,31 @@ class StarDist2D(StarDistBase):
                                     padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
-        unet        = unet_block(**unet_kwargs)(pooled_img)
+        unet_base        = unet_block(**unet_kwargs)(pooled_img)
+
         if self.config.net_conv_after_unet > 0:
-            unet    = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                             name='features', padding='same', activation=self.config.unet_activation)(unet)
-
-        output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(unet)
-        output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
-
+            unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                             name='features', padding='same',
+                             activation=self.config.unet_activation)(unet_base)
+        else:
+            unet = unet_base
+            
+        output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same',
+                              activation='sigmoid')(unet)
+        output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same',
+                              activation='linear')(unet)
+        
         # attach extra classification head when self.n_classes is given 
         if self.is_multiclass():
+            if self.config.net_conv_after_unet > 0:
+                unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                             name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+            else:
+                unet_class  = unet_base
+
             output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
-                                        name='prob_class', padding='same', activation='softmax')(unet)
+                                        name='prob_class', padding='same',
+                                        activation='softmax')(unet_class)
             return Model([input_img], [output_prob,output_dist, output_prob_class])
         
         else:
