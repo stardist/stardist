@@ -10,6 +10,8 @@ from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
+from skimage.measure  import regionprops
+from scipy.ndimage import zoom
 from distutils.version import LooseVersion
 
 keras = keras_import()
@@ -297,7 +299,7 @@ class StarDist2D(StarDistBase):
         output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
 
         # attach extra classification head when self.n_classes is given 
-        if self.config.n_classes is not None:
+        if self.is_multiclass():
             output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
                                         name='prob_class', padding='same', activation='softmax')(unet)
             return Model([input_img], [output_prob,output_dist, output_prob_class])
@@ -347,7 +349,7 @@ class StarDist2D(StarDistBase):
         if steps_per_epoch is None:
             steps_per_epoch = self.config.train_steps_per_epoch
 
-        if self.config.n_classes is not None and classes is None:
+        if self.is_multiclass() and classes is None:
             warnings.warn("Ignoringg given classes as n_classes is set to None")
             
         validation_data is not None or _raise(ValueError())
@@ -382,7 +384,7 @@ class StarDist2D(StarDistBase):
         n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         _data_val = StarDistData2D(X = validation_data[0], Y = validation_data[1],
-                                classes = None if self.config.n_classes is None else validation_data[2],
+                                classes = validation_data[2] if self.is_multiclass() else None ,
                                 batch_size=n_take, length=1, **data_kwargs)
         
         data_val = _data_val[0]
@@ -397,12 +399,12 @@ class StarDist2D(StarDistBase):
             _n = min(3, self.config.n_rays)
             channel = axes_dict(self.config.axes)['C']
             output_slices = [[slice(None)]*4,[slice(None)]*4]
-            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
-
-            if self.config.n_classes is not None:
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,
+                                                self.config.n_rays//_n)            
+            if self.is_multiclass():
                 _n = min(3, self.config.n_classes)
                 output_slices += [[slice(None)]*4]
-                output_slices[2][1+channel] = slice(1,((self.config.n_classes+1)//_n)*_n,
+                output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n,
                                                     self.config.n_classes//_n)
 
             if IS_TF_1:
@@ -425,7 +427,8 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_class = None,
+                                   prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
@@ -438,7 +441,21 @@ class StarDist2D(StarDistBase):
         inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
-        return labels, dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
+
+        res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points,
+                            prob=prob[inds[:,0],inds[:,1]])
+
+        if prob_class is not None:
+            # build map label_id -> class id  (background -> 0) via majority vote
+            prob_class_up = zoom(prob_class,self.config.grid+(1,), order=0)
+            classes = dict()
+            for reg in regionprops(labels):
+                m = labels[reg.slice]==reg.label
+                cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
+                classes[reg.label] = cls_id
+            res_dict.update(dict(classes = classes))
+        
+        return labels, res_dict
 
 
     def _axes_div_by(self, query_axes):

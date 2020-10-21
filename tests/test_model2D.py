@@ -189,17 +189,17 @@ def test_load_and_export_TF(model2d):
 
 def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
     img, mask = real_image2d()
-    imgs = normalize(img,1,99.8) 
+    img = normalize(img,1,99.8) 
 
     if n_channel is not None:
-        img = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
+        img = np.repeat(img[..., np.newaxis], n_channel, axis=-1)
     else:
         n_channel = 1
 
     X, Y = [img], [mask]
 
     if n_classes is not None:
-        classes = [dict((label,np.random.randint(1, n_classes+1)) for label in set(np.unique(mask))-{0})]
+        classes = [dict((label,n_classes) for label in set(np.unique(mask))-{0})]
     else:
         classes = None
 
@@ -228,11 +228,17 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
 
     model = StarDist2D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
     model.prepare_for_training()
-    return model
-    model.train(X, Y, classes = classes, validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
 
-    return model
-    ref = model.predict(X[0])
+    return model, dict(X=X,Y=Y, classes = classes, epochs = 60, 
+                validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
+
+    model.train(X, Y, classes = classes, epochs = 60, 
+                validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
+
+    # return model
+    # res = model.predict(X[0])
+    res = model.predict_instances(X[0])
+
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
     # assert all(np.allclose(u,v) for u,v in zip(ref,res))
