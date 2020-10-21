@@ -446,14 +446,17 @@ class StarDist2D(StarDistBase):
                             prob=prob[inds[:,0],inds[:,1]])
 
         if prob_class is not None:
-            # build map label_id -> class id  (background -> 0) via majority vote
+            # build the list of class ids per label via majority vote
             prob_class_up = zoom(prob_class,self.config.grid+(1,), order=0)
-            classes = dict()
+            class_id, _labels_check = [], []
             for reg in regionprops(labels):
                 m = labels[reg.slice]==reg.label
                 cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
-                classes[reg.label] = cls_id
-            res_dict.update(dict(classes = classes))
+                class_id.append(cls_id)
+                _labels_check.append(reg.label)
+            # just a sanity check whether labels where in sorted order
+            assert all(x <= y for x,y in zip(_labels_check, _labels_check[1:]))
+            res_dict.update(dict(class_id = np.array(class_id)))
         
         return labels, res_dict
 
