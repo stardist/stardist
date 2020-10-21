@@ -198,6 +198,8 @@ class StarDistBase(BaseModel):
     def thresholds(self):
         return self._thresholds
 
+    def is_multiclass(self):
+        return (self.config.n_classes is not None)
 
     @thresholds.setter
     def thresholds(self, d):
@@ -243,10 +245,10 @@ class StarDistBase(BaseModel):
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
 
-        if self.config.n_classes is None:
-            loss=[prob_loss, dist_loss]
+        if self.is_multiclass():
+            loss=[prob_loss, dist_loss, prob_class_loss]            
         else:
-            loss=[prob_loss, dist_loss, prob_class_loss]
+            loss=[prob_loss, dist_loss]
                      
         self.keras_model.compile(optimizer, loss=loss,
                                             loss_weights = list(self.config.train_loss_weights),
@@ -299,9 +301,11 @@ class StarDistBase(BaseModel):
         Returns
         -------
         (:class:`numpy.ndarray`,:class:`numpy.ndarray`)
-            Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon/polyhedra distances.
+            Returns the tuple (`prob`, `dist`)  of per-pixel object probabilities and star-convex polygon/polyhedra distances. 
+            In multiclass prediction mode returns (`prob`, `dist`, `prob_class`) with `prob_class` being the probability map for each of the n_classes+1 classes (background being the first)
 
         """
+        
         if n_tiles is None:
             n_tiles = [1]*img.ndim
         try:
@@ -334,8 +338,8 @@ class StarDistBase(BaseModel):
         x = resizer.before(x, axes_net, axes_net_div_by)
 
         def predict_direct(tile):
-            prob, dist = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
-            return prob[0], dist[0]
+            xs = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
+            return tuple(x[0] for x in xs)
 
         if np.prod(n_tiles) > 1:
             tiling_axes   = axes_net.replace('C','') # axes eligible for tiling
@@ -347,8 +351,19 @@ class StarDistBase(BaseModel):
                 _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
 
             sh = [s//grid_dict.get(a,1) for a,s in zip(axes_net,x.shape)]
-            sh[channel] = 1;                  prob = np.empty(sh,np.float32)
-            sh[channel] = self.config.n_rays; dist = np.empty(sh,np.float32)
+            sh[channel] = 1;
+            prob = np.empty(sh,np.float32)
+            
+            sh[channel] = self.config.n_rays;
+            dist = np.empty(sh,np.float32)
+
+            if self.is_multiclass():
+                sh[channel] = self.config.n_classes+1;
+                prob_class = np.empty(sh,np.float32)                
+                result = (prob, dist, prob_class)
+            else:
+                result = (prob, dist)
+            
 
             n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
                                 in zip(axes_net_tile_overlaps, axes_net_div_by)]
@@ -357,7 +372,7 @@ class StarDistBase(BaseModel):
 
             for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
                                            disable=(not show_tile_progress), total=num_tiles_used):
-                prob_tile, dist_tile = predict_direct(tile)
+                result_tile = predict_direct(tile)
                 # account for grid
                 s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
                 s_dst = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_dst,axes_net)]
@@ -366,20 +381,28 @@ class StarDistBase(BaseModel):
                 s_dst[channel] = slice(None)
                 s_src, s_dst = tuple(s_src), tuple(s_dst)
                 # print(s_src,s_dst)
-                prob[s_dst] = prob_tile[s_src]
-                dist[s_dst] = dist_tile[s_src]
+                
+                for part, part_tile in zip(result, result_tile):
+                    part[s_dst] = part_tile[s_src]
 
         else:
-            prob, dist = predict_direct(x)
+            result = predict_direct(x)
 
-        prob = resizer.after(prob, axes_net)
-        dist = resizer.after(dist, axes_net)
-        dist = np.maximum(1e-3, dist) # avoid small/negative dist values to prevent problems with Qhull
+        result = list(resizer.after(part, axes_net) for part in result)
 
-        prob = np.take(prob,0,axis=channel)
-        dist = np.moveaxis(dist,channel,-1)
+        # result = (prob, dist) for legacy or (prob, dist, prob_class) for multiclass
 
-        return prob, dist
+        # prob
+        result[0] = np.take(result[0],0,axis=channel)
+        # dist
+        result[1] = np.maximum(1e-3, result[1]) # avoid small dist values to prevent problems with Qhull
+        result[1] = np.moveaxis(result[1],channel,-1)
+
+        if self.is_multiclass():
+            # prob_class            
+            result[2] = np.moveaxis(result[2],channel,-1)
+
+        return tuple(result)
 
 
     def predict_instances(self, img, axes=None, normalizer=None,
@@ -439,8 +462,17 @@ class StarDistBase(BaseModel):
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
-        prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label=overlap_label, **nms_kwargs)
+        result = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
+        
+        if self.is_multiclass():
+            prob, dist, prob_class = result
+        else:
+            prob, dist = result
+            prob_class = None
+            
+        return self._instances_from_prediction(_shape_inst, prob, dist,
+                                               prob_class = prob_class,
+                                               prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label=overlap_label, **nms_kwargs)
 
 
     def predict_instances_big(self, img, axes, block_size, min_overlap, context=None,
