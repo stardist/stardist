@@ -621,7 +621,7 @@ class StarDistBase(BaseModel):
         if np.isscalar(block_size):  block_size  = n*[block_size]
         if np.isscalar(min_overlap): min_overlap = n*[min_overlap]
         if np.isscalar(context):     context     = n*[context]
-        block_size, min_overlap, context = list(block_size), list(min_overlap), list(context)
+        block_size, min_overlap, contexbt = list(block_size), list(min_overlap), list(context)
         assert n == len(block_size) == len(min_overlap) == len(context)
 
         if 'C' in axes:
@@ -674,6 +674,7 @@ class StarDistBase(BaseModel):
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
             labels = relabel_sequential(labels, label_offset)[0]
+            
             # labels, fwd_map, _ = relabel_sequential(labels, label_offset)
             # if len(incomplete) > 0:
             #     problem_ids.extend([fwd_map[i] for i in incomplete])
@@ -681,6 +682,7 @@ class StarDistBase(BaseModel):
             #         blocks.set_postfix_str(f"found {len(problem_ids)} problematic {'object' if len(problem_ids)==1 else 'objects'}")
             if labels_out is not None:
                 block.write(labels_out, labels, axes=axes_out)
+
             for k,v in polys.items():
                 polys_all.setdefault(k,[]).append(v)
             label_offset += len(polys['prob'])
