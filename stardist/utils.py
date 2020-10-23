@@ -294,35 +294,51 @@ def _invert_dict(d):
         res[v].append(k)
     return res 
 
-def mask_to_categorical(y, classes, n_classes):
+def mask_to_categorical(y,  n_classes, classes):
     """generates a multi-channel categorical class map from a  2d label image y and a class dict (label_id -> class_id)
-    class_id should be (1, ..., n_classes), 0 is background 
 
-    if classes is None, then all labels are class 1 by default 
+    classes can be 
+        - dict {label -> class_id}
+        - single class_id (will be used for all labels)
+        
+    Each class_id can be 
+        0     -> background 
+        >1    -> foreground class
+        None  -> ignore object/loss (and prob set to -1 for all pixels of the object)
+
+
     return shape is (y.shape,n_classes+1 ) (first channel is background)
 
     """
+    
     if not y.ndim ==2 and not np.issubdtype(y.dtype, np.integer):
         raise ValueError("2d integer mask expected!")
     if not n_classes>=1:
         raise ValueError("n_classes should be >= 1!")
 
-    if classes is None:
-        cls_to_label = {1:np.unique(y[y>0]).tolist()}
-    else:
-        cls_to_label = _invert_dict(classes)
-        
-    cls_keys = tuple(cls_to_label.keys())
-
-    if not min(cls_keys)>=1 and max(cls_keys)<=n_classes:
-        raise ValueError("")
-
     
-    y_mask = np.zeros(y.shape+(n_classes+1,), np.bool)
-    y_mask[...,0] = (y==0)
+    if np.isscalar(classes) or classes is None:
+        classes = dict((lab, classes) for lab in np.unique(y[y>0]))
 
-    for cls, labels in cls_to_label.items():
-        y_mask[...,cls] = np.isin(y, labels)
+    isinstance(classes, dict) or _raise(ValueError("classes should be dict or single number!"))
+
+    cls_dict = _invert_dict(classes)
+    
+    cls_keys = tuple(set(cls_dict.keys())-{None})
+    if len(cls_keys)>0 and not min(cls_keys)>=1 and max(cls_keys)<=n_classes:
+        raise ValueError("wrong class ids")
+
+    y_mask = np.zeros(y.shape+(n_classes+1,), np.float32)
+    y_mask[...,0] = (y==0) 
+
+    print(cls_dict)
+
+    for cls, labels in cls_dict.items():
+        if cls is None:
+            y_mask[np.isin(y, labels)] = -1
+        else:
+            print(cls)
+            y_mask[...,cls] = np.isin(y, labels)
     
     return y_mask
     

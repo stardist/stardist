@@ -264,8 +264,26 @@ class StarDistBase(BaseModel):
     def thresholds(self):
         return self._thresholds
 
-    def is_multiclass(self):
+    def _is_multiclass(self):
         return (self.config.n_classes is not None)
+
+    def _parse_classes_arg(self, classes, length):
+        if isinstance(classes, str):
+            classes == "auto" or _raise(ValueError(f"classes = '{classes}': only 'auto' supported as string argument for classes"))
+            if self.config.n_classes is None:
+                classes = None
+            elif self.config.n_classes == 1:
+                classes = (1,)*length
+            else:
+                raise ValueError("classes = 'auto' not supported for n_classes > 1 ")
+        elif np.isscalar(classes):
+            return (classes,)*length
+        elif np.isinstance(classes, (tuple, list, np.ndarray)):
+            return tuple(classes)
+        else:
+            raise ValueError("classes should be either 'auto', a single scalar, or a list of scalars/label dicts")
+            
+        return classes
 
     @thresholds.setter
     def thresholds(self, d):
@@ -321,7 +339,7 @@ class StarDistBase(BaseModel):
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
 
-        if self.is_multiclass():
+        if self._is_multiclass():
             loss=[prob_loss, dist_loss, prob_class_loss]            
         else:
             loss=[prob_loss, dist_loss]
@@ -435,7 +453,7 @@ class StarDistBase(BaseModel):
             sh[channel] = self.config.n_rays;
             dist = np.empty(sh,np.float32)
 
-            if self.is_multiclass():
+            if self._is_multiclass():
                 sh[channel] = self.config.n_classes+1;
                 prob_class = np.empty(sh,np.float32)                
                 result = (prob, dist, prob_class)
@@ -476,7 +494,7 @@ class StarDistBase(BaseModel):
         result[1] = np.maximum(1e-3, result[1]) # avoid small dist values to prevent problems with Qhull
         result[1] = np.moveaxis(result[1],channel,-1)
 
-        if self.is_multiclass():
+        if self._is_multiclass():
             # prob_class            
             result[2] = np.moveaxis(result[2],channel,-1)
 
@@ -542,7 +560,7 @@ class StarDistBase(BaseModel):
 
         result = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
         
-        if self.is_multiclass():
+        if self._is_multiclass():
             prob, dist, prob_class = result
         else:
             prob, dist = result

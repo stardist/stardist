@@ -91,7 +91,7 @@ class StarDistData2D(StarDistDataBase):
         if self.n_classes is None:
             return [X], [prob,dist]
         else:
-            prob_class = np.stack(tuple((mask_to_categorical(y, self.classes[k], self.n_classes) for y,k in zip(Y, idx))))            
+            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))            
             prob_class = prob_class[self.ss_grid]
             return [X], [prob,dist, prob_class]
 
@@ -305,7 +305,7 @@ class StarDist2D(StarDistBase):
                               activation='linear')(unet)
         
         # attach extra classification head when self.n_classes is given 
-        if self.is_multiclass():
+        if self._is_multiclass():
             if self.config.net_conv_after_unet > 0:
                 unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
                              name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
@@ -321,7 +321,7 @@ class StarDist2D(StarDistBase):
             return Model([input_img], [output_prob,output_dist])
 
 
-    def train(self, X, Y, validation_data, classes = None, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, classes = "auto", augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
         Parameters
@@ -362,9 +362,11 @@ class StarDist2D(StarDistBase):
         if steps_per_epoch is None:
             steps_per_epoch = self.config.train_steps_per_epoch
 
-        if self.is_multiclass() and classes is None:
-            warnings.warn("Ignoringg given classes as n_classes is set to None")
-            
+        if self._is_multiclass() and classes is None:
+            warnings.warn("Ignoring given classes as n_classes is set to None")
+
+        classes = self._parse_classes_arg(classes, len(X))
+
         validation_data is not None or _raise(ValueError())
         
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)== (2 if self.config.n_classes is None else 3))
@@ -397,11 +399,12 @@ class StarDist2D(StarDistBase):
         n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         _data_val = StarDistData2D(X = validation_data[0], Y = validation_data[1],
-                                classes = validation_data[2] if self.is_multiclass() else None ,
+                                classes = validation_data[2] if self._is_multiclass() else None ,
                                 batch_size=n_take, length=1, **data_kwargs)
         
         data_val = _data_val[0]
 
+        return data_val
         data_train = StarDistData2D(X, Y,
                                     classes = classes,
                                     batch_size=self.config.train_batch_size, augmenter=augmenter,
@@ -414,7 +417,7 @@ class StarDist2D(StarDistBase):
             output_slices = [[slice(None)]*4,[slice(None)]*4]
             output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,
                                                 self.config.n_rays//_n)            
-            if self.is_multiclass():
+            if self._is_multiclass():
                 _n = min(3, self.config.n_classes)
                 output_slices += [[slice(None)]*4]
                 output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n,
@@ -460,7 +463,10 @@ class StarDist2D(StarDistBase):
 
         if prob_class is not None:
             # build the list of class ids per label via majority vote
-            prob_class_up = zoom(prob_class,self.config.grid+(1,), order=0)
+            # zoom prob_class to img_shape
+            prob_class_up = zoom(prob_class,
+                                 tuple(s2/s1 for s1, s2 in zip(prob_class.shape, img_shape)),
+                                 order=0)
             class_id, _labels_check = [], []
             for reg in regionprops(labels):
                 m = labels[reg.slice]==reg.label

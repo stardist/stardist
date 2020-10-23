@@ -187,7 +187,7 @@ def test_load_and_export_TF(model2d):
     model.export_TF(single_output=True, upsample_grid=True)
 
 
-def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
+def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, basedir = None):
     img, mask = real_image2d()
     img = normalize(img,1,99.8) 
 
@@ -197,12 +197,6 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
         n_channel = 1
 
     X, Y = [img], [mask]
-
-    if n_classes is not None:
-        classes = [dict((label,n_classes) for label in set(np.unique(mask))-{0})]
-    else:
-        classes = None
-
 
     conf = Config2D(
         n_rays=48,
@@ -217,12 +211,6 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
         train_patch_size=(128, 128),
     )
 
-    s = StarDistData2D(X,Y,
-                       classes = classes, 
-                       n_classes = n_classes,
-                       batch_size=1, patch_size=(100,100),
-                       n_rays=32, length=1)
-    
     # (img, ), (prob, dist, prob_classes) = s[0]
     # (img, ), (prob, dist) = s[0]
 
@@ -233,29 +221,14 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
     model.train(X, Y, classes = classes, epochs = 1, 
                 validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
 
-    # return model
-    # res = model.predict(X[0])
-    res = model.predict_instances(X[0])
+    return model
+    img = np.tile(X[0], (2,2))
+    labels1, res1 = model.predict_instances(img)
 
-    # img = np.tile(img, (4,4))
-    # labels, res = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
-    #                                           block_size=256,
-    #                                           min_overlap=8, context=8)
+    labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
+                                              block_size=256,
+                                              min_overlap=8, context=8)
     return  res
-
-    res = model.predict(X[0], n_tiles=(
-        (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
-    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
-
-    # ask to train only with foreground patches when there are none
-    # include a constant label image that must trigger a warning
-    conf.train_foreground_only = 1
-    conf.train_steps_per_epoch = 1
-    _X = X[:2]
-    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
-    with pytest.warns(UserWarning):
-        StarDist2D(conf, name='stardist', basedir=None).train(
-            _X, _Y, validation_data=(X[-1:], Y[-1:]))
 
         
 @pytest.mark.parametrize('n_classes', (None, 2))
@@ -263,7 +236,31 @@ def _test_model_multiclass(n_classes = 2, n_channel = None, basedir = None):
 def test_model_multiclass(tmpdir, n_classes, n_channel):
     return _test_model_multiclass(n_classes, n_channel, basedir = tmpdir)
 
+
+def test_classes():
+    from stardist.utils import mask_to_categorical
     
+    def _parse(n_classes, classes):
+        model = StarDist2D(Config2D(n_classes = n_classes), None, None)
+        classes =  model._parse_classes_arg(classes, length = 1)
+        print(classes)
+        return classes
+
+
+    assert _parse(None,"auto") is None
+    assert _parse(1,"auto")    == (1,)
+    assert _parse(1,4)         == (4,)
+
+    y = np.zeros((10,10),np.uint16)
+    y[:5,:5] = 1
+    
+    p = mask_to_categorical(y,n_classes = 2, classes = 1)
+    assert p.shape == (10,10,3) and 
+
+    
+    
+    
+
 def print_receptive_fields():
     for backbone in ("unet",):
         for n_depth in (1,2,3):
@@ -279,10 +276,10 @@ def print_receptive_fields():
 if __name__ == '__main__':
     # from conftest import model2d
 
-    # res = _test_model_multiclass(2)
+    res = _test_model_multiclass(n_classes = 1, classes = "auto")
 
 
-    img, mask = real_image2d()
-    img = np.tile(normalize(img,1,99.8),(8,8))
-    model = StarDist2D.from_pretrained("2D_versatile_fluo")
-    labels, res = model.predict_instances_big(img, axes='YX',block_size=512, min_overlap=16, context=16, n_tiles=(2,2))
+    # img, mask = real_image2d()
+    # img = np.tile(normalize(img,1,99.8),(8,8))
+    # model = StarDist2D.from_pretrained("2D_versatile_fluo")
+    # labels, res = model.predict_instances_big(img, axes='YX',block_size=512, min_overlap=16, context=16, n_tiles=(2,2))
