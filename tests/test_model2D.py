@@ -89,6 +89,7 @@ def test_stardistdata(n_classes = None, classes = 1):
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
+                       grid = (2,2),
                        n_classes = n_classes, classes = (classes,classes), 
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
     a, b = s[0]
@@ -232,7 +233,7 @@ def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
-    s = model.train(X, Y, classes = classes, epochs = 200, 
+    s = model.train(X, Y, classes = classes, epochs = 50, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
@@ -300,6 +301,7 @@ if __name__ == '__main__':
     a, b, s = test_stardistdata(n_classes = 2,classes = 1)
     
     # res = _test_model_multiclass(n_classes = 1, classes = "auto")
+
     res = _test_model_multiclass(n_classes = 2, classes = "area")
 
     # y = test_classes()

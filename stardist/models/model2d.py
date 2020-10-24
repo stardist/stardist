@@ -91,8 +91,12 @@ class StarDistData2D(StarDistDataBase):
         if self.n_classes is None:
             return [X], [prob,dist]
         else:
-            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))            
-            prob_class = prob_class[self.ss_grid]
+            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
+
+            # as it prob_class will be later upscaled, usign zoom here leads to better registered maps
+            # prob_class = prob_class[self.ss_grid]
+            prob_class = zoom(prob_class, tuple(1/s for s in self.ss_grid_factor)+(1,), order=0)
+            
             return [X], [prob,dist, prob_class]
 
 
@@ -211,7 +215,7 @@ class Config2D(BaseConfig):
         self.train_foreground_only     = 0.9
 
         self.train_dist_loss           = 'mae'
-        self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,.1)
+        self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,1)
         self.train_class_weights       = (1,1) if self.n_classes is None else (1,)*(self.n_classes+1)
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
@@ -440,6 +444,9 @@ class StarDist2D(StarDistBase):
                                                            n_images=3, prob_out=False, output_slices=output_slices))
 
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+
+        # self.data = iter(data_train)
+
         history = fit(iter(data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
                       callbacks=self.callbacks, verbose=1)
@@ -482,7 +489,9 @@ class StarDist2D(StarDistBase):
             assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
             res_dict.update(dict(classes = class_id))
             res_dict.update(dict(labels = label_ids))
-        
+
+            self.p = prob_class_up
+            
         return labels, res_dict
 
 

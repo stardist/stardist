@@ -168,6 +168,7 @@ class StarDistDataBase(RollingSequence):
         self.n_rays = n_rays
         self.patch_size = patch_size
         self.ss_grid = (slice(None),) + tuple(slice(0, None, g) for g in grid)
+        self.ss_grid_factor = (1,) + tuple(g for g in grid)
         self.use_gpu = bool(use_gpu)
         if augmenter is None:
             augmenter = lambda *args: args
