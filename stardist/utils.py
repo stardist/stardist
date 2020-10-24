@@ -294,53 +294,69 @@ def _invert_dict(d):
         res[v].append(k)
     return res 
 
-def mask_to_categorical(y,  n_classes, classes):
-    """generates a multi-channel categorical class map from a  2d label image y and a class dict (label_id -> class_id)
+def mask_to_categorical(y,  n_classes, classes, return_cls_dict = False):
+    """generates a multi-channel categorical class map 
 
-    classes can be 
-        - dict {label -> class_id}
-        - single class_id (will be used for all labels)
-        
-    Each class_id can be 
-        0     -> background 
-        >1    -> foreground class
-        None  -> ignore object/loss (and prob set to -1 for all pixels of the object)
+    Parameters
+    ----------
+    y : 2D ndarray
+        integer label of shape (w,h)
+    n_classes : int
+        Number of different classes (without background)
+    classes: dict, integer, or None
+        the label to class assignment
+        can be 
+        - dict {label -> class_id} 
+           the value of class_id can be
+                             0   -> background class
+                  1...n_classes  -> the respective object class (1 ... n_classes)
+                           None  -> ignore object (prob is set to -1 for the pixels of the object)
+        - single integer value or None -> broadcast value to all labels 
 
-
-    return shape is (y.shape,n_classes+1 ) (first channel is background)
+    Returns
+    -------
+    probability map of shape (w,h,n_classes+1) (first channel is background)
 
     """
     
     if not y.ndim ==2 and not np.issubdtype(y.dtype, np.integer):
         raise ValueError("2d integer mask expected!")
-    if not n_classes>=1:
-        raise ValueError("n_classes should be >= 1!")
+    if not (np.issubdtype(type(n_classes), np.integer) and n_classes>=1):
+        raise ValueError(f"n_classes is '{n_classes}' but should be a positive integer")
 
+    y_labels = np.unique(y[y>0]).tolist()
     
-    if np.isscalar(classes) or classes is None:
-        classes = dict((lab, classes) for lab in np.unique(y[y>0]))
+    # build dict class_id -> labels (inverse of classes)
+    if np.issubdtype(type(classes), np.integer) or classes is None:
+        classes = dict((k,classes) for k in y_labels)
+    elif isinstance(classes, dict):
+        pass
+    else:
+        raise ValueError("classes should be dict, single scalar, or None!")
 
-    isinstance(classes, dict) or _raise(ValueError("classes should be dict or single number!"))
-
+    if not set(y_labels).issubset(set(classes.keys())):
+        raise ValueError(f"class dict misses some gt objects!\ngt_labels found\n{set(y_labels)}\nclass dict labels provided\n{set(cls_dict.keys())}")
+    
     cls_dict = _invert_dict(classes)
     
-    cls_keys = tuple(set(cls_dict.keys())-{None})
-    if len(cls_keys)>0 and not min(cls_keys)>=1 and max(cls_keys)<=n_classes:
-        raise ValueError("wrong class ids")
-
+    # prob map 
     y_mask = np.zeros(y.shape+(n_classes+1,), np.float32)
-    y_mask[...,0] = (y==0) 
+    y_mask[...,0] = (y==0)
 
-    print(cls_dict)
-
+    
     for cls, labels in cls_dict.items():
         if cls is None:
+            # prob == -1 will be used in the loss to ignore object
             y_mask[np.isin(y, labels)] = -1
-        else:
-            print(cls)
+        elif np.issubdtype(type(cls), np.integer) and cls>=0 and cls<=n_classes:
             y_mask[...,cls] = np.isin(y, labels)
-    
-    return y_mask
+        else:
+            raise ValueError(f"Wrong class id '{cls}' (for n_classes={n_classes})")
+
+    if return_cls_dict:
+        return y_mask, cls_dict
+    else:
+        return y_mask
     
     
     

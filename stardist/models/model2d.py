@@ -212,6 +212,7 @@ class Config2D(BaseConfig):
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,.1)
+        self.train_class_weights       = (1,1) if self.n_classes is None else (1,)*(self.n_classes+1)
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
@@ -233,6 +234,9 @@ class Config2D(BaseConfig):
 
         if not len(self.train_loss_weights) == (2 if self.n_classes is None else 3):
             raise ValueError(f"Wrong length of train_loss_weights={self.train_loss_weights} for n_classes={self.n_classes} (e.g. has to be 3 if n_classes is set)")
+
+        if not len(self.train_class_weights) == (2 if self.n_classes is None else self.n_classes+1):
+            raise ValueError(f"Wrong length of train_class_weights={self.train_class_weights} for n_classes={self.n_classes} (has to be {self.n_classes+1})")
 
 
 
@@ -370,7 +374,7 @@ class StarDist2D(StarDistBase):
         validation_data is not None or _raise(ValueError())
         
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)== (2 if self.config.n_classes is None else 3))
-            or _raise(ValueError(f'validation_data must be a {"pair" if self.config.n_classes is None else "triple"} of numpy arrays')))
+            or _raise(ValueError(f'len(validation_data) = {len(validation_data)} but should be {"2" if self.config.n_classes is None else "3"}')))
 
         patch_size = self.config.train_patch_size
         axes = self.config.axes.replace('C','')
@@ -398,13 +402,14 @@ class StarDist2D(StarDistBase):
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
+        classes_val = self._parse_classes_arg(validation_data[2], len(validation_data[0])) if self._is_multiclass() else None
+
         _data_val = StarDistData2D(X = validation_data[0], Y = validation_data[1],
-                                classes = validation_data[2] if self._is_multiclass() else None ,
-                                batch_size=n_take, length=1, **data_kwargs)
+                                       classes = classes_val,
+                                       batch_size=n_take, length=1, **data_kwargs)
         
         data_val = _data_val[0]
 
-        return data_val
         data_train = StarDistData2D(X, Y,
                                     classes = classes,
                                     batch_size=self.config.train_batch_size, augmenter=augmenter,
@@ -465,17 +470,18 @@ class StarDist2D(StarDistBase):
             # build the list of class ids per label via majority vote
             # zoom prob_class to img_shape
             prob_class_up = zoom(prob_class,
-                                 tuple(s2/s1 for s1, s2 in zip(prob_class.shape, img_shape)),
+                                 tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
                                  order=0)
-            class_id, _labels_check = [], []
+            class_id, label_ids = [], []
             for reg in regionprops(labels):
                 m = labels[reg.slice]==reg.label
                 cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
                 class_id.append(cls_id)
-                _labels_check.append(reg.label)
+                label_ids.append(reg.label)
             # just a sanity check whether labels where in sorted order
-            assert all(x <= y for x,y in zip(_labels_check, _labels_check[1:]))
-            res_dict.update(dict(class_id = np.array(class_id)))
+            assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
+            res_dict.update(dict(classes = class_id))
+            res_dict.update(dict(labels = label_ids))
         
         return labels, res_dict
 

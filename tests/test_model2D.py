@@ -84,13 +84,15 @@ def test_optimize_thresholds(model2d):
     np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
 
 
-def test_stardistdata():
+def test_stardistdata(n_classes = None, classes = 1):
+    np.random.seed(42)
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
+                       n_classes = n_classes, classes = (classes,classes), 
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
-    (img,), (prob, dist) = s[0]
-    return (img,), (prob, dist), s
+    a, b = s[0]
+    return a,b, s
 
 
 def render_label_example(model2d):
@@ -188,6 +190,8 @@ def test_load_and_export_TF(model2d):
 
 
 def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, basedir = None):
+    from skimage.measure import regionprops
+    
     img, mask = real_image2d()
     img = normalize(img,1,99.8) 
 
@@ -196,7 +200,7 @@ def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, ba
     else:
         n_channel = 1
 
-    X, Y = [img], [mask]
+    X, Y = [img, img, img], [mask, mask, mask]
 
     conf = Config2D(
         n_rays=48,
@@ -205,30 +209,40 @@ def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, ba
         n_classes = n_classes,
         use_gpu=False,
         train_epochs=1,
-        train_steps_per_epoch=2,
+        train_steps_per_epoch=10,
         train_batch_size=2,
-        train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
+        # train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
+        train_dist_loss = "iou",
         train_patch_size=(128, 128),
     )
 
-    # (img, ), (prob, dist, prob_classes) = s[0]
-    # (img, ), (prob, dist) = s[0]
-
+    if n_classes is not None and n_classes>1 and classes=="area":
+        regs = regionprops(mask)
+        areas = tuple(r.area for r in regs)
+        inds = np.argsort(areas)
+        ss = tuple(slice(n*len(regs)//n_classes,(n+1)*len(regs)//n_classes) for n in range(n_classes))
+        classes = {}
+        for i,s in enumerate(ss):
+            for j in inds[s]:
+                classes[regs[j].label] = i+1
+        classes = (classes,)*len(X)
+        
     model = StarDist2D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
     model.prepare_for_training()
 
+    val_classes = {k:1 for k in set(mask[mask>0])}
+    
+    s = model.train(X, Y, classes = classes, epochs = 200, 
+                validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
+                    )
 
-    model.train(X, Y, classes = classes, epochs = 1, 
-                validation_data=(X[:2], Y[:2],)+(() if n_classes is None else (None,)))
-
-    return model
     img = np.tile(X[0], (2,2))
     labels1, res1 = model.predict_instances(img)
 
     labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
                                               block_size=256,
                                               min_overlap=8, context=8)
-    return  res
+    return  model, img, labels1, labels2, res1, res2
 
         
 @pytest.mark.parametrize('n_classes', (None, 2))
@@ -243,22 +257,28 @@ def test_classes():
     def _parse(n_classes, classes):
         model = StarDist2D(Config2D(n_classes = n_classes), None, None)
         classes =  model._parse_classes_arg(classes, length = 1)
-        print(classes)
         return classes
 
-
+    def _check_single_val(n_classes, classes=1):
+        img, y_gt = real_image2d()
+        labels_gt = set(np.unique(y_gt[y_gt>0]))
+        p, cls_dict = mask_to_categorical(y_gt,
+                                          n_classes=n_classes,
+                                          classes = classes, return_cls_dict = True)
+        assert p.shape == y_gt.shape+(n_classes+1,)
+        assert tuple(cls_dict.keys()) == (classes,) and  set(cls_dict[classes]) == labels_gt
+        assert set(np.where(np.count_nonzero(p, axis = (0,1)))[0]) == set({0,classes})
+        return p, cls_dict
+        
     assert _parse(None,"auto") is None
-    assert _parse(1,"auto")    == (1,)
-    assert _parse(1,4)         == (4,)
+    assert _parse(1,   "auto") == (1,)
+    assert _parse(2,    4)     == (4,)
 
-    y = np.zeros((10,10),np.uint16)
-    y[:5,:5] = 1
+    p, cls_dict = _check_single_val(1,1)
+    p, cls_dict = _check_single_val(2,1)
+    p, cls_dict = _check_single_val(7,6)
     
-    p = mask_to_categorical(y,n_classes = 2, classes = 1)
-    assert p.shape == (10,10,3) and 
-
-    
-    
+    return p
     
 
 def print_receptive_fields():
@@ -276,8 +296,13 @@ def print_receptive_fields():
 if __name__ == '__main__':
     # from conftest import model2d
 
-    res = _test_model_multiclass(n_classes = 1, classes = "auto")
+    a, b, s = test_stardistdata(n_classes = 2,classes = 2)
+    a, b, s = test_stardistdata(n_classes = 2,classes = 1)
+    
+    # res = _test_model_multiclass(n_classes = 1, classes = "auto")
+    res = _test_model_multiclass(n_classes = 2, classes = "area")
 
+    # y = test_classes()
 
     # img, mask = real_image2d()
     # img = np.tile(normalize(img,1,99.8),(8,8))

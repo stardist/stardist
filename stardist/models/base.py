@@ -73,20 +73,7 @@ def kld(y_true, y_pred):
 def masked_iou_loss(mask, reg_weight=0, norm_by_mask=True):
     def iou_loss(y_true, y_pred):
         axis = -1 if backend_channels_last() else 1 
-        # inter = K.sum(K.square(K.minimum(y_true,y_pred)), axis = axis)
-        # union = K.sum(K.square(K.maximum(y_true,y_pred)), axis = axis)
-        
-        # inter = K.mean(K.minimum(y_true,y_pred), axis = axis)
-        # union = K.mean(K.maximum(y_true,y_pred), axis = axis)
 
-        # inter = K.mean(K.square(K.minimum(y_true,K.maximum(0.,y_pred))), axis = axis)
-        # union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
-        # inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis = axis)
-        # union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
-
-        # inter = K.mean(K.minimum(y_true,y_pred), axis = axis)
-        # union = K.mean(K.maximum(y_true,y_pred), axis = axis)
-        
         inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis = axis)
         union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
 
@@ -94,21 +81,7 @@ def masked_iou_loss(mask, reg_weight=0, norm_by_mask=True):
         iou = K.expand_dims(iou,axis)
         
         loss = 1. - iou # + 0.005*K.abs(y_true-y_pred)
-
-        # a = K.shape(inter)
-        # a = K.square(K.minimum(y_true,y_pred))[0,100,100]
-        # # a = union[0,100,100]-inter[0,100,100]
-        # a = tf.Print(a,[a])
-        # b = K.cast(K.sum(a), tf.float32)
-        # inter = inter + b
-
-        # inter = tf.Print(inter,[inter])
-
-        # inter = tf.Print(inter,[inter])
-        # union = tf.Print(union,[union])
-        
-
-        
+               
         return loss
     
     return generic_masked_loss(mask, iou_loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
@@ -125,20 +98,29 @@ def masked_iou_metric(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 
+def weighted_categorical_crossentropy(weights=(1,1,1), ndim=2):
+    """ ndim = (2,3) """
 
-# def kld(y_true, y_pred):
-#     y_true = K.clip(y_true, K.epsilon(), 1)
-#     y_pred = K.clip(y_pred, K.epsilon(), 1)
-#     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
+    axis = -1 if backend_channels_last() else 1
+    shape = [1]*(ndim+2)
+    shape[axis] = len(weights)
+    weights = np.broadcast_to(weights, shape)
+    weights = K.constant(weights)    
 
+    def weighted_cce(y_true, y_pred):
+        # ignore pixels that have prob < 0 
+        mask = K.cast(y_true>=0, K.floatx())
+        y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
+        y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
+        loss = - K.sum(weights*mask*y_true*K.log(y_pred), axis = axis)
+        return loss
+    
+    return weighted_cce
 
-# def masked_loss(mask, penalty, reg_weight, norm_by_mask):
-#     loss = lambda y_true, y_pred: penalty(y_true - y_pred)
-#     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 
 class StarDistDataBase(RollingSequence):
-
+    
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
                  n_classes = None, classes = None, 
                  use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
@@ -268,21 +250,30 @@ class StarDistBase(BaseModel):
         return (self.config.n_classes is not None)
 
     def _parse_classes_arg(self, classes, length):
+        """ creates a proper classes tuple from different possible "classes" arguments in model.train()
+
+        classes can be 
+          "auto" -> all objects will be assigned to the first foreground class (unless n_classes is None)
+          single integer -> all objects will be assigned that class 
+          tuple, list, ndarray -> do nothing (needs to be of given length)
+            
+        returns a tuple of given length 
+        """
         if isinstance(classes, str):
             classes == "auto" or _raise(ValueError(f"classes = '{classes}': only 'auto' supported as string argument for classes"))
             if self.config.n_classes is None:
                 classes = None
-            elif self.config.n_classes == 1:
-                classes = (1,)*length
             else:
-                raise ValueError("classes = 'auto' not supported for n_classes > 1 ")
-        elif np.isscalar(classes):
+                if self.config.n_classes > 1:
+                    warnings.warn("using classes = 'auto' for n_classes > 1 (all objects will be class 1!)")
+                classes = (1,)*length            
+        elif np.isscalar(classes) or classes is None:
             return (classes,)*length
-        elif np.isinstance(classes, (tuple, list, np.ndarray)):
+        elif isinstance(classes, (tuple, list, np.ndarray)):
+            len(classes) == length or _raise(ValueError(f"parse_classes: len(classes) should be {length}!"))
             return tuple(classes)
         else:
             raise ValueError("classes should be either 'auto', a single scalar, or a list of scalars/label dicts")
-            
         return classes
 
     @thresholds.setter
@@ -314,7 +305,7 @@ class StarDistBase(BaseModel):
                             'iou': masked_iou_loss,
                             }[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
-        prob_class_loss = 'categorical_crossentropy'
+
 
         def split_dist_true_mask(dist_true_mask):
             return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)
@@ -340,6 +331,8 @@ class StarDistBase(BaseModel):
 
 
         if self._is_multiclass():
+            prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights,
+                                                                   ndim = self.config.n_dim)
             loss=[prob_loss, dist_loss, prob_class_loss]            
         else:
             loss=[prob_loss, dist_loss]
