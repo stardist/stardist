@@ -69,6 +69,10 @@ We provide example workflows for 2D and 3D via Jupyter [notebooks](https://githu
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
 
+If you want to reload a trained model for prediction or to continue training, simply load it without a configuration file just like so:
+
+`model = StarDist2D(config=None, name="SameNameAsTrainned", basedir = "SameDirAsTrained")`
+
 ### Pretrained Models for 2D
 
 Currently we provide some pretrained models in 2D that might already be suitable for your images:
