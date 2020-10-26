@@ -334,16 +334,16 @@ def mask_to_categorical(y,  n_classes, classes, return_cls_dict = False):
     else:
         raise ValueError("classes should be dict, single scalar, or None!")
 
-    if not set(y_labels).issubset(set(classes.keys())):
-        raise ValueError(f"class dict misses some gt objects!\ngt_labels found\n{set(y_labels)}\nclass dict labels provided\n{set(cls_dict.keys())}")
-    
+    # if not set(y_labels).issubset(set(classes.keys())):
+    if not set(y_labels).issubset(set(classes.keys())):  
+        raise ValueError(f"all gt labels should be present in class dict provided \ngt_labels found\n{set(y_labels)}\nclass dict labels provided\n{set(classes.keys())}")
+
     cls_dict = _invert_dict(classes)
     
     # prob map 
     y_mask = np.zeros(y.shape+(n_classes+1,), np.float32)
     y_mask[...,0] = (y==0)
 
-    
     for cls, labels in cls_dict.items():
         if cls is None:
             # prob == -1 will be used in the loss to ignore object

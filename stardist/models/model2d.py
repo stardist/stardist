@@ -338,8 +338,12 @@ class StarDist2D(StarDistBase):
             Input images
         Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
             Label masks
-        validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
-            Tuple of X,Y validation arrays.
+        classes (optional): "auto" or iterable of same length as X 
+             label -> class mapping for each mask if multiclass prediction is activated (n_classes>0)
+             list of dicts with label -> class id (1,...,n_classes) 
+             "auto" -> all objects will be assigned to the first foreground class 
+        validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`) or triple (if multiclass)
+            Tuple (triple if multiclass) of X,Y validation arrays.
         augmenter : None or callable
             Function with expected signature ``xt, yt = augmenter(x, y)``
             that takes in a single pair of input/label image (x,y) and returns

@@ -190,7 +190,7 @@ def test_load_and_export_TF(model2d):
     model.export_TF(single_output=True, upsample_grid=True)
 
 
-def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, basedir = None):
+def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
     from skimage.measure import regionprops
     
     img, mask = real_image2d()
@@ -233,11 +233,11 @@ def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
-    s = model.train(X, Y, classes = classes, epochs = 50, 
+    s = model.train(X, Y, classes = classes, epochs = 1, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
-    img = np.tile(X[0], (2,2))
+    img = np.tile(img, (2,2)+(1,)*(img.ndim-2))
     labels1, res1 = model.predict_instances(img)
 
     labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
@@ -246,10 +246,11 @@ def _test_model_multiclass(n_classes = 2, classes = "auto", n_channel = None, ba
     return  model, img, labels1, labels2, res1, res2
 
         
-@pytest.mark.parametrize('n_classes', (None, 2))
+@pytest.mark.parametrize('n_classes, classes', [(None, "auto"), (1, "auto"), (3, (1,2,3))])
 @pytest.mark.parametrize('n_channel', (None, 3 ))
-def test_model_multiclass(tmpdir, n_classes, n_channel):
-    return _test_model_multiclass(n_classes, n_channel, basedir = tmpdir)
+def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
+    return _test_model_multiclass(n_classes=n_classes, classes=classes,
+                                  n_channel=n_channel, basedir = tmpdir)
 
 
 def test_classes():
@@ -273,7 +274,6 @@ def test_classes():
         
     assert _parse(None,"auto") is None
     assert _parse(1,   "auto") == (1,)
-    assert _parse(2,    4)     == (4,)
 
     p, cls_dict = _check_single_val(1,1)
     p, cls_dict = _check_single_val(2,1)
@@ -299,14 +299,6 @@ if __name__ == '__main__':
 
     a, b, s = test_stardistdata(n_classes = 2,classes = 2)
     a, b, s = test_stardistdata(n_classes = 2,classes = 1)
-    
-    # res = _test_model_multiclass(n_classes = 1, classes = "auto")
 
-    res = _test_model_multiclass(n_classes = 2, classes = "area")
 
-    # y = test_classes()
-
-    # img, mask = real_image2d()
-    # img = np.tile(normalize(img,1,99.8),(8,8))
-    # model = StarDist2D.from_pretrained("2D_versatile_fluo")
-    # labels, res = model.predict_instances_big(img, axes='YX',block_size=512, min_overlap=16, context=16, n_tiles=(2,2))
+    _test_model_multiclass(n_classes=1,classes = (1,1,1), n_channel=3)

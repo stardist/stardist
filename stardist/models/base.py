@@ -98,7 +98,7 @@ def masked_iou_metric(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 
-def weighted_categorical_crossentropy(weights=(1,1,1), ndim=2):
+def weighted_categorical_crossentropy(weights, ndim):
     """ ndim = (2,3) """
 
     axis = -1 if backend_channels_last() else 1
@@ -108,7 +108,7 @@ def weighted_categorical_crossentropy(weights=(1,1,1), ndim=2):
     weights = K.constant(weights)    
 
     def weighted_cce(y_true, y_pred):
-        # ignore pixels that have prob < 0 
+        # ignore pixels that have y_true (prob_class) < 0 
         mask = K.cast(y_true>=0, K.floatx())
         y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
@@ -116,7 +116,6 @@ def weighted_categorical_crossentropy(weights=(1,1,1), ndim=2):
         return loss
     
     return weighted_cce
-
 
 
 class StarDistDataBase(RollingSequence):
@@ -264,17 +263,14 @@ class StarDistBase(BaseModel):
             classes == "auto" or _raise(ValueError(f"classes = '{classes}': only 'auto' supported as string argument for classes"))
             if self.config.n_classes is None:
                 classes = None
+            elif self.config.n_classes == 1:
+                classes = (1,)*length                            
             else:
-                if self.config.n_classes > 1:
-                    warnings.warn("using classes = 'auto' for n_classes > 1 (all objects will be class 1!)")
-                classes = (1,)*length            
-        elif np.isscalar(classes) or classes is None:
-            return (classes,)*length
+                raise ValueError("using classes = 'auto' for n_classes > 1 not supported")
         elif isinstance(classes, (tuple, list, np.ndarray)):
             len(classes) == length or _raise(ValueError(f"parse_classes: len(classes) should be {length}!"))
-            return tuple(classes)
         else:
-            raise ValueError("classes should be either 'auto', a single scalar, or a list of scalars/label dicts")
+            raise ValueError("classes should be either 'auto' or a list of scalars/label dicts")
         return classes
 
     @thresholds.setter
