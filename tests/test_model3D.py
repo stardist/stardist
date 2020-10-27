@@ -29,7 +29,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
         use_gpu=False,
         train_epochs=1,
         train_steps_per_epoch=1,
-        train_batch_size=1,
+        train_batch_size=2,
         train_loss_weights=(4, 1),
         train_patch_size=(48, 64, 64),
     )

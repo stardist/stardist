@@ -191,7 +191,7 @@ class Config3D(BaseConfig):
         .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
     """
 
-    def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), n_classes = None, anisotropy=None, backbone='resnet', **kwargs):
+    def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), n_classes = None, anisotropy=None, backbone='unet', **kwargs):
 
         if rays is None:
             if 'rays_json' in kwargs:
