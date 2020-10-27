@@ -452,8 +452,6 @@ class StarDist2D(StarDistBase):
 
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
 
-        # self.data = iter(data_train)
-
         history = fit(iter(data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
                       callbacks=self.callbacks, verbose=1)

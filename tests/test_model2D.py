@@ -210,9 +210,8 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         n_classes = n_classes,
         use_gpu=False,
         train_epochs=1,
-        train_steps_per_epoch=10,
-        train_batch_size=2,
-        # train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
+        train_steps_per_epoch=1,
+        train_batch_size=1,
         train_dist_loss = "iou",
         train_patch_size=(128, 128),
     )
@@ -235,18 +234,17 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     s = model.train(X, Y, classes = classes, epochs = 1, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
+    labels, res = model.predict_instances(img)
 
-    img = np.tile(img, (2,2)+(1,)*(img.ndim-2))
-    labels1, res1 = model.predict_instances(img)
+    # img = np.tile(img, (2,2)+(1,)*(img.ndim-2))
+    # labels1, res1 = model.predict_instances(img)
 
-    labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
-                                              block_size=256,
-                                              min_overlap=8, context=8)
-    return  model, img, labels1, labels2, res1, res2
+    # labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
+    #                                           block_size=256,
+    #                                           min_overlap=8, context=8)
+    # return  model, img, labels1, labels2, res1, res2
 
-        
-@pytest.mark.parametrize('n_classes, classes', [(None, "auto"), (1, "auto"), (3, (1,2,3))])
-@pytest.mark.parametrize('n_channel', (None, 3 ))
+@pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir)
