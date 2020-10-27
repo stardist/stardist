@@ -244,6 +244,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     #                                           min_overlap=8, context=8)
     # return  model, img, labels1, labels2, res1, res2
 
+@pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir)
