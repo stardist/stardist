@@ -23,7 +23,7 @@ from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
-from ..utils import _is_power_of_2, optimize_threshold
+from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
 
 
 # TODO: support (optional) classification of objects?
@@ -290,6 +290,9 @@ class StarDistBase(BaseModel):
             raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
         all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
             ValueError("all values of n_tiles must be integer values >= 1"))
+        if not _is_floatarray(img):
+            warnings.warn("Predicting on non-float image ( forgot to normalize? )")
+
         n_tiles = tuple(map(int,n_tiles))
 
         axes     = self._normalize_axes(img, axes)
