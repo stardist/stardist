@@ -176,6 +176,103 @@ def print_receptive_fields():
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
 
+def test_classes():
+    from stardist.utils import mask_to_categorical
+    
+    def _parse(n_classes, classes):
+        model = StarDist3D(Config3D(n_classes = n_classes), None, None)
+        classes =  model._parse_classes_arg(classes, length = 1)
+        return classes
+
+    def _check_single_val(n_classes, classes=1):
+        img, y_gt = real_image3d()
+        
+        labels_gt = set(np.unique(y_gt[y_gt>0]))
+        p, cls_dict = mask_to_categorical(y_gt,
+                                          n_classes=n_classes,
+                                          classes = classes, return_cls_dict = True)
+        assert p.shape == y_gt.shape+(n_classes+1,)
+        assert tuple(cls_dict.keys()) == (classes,) and  set(cls_dict[classes]) == labels_gt
+        assert set(np.where(np.count_nonzero(p, axis = (0,1,2)))[0]) == set({0,classes})
+        return p, cls_dict
+        
+    assert _parse(None,"auto") is None
+    assert _parse(1,   "auto") == (1,)
+
+    p, cls_dict = _check_single_val(1,1)
+    p, cls_dict = _check_single_val(2,1)
+    p, cls_dict = _check_single_val(7,6)
+    
+    return p
+
+def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
+    from skimage.measure import regionprops
+    
+    img, mask = real_image3d()
+    img = normalize(img,1,99.8) 
+
+    if n_channel is not None:
+        img = np.repeat(img[..., np.newaxis], n_channel, axis=-1)
+    else:
+        n_channel = 1
+
+    X, Y = [img, img, img], [mask, mask, mask]
+
+    conf = Config3D(
+        n_rays=32,
+        grid=(2,1,2),
+        n_channel_in=n_channel,
+        n_classes = n_classes,
+        use_gpu=False,
+        train_epochs=1,
+        train_steps_per_epoch=10,
+        train_batch_size=2,
+        train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
+        train_patch_size=(16,16,16),
+    )
+
+    if n_classes is not None and n_classes>1 and classes=="area":
+        regs = regionprops(mask)
+        areas = tuple(r.area for r in regs)
+        inds = np.argsort(areas)
+        ss = tuple(slice(n*len(regs)//n_classes,(n+1)*len(regs)//n_classes) for n in range(n_classes))
+        classes = {}
+        for i,s in enumerate(ss):
+            for j in inds[s]:
+                classes[regs[j].label] = i+1
+        classes = (classes,)*len(X)
+
+        
+    model = StarDist3D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
+    model.prepare_for_training()
+
+    val_classes = {k:1 for k in set(mask[mask>0])}
+    
+    s = model.train(X, Y, classes = classes, epochs = 1, 
+                validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
+                    )
+
+    img = np.tile(img, (4,2,2)+(1,)*(img.ndim-3))
+    labels1, res1 = model.predict_instances(img)
+
+    labels2, res2 = model.predict_instances_big(img, axes='ZYX' if img.ndim==3 else "ZYXC",
+                                                block_size=100,
+                                                min_overlap=8, context=8)
+    return  model, img, labels1, labels2, res1, res2
+
+        
+@pytest.mark.parametrize('n_classes, classes', [(None, "auto"), (1, "auto"), (3, (1,2,3))])
+@pytest.mark.parametrize('n_channel', (None, 3 ))
+def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
+    return _test_model_multiclass(n_classes=n_classes, classes=classes,
+                                  n_channel=n_channel, basedir = tmpdir)
+
+
 if __name__ == '__main__':
-    from conftest import _model3d
-    model, lbl = test_load_and_predict_with_overlap(_model3d())
+    # from conftest import _model3d
+    # model, lbl = test_load_and_predict_with_overlap(_model3d())
+
+
+    # test_classes()
+
+    res = _test_model_multiclass(n_classes = 2, classes="area")

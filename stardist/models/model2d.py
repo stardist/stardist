@@ -116,6 +116,8 @@ class Config2D(BaseConfig):
     grid : (int,int)
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
+    n_classes : None or int
+        Number of fg classes to use for multi_class predcition (use None to disable)
     backbone : str
         Name of the neural network architecture to be used as backbone.
     kwargs : dict
@@ -236,13 +238,14 @@ class Config2D(BaseConfig):
         
         self.update_parameters(False, **kwargs)
 
+        # FIXME: put into is_valid()
         if not len(self.train_loss_weights) == (2 if self.n_classes is None else 3):
             raise ValueError(f"Wrong length of train_loss_weights={self.train_loss_weights} for n_classes={self.n_classes} (e.g. has to be 3 if n_classes is set)")
 
         if not len(self.train_class_weights) == (2 if self.n_classes is None else self.n_classes+1):
             raise ValueError(f"Wrong length of train_class_weights={self.train_class_weights} for n_classes={self.n_classes} (has to be {self.n_classes+1})")
 
-
+        
 
 class StarDist2D(StarDistBase):
     """StarDist2D model.
@@ -412,14 +415,13 @@ class StarDist2D(StarDistBase):
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
         classes_val = self._parse_classes_arg(validation_data[2], len(validation_data[0])) if self._is_multiclass() else None
 
-        _data_val = StarDistData2D(X = validation_data[0], Y = validation_data[1],
-                                       classes = classes_val,
-                                       batch_size=n_take, length=1, **data_kwargs)
+        _data_val = StarDistData2D(validation_data[0],validation_data[1],
+                                   classes = classes_val,
+                                   batch_size=n_take, length=1, **data_kwargs)
         
         data_val = _data_val[0]
 
-        data_train = StarDistData2D(X, Y,
-                                    classes = classes,
+        data_train = StarDistData2D(X, Y, classes = classes,
                                     batch_size=self.config.train_batch_size, augmenter=augmenter,
                                     length=epochs*steps_per_epoch, **data_kwargs)
 
@@ -444,8 +446,9 @@ class StarDist2D(StarDistBase):
                         cb.output_target_shapes = [None,[None]*4]
                         cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
             elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
-                self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
-                                                           n_images=3, prob_out=False, output_slices=output_slices))
+                self.callbacks.append(CARETensorBoardImage(model=self.keras_model,
+                                        data=data_val, log_dir=str(self.logdir/'logs'/'images'),
+                                        n_images=3, prob_out=False, output_slices=output_slices))
 
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
 
@@ -493,8 +496,6 @@ class StarDist2D(StarDistBase):
             assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
             res_dict.update(dict(classes = class_id))
             res_dict.update(dict(labels = label_ids))
-
-            self.p = prob_class_up
             
         return labels, res_dict
 
