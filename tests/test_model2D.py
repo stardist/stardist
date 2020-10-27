@@ -229,7 +229,6 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         classes = (classes,)*len(X)
         
     model = StarDist2D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
-    model.prepare_for_training()
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
