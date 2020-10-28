@@ -747,7 +747,8 @@ class StarDistBase(BaseModel):
             else:
                 return {**predict_kwargs, 'n_tiles': self._guess_n_tiles(x), 'show_tile_progress': False}
 
-        Yhat_val = [self.predict(x, **_predict_kwargs(x)) for x in X_val]
+        # only take first two elements of predict in case multi class is activated
+        Yhat_val = [self.predict(x, **_predict_kwargs(x))[:2] for x in X_val]
 
         opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
         for _opt_nms_thresh in nms_threshs:

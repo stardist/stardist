@@ -252,6 +252,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
                     )
 
     labels, res = model.predict_instances(img)
+    return  model, X,Y, labels, res
     
     # img = np.tile(img, (4,2,2)+(1,)*(img.ndim-3))
     # labels1, res1 = model.predict_instances(img)
@@ -273,4 +274,4 @@ if __name__ == '__main__':
 
 
     test_classes()
-    res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=3)
+    res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1)
