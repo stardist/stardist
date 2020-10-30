@@ -300,8 +300,6 @@ class StarDist2D(StarDistBase):
     def _build_unet(self, use_SE=False):
         if use_SE:
             unet_block = unetSE_block
-        else:
-            unet_block = unet_block
         
         self.config.backbone in ('unet',"seunet") or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
