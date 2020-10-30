@@ -297,7 +297,7 @@ class StarDist2D(StarDistBase):
         else:
             raise NotImplementedError(self.config.backbone)
 
-    def _build_unet(self, use_SE):
+    def _build_unet(self, use_SE=False):
         if use_SE:
             unet_block = unetSE_block
         else:
