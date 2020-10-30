@@ -315,13 +315,13 @@ if __name__ == '__main__':
         n_channel_in=1,
         use_gpu=False,
         train_epochs=1,
-        backbone = "seresnet", 
+        backbone = "seunet", 
         train_steps_per_epoch=20,
         train_batch_size=2,
         train_loss_weights=(4, 1),
         train_patch_size=(128, 128),
     )
 
-    model = StarDist2D(conf, name=None, basedir=None)
+    model = StarDist2D(conf, name="foo", basedir="foo")
     model.train(X, Y, validation_data=(X[:2], Y[:2]))
 

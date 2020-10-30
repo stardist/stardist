@@ -24,7 +24,7 @@ from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-from .advanced_blocks import resnetSE_block
+from .advanced_blocks import resnetSE_block, unetSE_block
 
 
 class StarDistData2D(StarDistDataBase):
@@ -186,7 +186,7 @@ class Config2D(BaseConfig):
         self.n_classes                 = None if n_classes is None else int(n_classes)
 
         # default config (can be overwritten by kwargs below)
-        if self.backbone == 'unet':
+        if self.backbone in ('unet','seunet'):
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
             self.unet_n_filter_base    = 32
@@ -292,11 +292,18 @@ class StarDist2D(StarDistBase):
             return self._build_resnet()
         elif self.config.backbone == "seresnet":
             return self._build_resnet(use_SE=True)
+        if self.config.backbone == "seunet":
+            return self._build_unet(use_SE = True)
         else:
             raise NotImplementedError(self.config.backbone)
 
-    def _build_unet(self):
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
+    def _build_unet(self, use_SE):
+        if use_SE:
+            unet_block = unetSE_block
+        else:
+            unet_block = unet_block
+        
+        self.config.backbone in ('unet',"seunet") or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img  = Input(self.config.net_input_shape, name='input')
@@ -574,7 +581,7 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        if self.config.backbone == "unet":
+        if self.config.backbone in ("unet","seunet"):
             query_axes = axes_check_and_normalize(query_axes)
             assert len(self.config.unet_pool) == len(self.config.grid)
             div_by = dict(zip(
