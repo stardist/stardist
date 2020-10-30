@@ -298,8 +298,7 @@ class StarDist2D(StarDistBase):
             raise NotImplementedError(self.config.backbone)
 
     def _build_unet(self, use_SE=False):
-        if use_SE:
-            unet_block = unetSE_block
+        u_block = unetSE_block if use_SE else unet_block
         
         self.config.backbone in ('unet',"seunet") or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
@@ -317,7 +316,7 @@ class StarDist2D(StarDistBase):
                                     padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
-        unet_base        = unet_block(**unet_kwargs)(pooled_img)
+        unet_base        = u_block(**unet_kwargs)(pooled_img)
 
         if self.config.net_conv_after_unet > 0:
             unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
@@ -349,10 +348,7 @@ class StarDist2D(StarDistBase):
 
 
     def _build_resnet(self, use_SE=False):
-        if use_SE:
-            res_block = resnetSE_block
-        else:
-            res_block = resnet_block
+        res_block = resnetSE_block if use_SE else resnet_block
             
         self.config.resnet_kernel_size = (3,3)
         self.config.resnet_n_conv_per_block =2
