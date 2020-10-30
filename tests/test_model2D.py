@@ -294,8 +294,34 @@ def print_receptive_fields():
 if __name__ == '__main__':
     # from conftest import model2d
 
-    a, b, s = test_stardistdata(n_classes = 2,classes = 2)
-    a, b, s = test_stardistdata(n_classes = 2,classes = 1)
+    # a, b, s = test_stardistdata(n_classes = 2,classes = 2)
+    # a, b, s = test_stardistdata(n_classes = 2,classes = 1)
 
 
-    _test_model_multiclass(n_classes=1,classes = (1,1,1), n_channel=3)
+    # _test_model_multiclass(n_classes=1,classes = (1,1,1), n_channel=3)
+
+
+    
+
+    img = circle_image(shape=(160, 160))
+    imgs = np.repeat(img[np.newaxis], 3, axis=0)
+
+    X = imgs+.6*np.random.uniform(0, 1, imgs.shape)
+    Y = (imgs if imgs.ndim == 3 else imgs[..., 0]).astype(int)
+
+    conf = Config2D(
+        n_rays=48,
+        grid=(2,2),
+        n_channel_in=1,
+        use_gpu=False,
+        train_epochs=1,
+        backbone = "seresnet", 
+        train_steps_per_epoch=20,
+        train_batch_size=2,
+        train_loss_weights=(4, 1),
+        train_patch_size=(128, 128),
+    )
+
+    model = StarDist2D(conf, name=None, basedir=None)
+    model.train(X, Y, validation_data=(X[:2], Y[:2]))
+

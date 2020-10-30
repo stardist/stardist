@@ -6,7 +6,7 @@ import math
 from tqdm import tqdm
 
 from csbdeep.models import BaseConfig
-from csbdeep.internals.blocks import unet_block
+from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
@@ -24,7 +24,7 @@ from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-
+from .advanced_blocks import resnetSE_block
 
 
 class StarDistData2D(StarDistDataBase):
@@ -199,8 +199,9 @@ class Config2D(BaseConfig):
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
         else:
-            # TODO: resnet backbone for 2D model?
-            raise ValueError("backbone '%s' not supported." % self.backbone)
+            pass
+            # # TODO: resnet backbone for 2D model?
+            # raise ValueError("backbone '%s' not supported." % self.backbone)
 
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
@@ -285,6 +286,16 @@ class StarDist2D(StarDistBase):
 
 
     def _build(self):
+        if self.config.backbone == "unet":
+            return self._build_unet()
+        elif self.config.backbone == "resnet":
+            return self._build_resnet()
+        elif self.config.backbone == "seresnet":
+            return self._build_resnet(use_SE=True)
+        else:
+            raise NotImplementedError(self.config.backbone)
+
+    def _build_unet(self):
         self.config.backbone == 'unet' or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
@@ -332,6 +343,70 @@ class StarDist2D(StarDistBase):
             return Model([input_img], [output_prob,output_dist])
 
 
+    def _build_resnet(self, use_SE=False):
+        if use_SE:
+            res_block = resnetSE_block
+        else:
+            res_block = resnet_block
+            
+        self.config.resnet_kernel_size = (3,3)
+        self.config.resnet_n_conv_per_block =2
+        self.config.resnet_batch_norm = False
+        self.config.resnet_kernel_init = "he_normal"
+        self.config.resnet_activation = "relu"
+        self.config.resnet_n_blocks = 4
+        self.config.resnet_n_filter_base = 48
+        self.config.net_conv_after_resnet   = 128
+        
+        n_filter = self.config.resnet_n_filter_base
+        resnet_kwargs = dict (
+            kernel_size        = self.config.resnet_kernel_size,
+            n_conv_per_block   = self.config.resnet_n_conv_per_block,
+            batch_norm         = self.config.resnet_batch_norm,
+            kernel_initializer = self.config.resnet_kernel_init,
+            activation         = self.config.resnet_activation,
+        )
+
+        input_img = Input(self.config.net_input_shape, name='input')
+
+        layer = input_img
+        layer = Conv2D(n_filter, (7,7), padding="same", kernel_initializer=self.config.resnet_kernel_init)(layer)
+        layer = Conv2D(n_filter, self.config.resnet_kernel_size, padding="same", kernel_initializer=self.config.resnet_kernel_init)(layer)
+
+        pooled = np.array([1,1])
+        for n in range(self.config.resnet_n_blocks):
+            pool = 1 + (np.asarray(self.config.grid) > pooled)
+            pooled *= pool
+            if any(p > 1 for p in pool):
+                n_filter *= 2
+                
+            layer = res_block(n_filter, pool=tuple(pool), **resnet_kwargs)(layer)
+
+        layer_base = layer 
+        if self.config.net_conv_after_resnet > 0:
+            layer = Conv2D(self.config.net_conv_after_resnet, self.config.resnet_kernel_size,
+                           name='features', padding='same', activation=self.config.resnet_activation)(layer_base)
+
+        output_prob = Conv2D(1,                  (1,1), name='prob', padding='same', activation='sigmoid')(layer)
+        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(layer)
+
+        # attach extra classification head when self.n_classes is given 
+        if self._is_multiclass():
+            if self.config.net_conv_after_resnet > 0:
+                layer_class  = Conv2D(self.config.net_conv_after_resnet, self.config.resnet_kernel_size,
+                           name='features_class', padding='same', activation=self.config.resnet_activation)(layer_base)
+            else:
+                layer_class  = layer_base
+
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
+                                        name='prob_class', padding='same',
+                                        activation='softmax')(layer_class)
+            return Model([input_img], [output_prob,output_dist, output_prob_class])
+        
+        else:
+            return Model([input_img], [output_prob,output_dist])
+
+        
     def train(self, X, Y, validation_data, classes = "auto", augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
         """Train the neural network with the given data.
 
@@ -499,15 +574,19 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
-        query_axes = axes_check_and_normalize(query_axes)
-        assert len(self.config.unet_pool) == len(self.config.grid)
-        div_by = dict(zip(
-            self.config.axes.replace('C',''),
-            tuple(p**self.config.unet_n_depth * g for p,g in zip(self.config.unet_pool,self.config.grid))
-        ))
-        return tuple(div_by.get(a,1) for a in query_axes)
-
+        if self.config.backbone == "unet":
+            query_axes = axes_check_and_normalize(query_axes)
+            assert len(self.config.unet_pool) == len(self.config.grid)
+            div_by = dict(zip(
+                self.config.axes.replace('C',''),
+                tuple(p**self.config.unet_n_depth * g for p,g in zip(self.config.unet_pool,self.config.grid))
+            ))
+            return tuple(div_by.get(a,1) for a in query_axes)
+        elif self.config.backbone in ("resnet","seresnet"):
+            grid_dict = dict(zip(self.config.axes.replace('C',''), self.config.grid))
+            return tuple(grid_dict.get(a,1) for a in query_axes)
+        else:
+            raise NotImplementedError()
 
     # def _axes_tile_overlap(self, query_axes):
     #     self.config.backbone == 'unet' or _raise(NotImplementedError())
