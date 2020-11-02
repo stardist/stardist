@@ -16,7 +16,7 @@ from distutils.version import LooseVersion
 
 keras = keras_import()
 K = keras_import('backend')
-Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
+Input, Conv2D, MaxPooling2D, Dropout = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D','Dropout')
 Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase
@@ -332,9 +332,10 @@ class StarDist2D(StarDistBase):
         
         # attach extra classification head when self.n_classes is given 
         if self._is_multiclass():
-            if self.config.net_conv_after_unet > 0:
-                unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                             name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+            if self.config.net_conv_after_unet > 0:                
+                unet_class = Dropout(self.config.unet_dropout)(unet_base)
+                unet_class = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                             name='features_class', padding='same', activation=self.config.unet_activation)(unet_class)
             else:
                 unet_class  = unet_base
 
@@ -560,16 +561,16 @@ class StarDist2D(StarDistBase):
             prob_class_up = zoom(prob_class,
                                  tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
                                  order=0)
-            class_id, label_ids = [], []
+            class_prob, label_ids = [],[]
             for reg in regionprops(labels):
                 m = labels[reg.slice]==reg.label
-                cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
-                class_id.append(cls_id)
-                label_ids.append(reg.label)
+                # use average class prob per object (maybe better to use center one?)
+                p = np.mean(prob_class_up[reg.slice][m],axis=0)
+                class_prob.append(p)
+                label_ids.append(reg.label)                
             # just a sanity check whether labels where in sorted order
             assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            res_dict.update(dict(classes = class_id))
-            res_dict.update(dict(labels = label_ids))
+            res_dict.update(dict(class_prob = np.array(class_prob)))
             
         return labels, res_dict
 

@@ -11,7 +11,7 @@ from .geometry import polygons_to_label, polyhedron_to_label
 
 
 
-OBJECT_KEYS = set(('prob', 'points', 'coord', 'dist', 'class_id'))
+OBJECT_KEYS = set(('prob', 'points', 'coord', 'dist', 'class_prob'))
 COORD_KEYS = set(('points', 'coord'))
 
 
