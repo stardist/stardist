@@ -26,7 +26,8 @@ def se_block3(inp, out, n_channel, ratio=8):
     return Multiply()([out, y])
 
 
-def resnetSE_block(n_filter, kernel_size=(3,3), pool=(1,1), n_conv_per_block=2,
+def resnet_block(n_filter, kernel_size=(3,3), pool=(1,1), n_conv_per_block=2,
+                 use_SE = False,
                  batch_norm=False, kernel_initializer='he_normal', activation='relu'):
     """ Squeeze and Excite 
     https://arxiv.org/abs/1709.01507
@@ -66,7 +67,8 @@ def resnetSE_block(n_filter, kernel_size=(3,3), pool=(1,1), n_conv_per_block=2,
         if any(p!=1 for p in pool) or n_filter != K.int_shape(inp)[-1]:
             inp = conv_layer(n_filter, (1,)*n_dim, strides=pool, **conv_kwargs)(inp)
 
-        x = se_block(x,x,n_filter, ratio=min(n_filter, 8))
+        if use_SE:
+            x = se_block(x,x,n_filter, ratio=min(n_filter, 8))
         
         x = Add()([inp, x])
         x = Activation(activation)(x)
@@ -74,8 +76,9 @@ def resnetSE_block(n_filter, kernel_size=(3,3), pool=(1,1), n_conv_per_block=2,
 
     return f
 
-def unetSE_block(n_depth=2, n_filter_base=16, kernel_size=(3,3), n_conv_per_depth=2,
+def unet_block(n_depth=2, n_filter_base=16, kernel_size=(3,3), n_conv_per_depth=2,
                activation="relu",
+               use_SE = False,
                batch_norm=False,
                dropout=0.0,
                last_activation=None,
@@ -115,7 +118,8 @@ def unetSE_block(n_depth=2, n_filter_base=16, kernel_size=(3,3), n_conv_per_dept
                                    activation=activation,
                                    init=kernel_init,
                                    batch_norm=batch_norm, name=_name("down_level_%s_no_%s" % (n, i)))(layer)
-            layer = se_block(in_layer,layer, n_filter_base* 2 ** n, ratio=min(n_filter_base* 2 ** n, 8))
+            if use_SE:
+                layer = se_block(in_layer,layer, n_filter_base* 2 ** n, ratio=min(n_filter_base* 2 ** n, 8))
             skip_layers.append(layer)
             layer = pooling(pool, name=_name("max_%s" % n))(layer)
 
@@ -153,5 +157,94 @@ def unetSE_block(n_depth=2, n_filter_base=16, kernel_size=(3,3), n_conv_per_dept
 
     return _func
 
+
+
+def fpn_block(n_depth=2, n_filter_base=16, kernel_size=(3,3), n_conv_per_depth=2,
+               activation="relu",
+               use_SE = False,
+               batch_norm=False,
+               dropout=0.0,
+               last_activation=None,
+               pool=(2,2),
+               kernel_init="glorot_uniform",
+               prefix=''):
+
+    if len(pool) != len(kernel_size):
+        raise ValueError('kernel and pool sizes must match.')
+    n_dim = len(kernel_size)
+    if n_dim not in (2,3):
+        raise ValueError('unet_block only 2d or 3d.')
+
+    conv_block = conv_block2  if n_dim == 2 else conv_block3
+    pooling    = MaxPooling2D if n_dim == 2 else MaxPooling3D
+    upsampling = UpSampling2D if n_dim == 2 else UpSampling3D
+    se_block   = se_block2 if n_dim == 2 else se_block3
+
+    if last_activation is None:
+        last_activation = activation
+
+    channel_axis = -1 if backend_channels_last() else 1
+
+    def _name(s):
+        return prefix+s
+
+    def _func(input):
+        skip_layers = []
+        layer = input
+        pred_layers = []
+        
+        # down ...
+        for n in range(n_depth):
+            in_layer = layer
+            for i in range(n_conv_per_depth):
+                layer = conv_block(n_filter_base * 2 ** n, *kernel_size,
+                                   dropout=dropout,
+                                   activation=activation,
+                                   init=kernel_init,
+                                   batch_norm=batch_norm, name=_name("down_level_%s_no_%s" % (n, i)))(layer)
+            if use_SE:
+                layer = se_block(in_layer,layer, n_filter_base* 2 ** n, ratio=min(n_filter_base* 2 ** n, 8))
+            skip_layers.append(conv_block(n_filter_base * 2 ** n,*( (1,)*n_dim),
+                                          dropout=dropout,
+                                          activation=activation,
+                                          init=kernel_init,
+                                          batch_norm=batch_norm,
+                                          name=_name("skip_level_%s_no_%s" % (n, i)))(layer))
+            
+            layer = pooling(pool, name=_name("max_%s" % n))(layer)
+
+        # middle
+        for i in range(n_conv_per_depth - 1):
+            layer = conv_block(n_filter_base * 2 ** n_depth, *kernel_size,
+                               dropout=dropout,
+                               init=kernel_init,
+                               activation=activation,
+                               batch_norm=batch_norm, name=_name("middle_%s" % i))(layer)
+
+        layer = conv_block(n_filter_base * 2 ** max(0, n_depth - 1), *kernel_size,
+                           dropout=dropout,
+                           activation=activation,
+                           init=kernel_init,
+                           batch_norm=batch_norm, name=_name("middle_%s" % n_conv_per_depth))(layer)
+
+        # ...and up with skip layers
+        for n in reversed(range(n_depth)):
+            layer = Add()([upsampling(pool)(layer), skip_layers[n]])
+            for i in range(n_conv_per_depth - 1):
+                layer = conv_block(n_filter_base * 2 ** n, *kernel_size,
+                                   dropout=dropout,
+                                   init=kernel_init,
+                                   activation=activation,
+                                   batch_norm=batch_norm, name=_name("up_level_%s_no_%s" % (n, i)))(layer)
+
+            layer = conv_block(n_filter_base * 2 ** max(0, n - 1), *kernel_size,
+                               dropout=dropout,
+                               init=kernel_init,
+                               activation=activation if n > 0 else last_activation,
+                               batch_norm=batch_norm, name=_name("up_level_%s_no_%s" % (n, n_conv_per_depth)))(layer)
+
+        return layer
+
+    return _func
 
 

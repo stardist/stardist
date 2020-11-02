@@ -6,7 +6,6 @@ import math
 from tqdm import tqdm
 
 from csbdeep.models import BaseConfig
-from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
@@ -24,7 +23,7 @@ from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-from .advanced_blocks import resnetSE_block, unetSE_block
+from .advanced_blocks import resnet_block, unet_block, fpn_block
 
 
 class StarDistData2D(StarDistDataBase):
@@ -186,7 +185,7 @@ class Config2D(BaseConfig):
         self.n_classes                 = None if n_classes is None else int(n_classes)
 
         # default config (can be overwritten by kwargs below)
-        if self.backbone in ('unet','seunet'):
+        if self.backbone in ('unet','seunet','fpn','sefpn'):
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
             self.unet_n_filter_base    = 32
@@ -292,17 +291,22 @@ class StarDist2D(StarDistBase):
             return self._build_resnet()
         elif self.config.backbone == "seresnet":
             return self._build_resnet(use_SE=True)
-        if self.config.backbone == "seunet":
+        elif self.config.backbone == "seunet":
             return self._build_unet(use_SE = True)
+        elif self.config.backbone == "fpn":
+            return self._build_fpn()
+        elif self.config.backbone == "sefpn":
+            return self._build_fpn(use_SE = True)
         else:
             raise NotImplementedError(self.config.backbone)
 
     def _build_unet(self, use_SE=False):
-        u_block = unetSE_block if use_SE else unet_block
-        
         self.config.backbone in ('unet',"seunet") or _raise(NotImplementedError())
+        
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
+        unet_kwargs.setdefault("use_SE",use_SE)
+        
         input_img  = Input(self.config.net_input_shape, name='input')
 
         # maxpool input image to grid size
@@ -316,7 +320,7 @@ class StarDist2D(StarDistBase):
                                     padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
-        unet_base        = u_block(**unet_kwargs)(pooled_img)
+        unet_base        = unet_block(**unet_kwargs)(pooled_img)
 
         if self.config.net_conv_after_unet > 0:
             unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
@@ -347,10 +351,62 @@ class StarDist2D(StarDistBase):
         else:
             return Model([input_img], [output_prob,output_dist])
 
+    def _build_fpn(self, use_SE=False):
+        self.config.backbone in ('fpn','sefpn') or _raise(NotImplementedError())
+                
+        unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
+        unet_kwargs.setdefault("use_SE",use_SE)
+
+        input_img  = Input(self.config.net_input_shape, name='input')
+
+        # maxpool input image to grid size
+        pooled = np.array([1,1])
+        pooled_img = input_img
+        while tuple(pooled) != tuple(self.config.grid):
+            pool = 1 + (np.asarray(self.config.grid) > pooled)
+            pooled *= pool
+            for _ in range(self.config.unet_n_conv_per_depth):
+                pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
+                                    padding='same', activation=self.config.unet_activation)(pooled_img)
+            pooled_img = MaxPooling2D(pool)(pooled_img)
+
+        unet_base        = fpn_block(**unet_kwargs)(pooled_img)
+
+        if self.config.net_conv_after_unet > 0:
+            unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                             name='features', padding='same',
+                             activation=self.config.unet_activation)(unet_base)
+        else:
+            unet = unet_base
+            
+        output_prob  = Conv2D(1,                  (1,1), name='prob', padding='same',
+                              activation='sigmoid')(unet)
+        output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same',
+                              activation='linear')(unet)
+        
+        # attach extra classification head when self.n_classes is given 
+        if self._is_multiclass():
+            if self.config.net_conv_after_unet > 0:                
+                unet_class = Dropout(self.config.unet_dropout)(unet_base)
+                unet_class = Conv2D(max(1,self.config.net_conv_after_unet//4),
+                                    self.config.unet_kernel_size,
+                                    name='features_class', padding='same',
+                                    activation=self.config.unet_activation)(unet_class)
+            else:
+                unet_class  = unet_base
+
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1),
+                                        name='prob_class', padding='same',
+                                        activation='softmax')(unet_class)
+            return Model([input_img], [output_prob,output_dist, output_prob_class])
+        
+        else:
+            return Model([input_img], [output_prob,output_dist])
+
 
     def _build_resnet(self, use_SE=False):
-        res_block = resnetSE_block if use_SE else resnet_block
-            
+        self.config.backbone in ('resnet',"seresnet") or _raise(NotImplementedError())
+                    
         self.config.resnet_kernel_size = (3,3)
         self.config.resnet_n_conv_per_block =2
         self.config.resnet_batch_norm = False
@@ -368,6 +424,7 @@ class StarDist2D(StarDistBase):
             kernel_initializer = self.config.resnet_kernel_init,
             activation         = self.config.resnet_activation,
         )
+        resnet_kwargs.setdefault("use_SE",use_SE)
 
         input_img = Input(self.config.net_input_shape, name='input')
 
@@ -382,7 +439,7 @@ class StarDist2D(StarDistBase):
             if any(p > 1 for p in pool):
                 n_filter *= 2
                 
-            layer = res_block(n_filter, pool=tuple(pool), **resnet_kwargs)(layer)
+            layer = resnet_block(n_filter, pool=tuple(pool), **resnet_kwargs)(layer)
 
         layer_base = layer 
         if self.config.net_conv_after_resnet > 0:
@@ -576,7 +633,7 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        if self.config.backbone in ("unet","seunet"):
+        if self.config.backbone in ("unet","seunet","fpn","sefpn"):
             query_axes = axes_check_and_normalize(query_axes)
             assert len(self.config.unet_pool) == len(self.config.grid)
             div_by = dict(zip(
