@@ -5,7 +5,7 @@ from .utils import _normalize_grid
 
 
 
-def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
+def _non_maximum_suppression_old(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
     """2D coordinates of the polys that survive from a given prediction (prob, coord)
 
     prob.shape = (Ny,Nx)
@@ -13,7 +13,7 @@ def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_t
 
     b: don't use pixel closer than b pixels to the image boundary
     """
-    from .lib.stardist2d import c_non_max_suppression_inds
+    from .lib.stardist2d import c_non_max_suppression_inds_old
 
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
@@ -46,7 +46,7 @@ def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_t
     if verbose:
         t = time()
 
-    survivors[ind] = c_non_max_suppression_inds(polygons.astype(np.int32),
+    survivors[ind] = c_non_max_suppression_inds_old(np.ascontiguousarray(polygons.astype(np.int32)),
                     mapping, np.float32(nms_thresh), np.int32(max_bbox_search),
                     np.int32(grid[0]), np.int32(grid[1]),np.int32(verbose))
 
@@ -59,6 +59,197 @@ def non_maximum_suppression(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_t
 
 
 
+
+# def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
+#     """Non-Maximum-Supression of 2D polygons
+    
+#     Retains only polygons whose overlap is smaller than nms_thresh 
+
+#     dist.shape = (Ny,Nx, n_rays)
+#     prob.shape = (Ny,Nx)
+
+#     returns the retained points, probabilities, and distances:
+
+#     points, prob, dist = non_maximum_suppression(dist, prob, ....
+
+#     """
+    
+#     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
+
+#     from .lib.stardist2d import c_non_max_suppression_inds
+    
+#     assert prob.ndim == 2 and dist.ndim == 3  and prob.shape == dist.shape[:2]
+#     dist = np.asarray(dist)
+#     prob = np.asarray(prob)
+#     n_rays = dist.shape[-1]
+    
+#     grid = _normalize_grid(grid,2)
+
+#     mask = prob > prob_thresh
+#     if b is not None and b > 0:
+#         _mask = np.zeros_like(mask)
+#         _mask[b:-b,b:-b] = True
+#         mask &= _mask
+
+#     points = np.stack(np.where(mask), axis=1)
+
+#     dist   = dist[mask]
+#     scores = prob[mask]
+
+#     # sort scores descendingly
+#     ind = np.argsort(scores)[::-1]
+#     dist   = dist[ind]
+#     scores = scores[ind]
+#     points = points[ind]
+
+#     points = (points * np.array(grid).reshape((1,2)))
+
+
+#     if max_bbox_search:
+#         # map pixel indices to ids of sorted polygons (-1 => polygon at that pixel not a candidate)
+#         mapping = -np.ones(mask.shape,np.int32)
+#         mapping.flat[ np.flatnonzero(mask)[ind] ] = range(len(ind))
+#     else:
+#         mapping = np.empty((0,0),np.int32)
+
+#     def _prep(x, dtype):
+#         return np.ascontiguousarray(x.astype(dtype, copy=False))
+    
+#     if verbose:
+#         t = time()
+
+
+#     survivors = c_non_max_suppression_inds(_prep(dist,  np.float32),
+#                                                  _prep(points, np.int32),
+#                                                  _prep(mapping, np.int32),
+#                                                  np.float32(nms_thresh), np.int32(max_bbox_search),
+#                         np.int32(grid[0]), np.int32(grid[1]),np.int32(verbose))
+
+
+    
+#     if verbose:
+#         print("keeping %s/%s polygons" % (np.count_nonzero(survivors), len(dist)))
+#         print("NMS took %.4f s" % (time() - t))
+
+
+#     # return in ascending order to match behaviour of old nms 
+#     return points[survivors][::-1], scores[survivors][::-1], dist[survivors][::-1]
+
+
+def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False, max_bbox_search=True):
+    """Non-Maximum-Supression of 2D polygons
+    
+    Retains only polygons whose overlap is smaller than nms_thresh 
+
+    dist.shape = (Ny,Nx, n_rays)
+    prob.shape = (Ny,Nx)
+
+    returns the retained points, probabilities, and distances:
+
+    points, prob, dist = non_maximum_suppression(dist, prob, ....
+
+    """
+    
+    # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
+
+    assert prob.ndim == 2 and dist.ndim == 3  and prob.shape == dist.shape[:2]
+    dist = np.asarray(dist)
+    prob = np.asarray(prob)
+    n_rays = dist.shape[-1]
+    
+    grid = _normalize_grid(grid,2)
+
+    mask = prob > prob_thresh
+    if b is not None and b > 0:
+        _mask = np.zeros_like(mask)
+        _mask[b:-b,b:-b] = True
+        mask &= _mask
+
+    points = np.stack(np.where(mask), axis=1)
+
+    dist   = dist[mask]
+    scores = prob[mask]
+
+    # sort scores descendingly
+    ind = np.argsort(scores)[::-1]
+    dist   = dist[ind]
+    scores = scores[ind]
+    points = points[ind]
+
+    points = (points * np.array(grid).reshape((1,2)))
+
+    if max_bbox_search:
+        # map pixel indices to ids of sorted polygons (-1 => polygon at that pixel not a candidate)
+        mapping = -np.ones(mask.shape,np.int32)
+        mapping.flat[ np.flatnonzero(mask)[ind] ] = range(len(ind))
+    else:
+        mapping = np.empty((0,0),np.int32)
+
+    if verbose:
+        t = time()
+
+    survivors = np.zeros(len(ind), np.bool)
+    
+    inds = non_maximum_suppression_inds(dist, points, mapping, scores=scores,
+                                        max_bbox_search=max_bbox_search, grid = grid, 
+                                        thresh=nms_thresh, verbose=verbose)
+
+    survivors[inds] = True
+    
+    if verbose:
+        print("keeping %s/%s polygons" % (len(inds), len(dist)))
+        print("NMS took %.4f s" % (time() - t))
+
+    # return in ascending order to match behaviour of old nms 
+    return points[survivors][::-1], scores[survivors][::-1], dist[survivors][::-1]
+
+
+
+
+def non_maximum_suppression_inds(dist, points, mapping, scores, thresh=0.5, grid = (1,1), max_bbox_search=True, verbose=1):
+    """
+    Applies non maximum supression to ray-convex polygons given by dists and points
+    sorted by scores and IoU threshold
+
+    P1 will suppress P2, if IoU(P1,P2) > thresh
+
+    with IoU(P1,P2) = Ainter(P1,P2) / min(A(P1),A(P2))
+
+    i.e. the smaller thresh, the more polygons will be supressed
+
+    dist.shape = (n_poly, n_rays)
+    point.shape = (n_poly, 2)
+    score.shape = (n_poly,)
+
+    returns indices of selected polygons
+    """
+
+    from .lib.stardist2d import c_non_max_suppression_inds
+    
+    assert dist.ndim == 2
+    assert points.ndim == 2
+
+    n_poly = dist.shape[0]
+
+    if scores is None:
+        scores = np.ones(n_poly)
+
+    assert len(scores) == n_poly
+    assert points.shape[0] == n_poly
+
+    def _prep(x, dtype):
+        return np.ascontiguousarray(x.astype(dtype, copy=False))
+
+    inds = c_non_max_suppression_inds(_prep(dist,  np.float32),
+                                      _prep(points, np.int32),
+                                      _prep(mapping, np.int32),
+                                      np.float32(thresh), np.int32(max_bbox_search),
+                                      np.int32(grid[0]), np.int32(grid[1]),np.int32(verbose))
+
+    return inds
+
+
+    
 def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, verbose=False):
     """Non-Maximum-Supression of 3D polyhedra 
     
@@ -67,10 +258,16 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
     dist.shape = (Nz,Ny,Nx, n_rays)
     prob.shape = (Nz,Ny,Nx)
 
+    returns the retained points, probabilities, and distances:
+
+    points, prob, dist = non_maximum_suppression_3d(dist, prob, ....
     """
     
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
+    dist = np.asarray(dist)
+    prob = np.asarray(prob)
+    
     assert prob.ndim == 3 and dist.ndim == 4 and dist.shape[-1] == len(rays) and prob.shape == dist.shape[:3]
     
     grid = _normalize_grid(grid,3)

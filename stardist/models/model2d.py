@@ -20,7 +20,7 @@ Model = keras_import('models', 'Model')
 from .base import StarDistBase, StarDistDataBase
 from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
-from ..geometry import star_dist, dist_to_coord, polygons_to_label
+from ..geometry import star_dist,  polygons_to_label, dist_to_coord
 from ..nms import non_maximum_suppression
 
 
@@ -383,21 +383,37 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction_old(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+        from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
+        from stardist.nms import _non_maximum_suppression_old
+        
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
 
-        coord = dist_to_coord(dist, grid=self.config.grid)
-        inds = non_maximum_suppression(coord, prob, grid=self.config.grid,
+        coord = _dist_to_coord_old(dist, grid=self.config.grid)
+        inds = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
                                        prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
+        labels = _polygons_to_label_old(coord, prob, inds, shape=img_shape)
         # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
         inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
         return labels, dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
+    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+        if prob_thresh is None: prob_thresh = self.thresholds.prob
+        if nms_thresh  is None: nms_thresh  = self.thresholds.nms
+        if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
+
+        points, probi, disti = non_maximum_suppression(dist, prob, grid=self.config.grid,
+                                       prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+
+        self.A = disti, points
+        labels = polygons_to_label(disti, points, prob = probi, shape=img_shape)
+        coord = dist_to_coord(disti, points)
+        return labels, dict(coord=coord, points=points, prob=probi)
+    
 
     def _axes_div_by(self, query_axes):
         self.config.backbone == 'unet' or _raise(NotImplementedError())
