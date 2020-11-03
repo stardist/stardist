@@ -191,7 +191,7 @@ static PyObject* c_non_max_suppression_inds_old(PyObject *self, PyObject *args) 
     for (int k =0; k<n_rays; k++) {
       int y = *(int *)PyArray_GETPTR3(polys,i,0,k);
       int x = *(int *)PyArray_GETPTR3(polys,i,1,k);
-      
+      printf("%d, %d,  ",y,x);
       if (k==0) {
         bbox_x1[i] = x;
         bbox_x2[i] = x;
@@ -360,7 +360,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   int max_bbox_search, grid_x, grid_y;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!fiiiii", &PyArray_Type, &dist, &PyArray_Type, &points , &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x, &verbose))
+  if (!PyArg_ParseTuple(args, "O!O!O!fiiii", &PyArray_Type, &dist, &PyArray_Type, &points , &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x, &verbose))
     return NULL;
 
   npy_intp *img_dims = PyArray_DIMS(mapping);
@@ -416,6 +416,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       const float d = *(float*)PyArray_GETPTR2(dist,i,k);  
       const int y = (int)(py+d*sin(ANGLE_PI*k));
       const int x = (int)(px+d*cos(ANGLE_PI*k));
+      printf("%d, %d,  ",y, x);
       
       if (k==0) {
         bbox_x1[i] = x;

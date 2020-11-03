@@ -84,20 +84,30 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     prob = prob[::grid[0],::grid[1]]
     dist = dist[::grid[0],::grid[1]]
     coord = _dist_to_coord_old(dist, grid = grid)
-    points1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
+    
+    # points1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
+    #                                   grid = grid, 
+    #                               nms_thresh=nms_thresh,
+    #                               verbose=True)
+    
+    # points1[:,0] *= grid[0]
+    # points1[:,1] *= grid[1]
+    
+    # points2, probi2, disti2 = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
+    #                               nms_thresh=nms_thresh,
+    #                               verbose=True)
+    a = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
                                       grid = grid, 
                                   nms_thresh=nms_thresh,
                                   verbose=True)
     
-    img1 = _polygons_to_label_old(coord, prob, points1, shape=shape)
-
-    points1[:,0] *= grid[0]
-    points1[:,1] *= grid[1]
     
-    points2, probi2, disti2 = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
+    b = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
                                   nms_thresh=nms_thresh,
                                   verbose=True)
 
+    return a,b
+    img1 = _polygons_to_label_old(coord, prob, points1, shape=shape)
     img2 = polygons_to_label(disti2, points2, shape=shape)
 
 
@@ -126,5 +136,6 @@ def test_pretrained():
 if __name__ == '__main__':
 
     # y1, res1, y2, res2 = test_pretrained()
+    a,b = test_old_new((62,62),32,(2,2), nms_thresh = .39)
+    
 
-    test_old_new((356, 299),32,(2,2))

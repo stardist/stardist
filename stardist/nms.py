@@ -189,8 +189,8 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
         t = time()
 
     survivors = np.zeros(len(ind), np.bool)
-    
-    inds = non_maximum_suppression_inds(dist, points, mapping, scores=scores,
+
+    inds = non_maximum_suppression_inds(dist, points.astype(np.int32, copy=False), mapping, scores=scores,
                                         max_bbox_search=max_bbox_search, grid = grid, 
                                         thresh=nms_thresh, verbose=verbose)
 
