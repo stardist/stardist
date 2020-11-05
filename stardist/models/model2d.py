@@ -484,16 +484,17 @@ class StarDist2D(StarDistBase):
             prob_class_up = zoom(prob_class,
                                  tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
                                  order=0)
-            class_id, label_ids = [], []
+            class_prob, label_ids = [],[]
             for reg in regionprops(labels):
                 m = labels[reg.slice]==reg.label
-                cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
-                class_id.append(cls_id)
-                label_ids.append(reg.label)
+                # use average class prob per object (maybe better to use center one?)
+                p = np.mean(prob_class_up[reg.slice][m],axis=0)
+                class_prob.append(p)
+                label_ids.append(reg.label)                
             # just a sanity check whether labels where in sorted order
             assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            res_dict.update(dict(classes = class_id))
-            res_dict.update(dict(labels = label_ids))
+            class_prob = np.array(class_prob).reshape((-1,prob_class.shape[-1]))
+            res_dict.update(dict(class_prob = class_prob))
             
         return labels, res_dict
 
