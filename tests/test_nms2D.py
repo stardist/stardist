@@ -84,35 +84,21 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     prob = prob[::grid[0],::grid[1]]
     dist = dist[::grid[0],::grid[1]]
     coord = _dist_to_coord_old(dist, grid = grid)
-    
-    # points1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
-    #                                   grid = grid, 
-    #                               nms_thresh=nms_thresh,
-    #                               verbose=True)
-    
-    # points1[:,0] *= grid[0]
-    # points1[:,1] *= grid[1]
-    
-    # points2, probi2, disti2 = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
-    #                               nms_thresh=nms_thresh,
-    #                               verbose=True)
-    a = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
+    inds1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
                                       grid = grid, 
                                   nms_thresh=nms_thresh,
                                   verbose=True)
     
-    
-    b = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
+    points2, probi2, disti2 = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.9,
                                   nms_thresh=nms_thresh,
                                   verbose=True)
 
-    return a,b
-    img1 = _polygons_to_label_old(coord, prob, points1, shape=shape)
+    img1 = _polygons_to_label_old(coord, prob, inds1, shape=shape)
     img2 = polygons_to_label(disti2, points2, shape=shape)
 
+    points1 = inds1*np.array(grid)
 
-    np.allclose(points1, points2)
-    np.allclose(img1, img2)
+    np.allclose(img1>0, img2>0)
     return points1, img1, points2, img2
 
 
@@ -135,7 +121,6 @@ def test_pretrained():
 
 if __name__ == '__main__':
 
-    # y1, res1, y2, res2 = test_pretrained()
-    a,b = test_old_new((62,62),32,(2,2), nms_thresh = .39)
+    points1, img1, points2, img2 = test_old_new((62,82),32,(2,2), nms_thresh = .1)
     
 

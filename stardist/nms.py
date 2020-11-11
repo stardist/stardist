@@ -12,6 +12,8 @@ def _non_maximum_suppression_old(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, p
     coord.shape = (Ny,Nx,2,n_rays)
 
     b: don't use pixel closer than b pixels to the image boundary
+
+    returns retained points
     """
     from .lib.stardist2d import c_non_max_suppression_inds_old
 
@@ -178,20 +180,13 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
 
     points = (points * np.array(grid).reshape((1,2)))
 
-    if max_bbox_search:
-        # map pixel indices to ids of sorted polygons (-1 => polygon at that pixel not a candidate)
-        mapping = -np.ones(mask.shape,np.int32)
-        mapping.flat[ np.flatnonzero(mask)[ind] ] = range(len(ind))
-    else:
-        mapping = np.empty((0,0),np.int32)
-
     if verbose:
         t = time()
 
     survivors = np.zeros(len(ind), np.bool)
 
-    inds = non_maximum_suppression_inds(dist, points.astype(np.int32, copy=False), mapping, scores=scores,
-                                        max_bbox_search=max_bbox_search, grid = grid, 
+    inds = non_maximum_suppression_inds(dist, points.astype(np.int32, copy=False), scores=scores,
+                                        grid = grid, 
                                         thresh=nms_thresh, verbose=verbose)
 
     survivors[inds] = True
@@ -206,7 +201,7 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
 
 
 
-def non_maximum_suppression_inds(dist, points, mapping, scores, thresh=0.5, grid = (1,1), max_bbox_search=True, verbose=1):
+def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, grid = (1,1), verbose=1):
     """
     Applies non maximum supression to ray-convex polygons given by dists and points
     sorted by scores and IoU threshold
@@ -242,9 +237,9 @@ def non_maximum_suppression_inds(dist, points, mapping, scores, thresh=0.5, grid
 
     inds = c_non_max_suppression_inds(_prep(dist,  np.float32),
                                       _prep(points, np.int32),
-                                      _prep(mapping, np.int32),
-                                      np.float32(thresh), np.int32(max_bbox_search),
-                                      np.int32(grid[0]), np.int32(grid[1]),np.int32(verbose))
+                                      np.float32(thresh), 
+                                      np.int32(grid[0]), np.int32(grid[1]),
+                                      np.int32(verbose))
 
     return inds
 

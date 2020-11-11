@@ -357,10 +357,10 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   PyArrayObject *dist=NULL,*points=NULL, *mapping=NULL, *result=NULL;
   float threshold;
-  int max_bbox_search, grid_x, grid_y;
+  int grid_x, grid_y;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!fiiii", &PyArray_Type, &dist, &PyArray_Type, &points , &PyArray_Type, &mapping, &threshold, &max_bbox_search, &grid_y, &grid_x, &verbose))
+  if (!PyArg_ParseTuple(args, "O!O!fiii", &PyArray_Type, &dist, &PyArray_Type, &points , &threshold, &grid_y, &grid_x, &verbose))
     return NULL;
 
   npy_intp *img_dims = PyArray_DIMS(mapping);
@@ -374,9 +374,6 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   int * bbox_x2 = new int[n_polys];
   int * bbox_y1 = new int[n_polys];
   int * bbox_y2 = new int[n_polys];
-
-  int max_bbox_size_x = 0;
-  int max_bbox_size_y = 0;
 
   float * areas = new float[n_polys];
   bool * suppressed = new bool[n_polys];
@@ -395,7 +392,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   if (verbose){
     printf("Non Maximum Suppression (2D) ++++ \n");
-    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: thresh   = %.3f \nNMS: max_bbox_search = %d \n", n_polys, n_rays, threshold, max_bbox_search);
+    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: thresh   = %.3f \nNMS: \n", n_polys, n_rays, threshold);
 #ifdef _OPENMP
     printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif
@@ -416,7 +413,8 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       const float d = *(float*)PyArray_GETPTR2(dist,i,k);  
       const int y = (int)(py+d*sin(ANGLE_PI*k));
       const int x = (int)(px+d*cos(ANGLE_PI*k));
-      printf("%d, %d,  ",y, x);
+      
+      // printf("%d, %d,  ",y, x);
       
       if (k==0) {
         bbox_x1[i] = x;
@@ -432,18 +430,6 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       clip<<ClipperLib::IntPoint(x,y);
 
     }
-    if (max_bbox_search) {
-      const int bbox_size_x = bbox_x2[i] - bbox_x1[i];
-      const int bbox_size_y = bbox_y2[i] - bbox_y1[i];
-      if (bbox_size_x > max_bbox_size_x) {
-#pragma omp critical (max_x)
-        max_bbox_size_x = bbox_size_x;
-      }
-      if (bbox_size_y > max_bbox_size_y) {
-#pragma omp critical (max_y)
-        max_bbox_size_y = bbox_size_y;
-      }
-    }
     poly_paths[i] = clip;
     areas[i] = area_from_path(clip);
   }
@@ -453,104 +439,45 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
     printf("NMS: starting suppression loop\n");
 
   ProgressBar prog("suppressed");
+  
+  // suppress (double loop)
+  for (int i=0; i<n_polys-1; i++) {
+    if (suppressed[i]) continue;
 
-  if (max_bbox_search) {
+    if (verbose)
+      prog.update(100.*count_suppressed/n_polys);
 
-    // suppress (double loop)
-    for (int i=0; i<n_polys-1; i++) {
-      if (suppressed[i]) continue;
-
-      if (verbose)
-        prog.update(100.*count_suppressed/n_polys);
-
-      // check signals e.g. such that the loop is interruptible
-      if (PyErr_CheckSignals()==-1){
-        delete [] areas;
-        delete [] suppressed;
-        delete [] poly_paths;
-        delete [] bbox_x1;
-        delete [] bbox_x2;
-        delete [] bbox_y1;
-        delete [] bbox_y2;
-        PyErr_SetString(PyExc_KeyboardInterrupt, "interrupted");
-        return Py_None;
-      }
-
-      const int xs = std::max((bbox_x1[i]-max_bbox_size_x)/grid_x, 0);
-      const int xe = std::min((bbox_x2[i]+max_bbox_size_x)/grid_x, width);
-      const int ys = std::max((bbox_y1[i]-max_bbox_size_y)/grid_y, 0);
-      const int ye = std::min((bbox_y2[i]+max_bbox_size_y)/grid_y, height);
-
-      // printf("%5d [%03d:%03d,%03d:%03d]",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
-      // printf(" - search area [%03d:%03d,%03d:%03d]\n",xs,xe,ys,ye);
-
-      // cf. https://github.com/peterwittek/somoclu/issues/111
-#ifdef _WIN32
-#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
-#else
-#pragma omp parallel for collapse(2) schedule(dynamic) reduction(+:count_suppressed)
-#endif
-      for (int jj=ys; jj<ye; jj++) for (int ii=xs; ii<xe; ii++) {
-          // j is the id of the score-sorted polygon at coordinate (ii,jj)
-          const int j = *(int *)PyArray_GETPTR2(mapping,jj,ii);
-          // if (j<0) continue;  // polygon not even a candidate (check redundant because of next line)
-          if (j<=i) continue; // polygon has higher score (i.e. lower id) than "suppressor polygon" i
-          if (suppressed[j]) continue;
-          // skip if bounding boxes are not even intersecting
-          if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
-            continue;
-
-          const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
-          const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
-          if (overlap > threshold){
-            count_suppressed +=1;
-            suppressed[j] = true;            
-          }
-        }
+    // check signals e.g. such that the loop is interruptible
+    if (PyErr_CheckSignals()==-1){
+      delete [] areas;
+      delete [] suppressed;
+      delete [] poly_paths;
+      delete [] bbox_x1;
+      delete [] bbox_x2;
+      delete [] bbox_y1;
+      delete [] bbox_y2;
+      PyErr_SetString(PyExc_KeyboardInterrupt, "interrupted");
+      return Py_None;
     }
 
-  } else {
-
-    // suppress (double loop)
-    for (int i=0; i<n_polys-1; i++) {
-      if (suppressed[i]) continue;
-
-      if (verbose)
-        prog.update(100.*count_suppressed/n_polys);
-
-      // check signals e.g. such that the loop is interruptible
-      if (PyErr_CheckSignals()==-1){
-        delete [] areas;
-        delete [] suppressed;
-        delete [] poly_paths;
-        delete [] bbox_x1;
-        delete [] bbox_x2;
-        delete [] bbox_y1;
-        delete [] bbox_y2;
-        PyErr_SetString(PyExc_KeyboardInterrupt, "interrupted");
-        return Py_None;
-      }
-
-      // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
+    // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
 
 #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
-      for (int j=i+1; j<n_polys; j++) {
-        if (suppressed[j]) continue;
-        // skip if bounding boxes are not even intersecting
-        if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
-          continue;
+    for (int j=i+1; j<n_polys; j++) {
+      if (suppressed[j]) continue;
+      // skip if bounding boxes are not even intersecting
+      if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
+        continue;
 
-        const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
-        const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
-        if (overlap > threshold){
-          count_suppressed +=1;
-          suppressed[j] = true;
+      const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
+      const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
+      if (overlap > threshold){
+        count_suppressed +=1;
+        suppressed[j] = true;
           
-        }
-
       }
-    }
 
+    }
   }
 
   if (verbose)
