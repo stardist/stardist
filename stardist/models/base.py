@@ -23,8 +23,8 @@ from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
-from ..utils import _is_power_of_2, optimize_threshold
 from ..nms import _ind_prob_thresh
+from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
 
 # TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
@@ -290,6 +290,9 @@ class StarDistBase(BaseModel):
             raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
         all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
             ValueError("all values of n_tiles must be integer values >= 1"))
+        if not _is_floatarray(img):
+            warnings.warn("Predicting on non-float image ( forgot to normalize? )")
+
         n_tiles = tuple(map(int,n_tiles))
 
         axes     = self._normalize_axes(img, axes)
@@ -452,8 +455,8 @@ class StarDistBase(BaseModel):
                 _points = np.stack(np.where(inds), axis=1)
                 offset = list(s.start for i,s in enumerate(s_dst))
                 offset.pop(channel)
-                _points = _points + np.array(offset).reshape((1,3))
-                _points = _points * np.array(self.config.grid).reshape((1,3))
+                _points = _points + np.array(offset).reshape((1,len(offset)))
+                _points = _points * np.array(self.config.grid).reshape((1,len(self.config.grid)))
                 pointsa.extend(_points)
 
             proba = np.asarray(proba)
@@ -467,7 +470,7 @@ class StarDistBase(BaseModel):
             proba = prob[inds].copy()
             dista = dist[inds].copy()
             _points = np.stack(np.where(inds), axis=1)
-            pointsa = (_points * np.array(self.config.grid).reshape((1,3)))
+            pointsa = (_points * np.array(self.config.grid).reshape((1,len(self.config.grid))))
 
         return proba, dista, pointsa
 

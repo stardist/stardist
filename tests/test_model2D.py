@@ -79,15 +79,6 @@ def test_load_and_predict_big():
     return labels
 
 
-def test_load_and_export_TF(model2d):
-    model = model2d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def test_optimize_thresholds(model2d):
     model = model2d
     img, mask = real_image2d()
@@ -197,6 +188,15 @@ def test_imagej_rois_export(tmpdir, model2d):
     export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
 
 
+def test_load_and_export_TF(model2d):
+    model = model2d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+
 def print_receptive_fields():
     for backbone in ("unet",):
         for n_depth in (1,2,3):
@@ -208,6 +208,53 @@ def print_receptive_fields():
                 fov   = model._compute_receptive_field()
                 print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
 
+def test_predict_dense_sparse(model2d):
+    model = model2d
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+    labels1, res1 = model.predict_instances(x, n_tiles=(2, 2), sparse = False)
+    labels2, res2 = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
+    assert np.allclose(labels1, labels2)
+    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+    return labels2, res1, labels2, res2
+
+
+
+def test_speed(model2d):
+    from time import time
+    
+    model = model2d
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+    x = np.tile(x,(16,16))
+
+    t1 = time()
+    labels1, res1 = model.predict_instances(x, n_tiles=(4, 4), sparse = False)
+    t1 = time()-t1
+    
+    t2 = time()
+    labels2, res2 = model.predict_instances(x, n_tiles=(4, 4), sparse = True)
+    t2 = time()-t2
+
+    print("\n\n")
+    print(f"dense:   {t1:.2f}s")
+    print(f"sparse:  {t2:.2f}s")
+
+    # assert np.allclose(labels1, labels2)
+    # assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+
+    return labels1, res1, labels2, res2
 
 if __name__ == '__main__':
-    accs = test_pretrained_scales()
+    # accs = test_pretrained_scales()
+    from conftest import _model2d
+    # y1, res1, y2, res2 =test_predict_dense_sparse(_model2d())
+    # test_load_and_predict(_model2d())
+
+    # model = _model2d() 
+    # img, mask = real_image2d()
+    # x = normalize(img, 1, 99.8)
+    # y, _ = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
+
+
+    labels1, res1, labels2, res2 = test_speed(_model2d())

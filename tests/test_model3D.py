@@ -169,6 +169,15 @@ def test_mesh_export(model3d):
     return s
 
 
+def test_load_and_export_TF(model3d):
+    model = model3d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+
 def print_receptive_fields():
     backbone = "unet"
     for n_depth in (1,2,3):

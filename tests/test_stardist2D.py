@@ -39,7 +39,7 @@ def test_cpu_gpu(img, n_rays):
     s_ocl = star_dist(img, n_rays=n_rays, mode="opencl")
     check_similar(s_cpp, s_ocl)
 
-    
+
 @pytest.mark.parametrize('n_rays', (32,64))
 @pytest.mark.parametrize('eps', ((1,1),(.4,1.3)))
 def test_relabel_consistency(n_rays, eps, plot = False):
@@ -47,7 +47,7 @@ def test_relabel_consistency(n_rays, eps, plot = False):
 
     # img = random_image((128, 123))
     lbl1 = circle_image(shape=(32,32), radius=8, eps = eps)
-    
+
     lbl1 = relabel_image_stardist(lbl1, n_rays)
 
     lbl2 = relabel_image_stardist(lbl1, n_rays)
@@ -64,9 +64,9 @@ def test_relabel_consistency(n_rays, eps, plot = False):
         plt.subplot(1,3,3);plt.imshow(1*(lbl1>0)+2*(lbl2>0));plt.title("Overlay")
         plt.tight_layout()
         plt.show()
-        
+
     return lbl1, lbl2
-    
+
 
 if __name__ == '__main__':
     lbl1, lbl2 = test_relabel_consistency(32,eps = (.7,1), plot = True)
