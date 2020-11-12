@@ -226,7 +226,7 @@ def test_speed(model2d):
     model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(16,16))
+    x = np.tile(x,(8,8))
 
     t1 = time()
     labels1, res1 = model.predict_instances(x, n_tiles=(4, 4), sparse = False)
@@ -245,16 +245,28 @@ def test_speed(model2d):
 
     return labels1, res1, labels2, res2
 
+
+
+def render_label_pred_example2(model2d):
+    model = model2d
+    img, y_gt = real_image2d()
+    x = normalize(img, 1, 99.8)
+    y, _ = model.predict_instances(x)
+
+    im = render_label_pred(y_gt, y , img = x)
+    import matplotlib.pyplot as plt
+    plt.figure(1, figsize = (12,4))
+    plt.subplot(1,4,1);plt.imshow(x);plt.title("img")
+    plt.subplot(1,4,2);plt.imshow(render_label(y_gt, img = x));plt.title("gt")
+    plt.subplot(1,4,3);plt.imshow(render_label(y, img = x));plt.title("pred")
+    plt.subplot(1,4,4);plt.imshow(im);plt.title("tp (green) fp (red) fn(blue)")
+    plt.tight_layout()
+    plt.show()
+    return im
+
+
 if __name__ == '__main__':
-    # accs = test_pretrained_scales()
     from conftest import _model2d
-    # y1, res1, y2, res2 =test_predict_dense_sparse(_model2d())
-    # test_load_and_predict(_model2d())
+    y1, res1, y2, res2 =test_predict_dense_sparse(_model2d())
+    
 
-    # model = _model2d() 
-    # img, mask = real_image2d()
-    # x = normalize(img, 1, 99.8)
-    # y, _ = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
-
-
-    labels1, res1, labels2, res2 = test_speed(_model2d())

@@ -31,17 +31,17 @@ def test_large():
     return nms
 
 
-@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
-def test_bbox_search(img):
-    prob = edt_prob(img)
-    dist = star_dist(img, n_rays=32, mode="cpp")
-    points_a, prob_a, dist_a = non_maximum_suppression(
-        dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=False)
-    points_b, prob_b, dist_b = non_maximum_suppression(
-        dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=True)
-    check_similar(points_a, points_b)
-    check_similar(prob_a, prob_b)
-    check_similar(dist_a, dist_b)
+# @pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
+# def test_bbox_search(img):
+#     prob = edt_prob(img)
+#     dist = star_dist(img, n_rays=32, mode="cpp")
+#     points_a, prob_a, dist_a = non_maximum_suppression(
+#         dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=False)
+#     points_b, prob_b, dist_b = non_maximum_suppression(
+#         dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=True)
+#     check_similar(points_a, points_b)
+#     check_similar(prob_a, prob_b)
+#     check_similar(dist_a, dist_b)
 
 
 @pytest.mark.parametrize('grid', ((1,1),(2,2)))
@@ -85,9 +85,9 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     dist = dist[::grid[0],::grid[1]]
     coord = _dist_to_coord_old(dist, grid = grid)
     inds1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
-                                      grid = grid, 
-                                  nms_thresh=nms_thresh,
-                                  verbose=True)
+                                         grid = grid, 
+                                         nms_thresh=nms_thresh,
+                                         verbose=True)
     points1 = inds1*np.array(grid)
     sort_ind = np.argsort(prob[tuple(inds1.T)])[::-1]
     points1 = points1[sort_ind]
@@ -95,7 +95,6 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     points2, probi2, disti2 = non_maximum_suppression(dist, prob,
                                                       grid = grid, prob_thresh=0.9,
                                                       nms_thresh=nms_thresh,
-                                                      return_order_old = True,
                                                       verbose=True)
 
     img1 = _polygons_to_label_old(coord, prob, inds1, shape=shape)
@@ -103,7 +102,7 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
 
 
     np.allclose(img1>0, img2>0)
-    np.allclose(points1, points2)
+    # np.allclose(points1, points2)
     
     return points1, img1, points2, img2
 
@@ -141,9 +140,9 @@ def test_speed(nms_thresh = 0.3, grid = (1,1)):
     t1 = time()
     coord = _dist_to_coord_old(dist, grid = grid)
     points1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
-                                      grid = grid, 
-                                  nms_thresh=nms_thresh,
-                                  verbose=True)
+                                           grid = grid, 
+                                           nms_thresh=nms_thresh,
+                                           verbose=True)
     t1 = time()-t1
     
     points1 = points1*np.array(grid)
@@ -205,9 +204,5 @@ def bench():
     return a1, a2
 
 if __name__ == '__main__':
-
-    # points1, img1, points2, img2 = test_old_new((62,82),32,(2,2), nms_thresh = .1)
-    # points1, points2 = test_speed()
-
-    a1, a2 = bench()
-
+    points1, img1, points2, img2 = test_old_new((62,82),32,(2,2), nms_thresh = .1)
+    
