@@ -694,7 +694,7 @@ class StarDistBase(BaseModel):
             for k,v in polys.items():
                 polys_all.setdefault(k,[]).append(v)
             label_offset += len(polys['prob'])
-
+            
         polys_all = {k: (np.concatenate(v) if k in OBJECT_KEYS else v[0]) for k,v in polys_all.items()}
 
         # if labels_out is not None and len(problem_ids) > 0:

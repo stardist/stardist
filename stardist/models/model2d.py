@@ -627,7 +627,8 @@ class StarDist2D(StarDistBase):
                 label_ids.append(reg.label)                
             # just a sanity check whether labels where in sorted order
             assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            res_dict.update(dict(class_prob = np.array(class_prob)))
+            class_prob = np.array(class_prob).reshape((-1,prob_class.shape[-1]))
+            res_dict.update(dict(class_prob = class_prob))
             
         return labels, res_dict
 
