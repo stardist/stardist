@@ -460,7 +460,7 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction_old(self, img_shape, prob, dist, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
         from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
         from stardist.nms import _non_maximum_suppression_old
         
@@ -480,22 +480,8 @@ class StarDist2D(StarDistBase):
         res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
         if prob_class is not None:
-            # build the list of class ids per label via majority vote
-            # zoom prob_class to img_shape
-            prob_class_up = zoom(prob_class,
-                                 tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
-                                 order=0)
-            class_prob, label_ids = [],[]
-            for reg in regionprops(labels):
-                m = labels[reg.slice]==reg.label
-                # use average class prob per object (maybe better to use center one?)
-                p = np.mean(prob_class_up[reg.slice][m],axis=0)
-                class_prob.append(p)
-                label_ids.append(reg.label)                
-            # just a sanity check whether labels where in sorted order
-            assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            class_prob = np.array(class_prob).reshape((-1,prob_class.shape[-1]))
-            res_dict.update(dict(class_prob = class_prob))
+            prob_class = np.asarray(prob_class)
+            res_dict.update(dict(class_prob = prob_class))
             
         return labels, res_dict
 
@@ -536,23 +522,7 @@ class StarDist2D(StarDistBase):
         res_dict = dict(coord=coord, points=points, prob=probi)
 
         # multi class prediction
-        if prob_class is not None:
-            # build the list of class ids per label via majority vote
-            # zoom prob_class to img_shape
-            # prob_class_up = zoom(prob_class,
-            #                      tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
-            #                      order=0)
-            # class_prob, label_ids = [],[]
-            # for reg in regionprops(labels):
-            #     m = labels[reg.slice]==reg.label
-            #     # use average class prob per object (maybe better to use center one?)
-            #     p = np.mean(prob_class_up[reg.slice][m],axis=0)
-            #     class_prob.append(p)
-            #     label_ids.append(reg.label)                
-            # # just a sanity check whether labels where in sorted order
-            # assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            # class_prob = np.array(class_prob).reshape((-1,prob_class.shape[-1]))
-            
+        if prob_class is not None:            
             prob_class = np.asarray(prob_class)
             res_dict.update(dict(class_prob = prob_class))
             

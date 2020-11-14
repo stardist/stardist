@@ -324,13 +324,6 @@ def test_speed(model2d):
     for s in stats:
         print(s) 
 
-    # assert np.allclose(labels1, labels2)
-    # assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys()))])
-    # return labels1, res1, labels2, res2
-
-
-
-
 
 def render_label_pred_example2(model2d):
     model = model2d
