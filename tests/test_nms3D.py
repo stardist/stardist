@@ -70,14 +70,15 @@ def test_nms_accuracy(noise, n_rays):
     iou = np.count_nonzero(mask1*mask2)/min(np.count_nonzero(mask1), np.count_nonzero(mask2)+1e-10)
     prob= [1,.5]
     print("iou =", iou)
-    sup1, _,_  = non_maximum_suppression_3d_sparse(dist,prob,points,
+    sup1  = non_maximum_suppression_3d_sparse(dist,prob,points,
                                                    rays = rays,
                                                    nms_thresh = 0.95*iou,
-                                                   verbose = True)
-    sup2, _,_  = non_maximum_suppression_3d_sparse(dist,prob,points,
+                                                   verbose = True)[0]
+    
+    sup2  = non_maximum_suppression_3d_sparse(dist,prob,points,
                                                    rays = rays,
                                                    nms_thresh = 1.05*iou,
-                                                   verbose = True)
+                                                   verbose = True)[0]
     assert len(sup1)==1 and len(sup2)==2
     return mask1, mask2
 
