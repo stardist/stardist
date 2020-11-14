@@ -218,5 +218,5 @@ def test_polyhedron_order_3D(model3d):
 
 
 if __name__ == '__main__':
-    from conftest import model2d
-    a, b = test_predict2D(model2d(), False)
+    from conftest import _model2d
+    test_polygon_order_2D(_model2d())

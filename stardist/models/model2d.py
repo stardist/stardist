@@ -469,23 +469,15 @@ class StarDist2D(StarDistBase):
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
 
         coord = _dist_to_coord_old(dist, grid=self.config.grid)
-        points = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
+        inds = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
                                        prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-
-        
-        labels = _polygons_to_label_old(coord, prob, points, shape=img_shape)
-
-        sort_ind = np.argsort(prob[tuple(points.T)])[::-1]
-        points = points[sort_ind]
-        prob = prob[points[:,0],points[:,1]]
-        coord = coord[points[:,0],points[:,1]]
-
+        labels = _polygons_to_label_old(coord, prob, inds, shape=img_shape)
         # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
-        # inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
+        inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
 
-        res_dict = dict(coord=coord, points=points, prob=prob)
+        res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
         if prob_class is not None:
             # build the list of class ids per label via majority vote
@@ -515,7 +507,6 @@ class StarDist2D(StarDistBase):
         if prob_class is None     -> single class prediction 
         if prob_class is not None -> multi  class prediction 
         """
-        
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")

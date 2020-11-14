@@ -169,15 +169,6 @@ def test_mesh_export(model3d):
     return s
 
 
-def test_load_and_export_TF(model3d):
-    model = model3d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def print_receptive_fields():
     backbone = "unet"
     for n_depth in (1,2,3):
@@ -196,7 +187,10 @@ def print_receptive_fields():
         fov   = model._compute_receptive_field()
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
+        
 
+
+    
 def test_classes():
     from stardist.utils import mask_to_categorical
     
@@ -275,20 +269,23 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     labels, res = model.predict_instances(img)
     return  model, X,Y, labels, res
     
-    # img = np.tile(img, (4,2,2)+(1,)*(img.ndim-3))
-    # labels1, res1 = model.predict_instances(img)
-    # labels2, res2 = model.predict_instances_big(img, axes='ZYX' if img.ndim==3 else "ZYXC",
-    #                                             block_size=100,
-    #                                             min_overlap=8, context=8)
-    # return  model, img, labels1, labels2, res1, res2
-
-        
 @pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir)
 
 
+# this test has to be at the end of the model
+def test_load_and_export_TF(model3d):
+    model = model3d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+
+    
 if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())

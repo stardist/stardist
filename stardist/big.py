@@ -7,7 +7,7 @@ from skimage.draw import polygon
 from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict
 from itertools import product
 
-from .geometry import polygons_to_label, polyhedron_to_label
+from .geometry import polygons_to_label, polygons_to_label_coord, polyhedron_to_label
 
 
 
@@ -602,8 +602,5 @@ def render_polygons(polys, shape):
     # TODO: this function doesn't belong here
     # -> should really refactor polygons_to_label...
     assert isinstance(polys,dict) and all(k in polys for k in ('prob','coord','points'))
-    ind = np.arange(len(polys['prob']),dtype=np.int)
-    coord  = np.expand_dims(polys['coord'], 1)
-    prob   = np.expand_dims(polys['prob'], 1)
-    points = np.stack([ind,np.zeros_like(ind)],axis=-1)
-    return polygons_to_label(coord, prob, points, shape=shape)
+    return polygons_to_label_coord(polys["coord"], shape=shape)
+

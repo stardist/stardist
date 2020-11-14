@@ -135,8 +135,33 @@ def dist_to_coord(dist, points):
     return coord
         
     
+def polygons_to_label_coord(coord, shape, labels =None):
+    """renders polygons to image of given shape 
+
+    coord.shape   = (n_polys, n_rays)
+    """
+    coord = np.asarray(coord)
+    if labels is None: labels=np.arange(1,len(coord)+1)
+
+    assert coord.ndim==3 and coord.shape[1]==2  and len(coord)==len(labels)
+
+    lbl = np.zeros(shape,np.int32)
+    
+    for i,c in zip(labels,coord):
+        rr,cc = polygon(*c, shape)
+        lbl[rr,cc] = i+1
+
+    return lbl
+
 
 def polygons_to_label(dist, points, shape, prob = None, thr=-np.inf):
+    """converts distances and center points to label image 
+
+    dist.shape   = (n_polys, n_rays)
+    points.shape = (n_polys, 2)
+
+    label ids will be consecutive and adhere to the order given 
+    """
     dist = np.asarray(dist)
     points = np.asarray(points)
     prob = np.ones(len(points)) if prob is None else np.asanyarray(prob)
@@ -146,25 +171,19 @@ def polygons_to_label(dist, points, shape, prob = None, thr=-np.inf):
 
     n_rays = dist.shape[1]
     
-    lbl = np.zeros(shape,np.int32)
-
     ind = prob>thr
     points = points[ind]
     dist = dist[ind]
     prob = prob[ind]
-    
+
     ind = np.argsort(prob)
     points = points[ind]
     dist = dist[ind]
-
-    coord = dist_to_coord(dist, points)
     
-    for i,c in enumerate(coord):
-        rr,cc = polygon(*c, shape)
-        lbl[rr,cc] = i+1
+    coord = dist_to_coord(dist, points)
 
-    return lbl
-
+    return polygons_to_label_coord(coord, shape=shape, labels=ind)
+    
     
 def relabel_image_stardist(lbl, n_rays, **kwargs):
     """relabel each label region in `lbl` with its star representation"""
@@ -173,6 +192,7 @@ def relabel_image_stardist(lbl, n_rays, **kwargs):
         raise ValueError("lbl image should be 2 dimensional")
     dist = star_dist(lbl, n_rays, **kwargs)
     points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
+    dist = dist[tuple(points.T)]
     return polygons_to_label(dist, points, shape=lbl.shape)
     
 
