@@ -494,10 +494,6 @@ class StarDistBase(BaseModel):
             # prob_class            
             result[2] = np.moveaxis(result[2],channel,-1)
             
-            result[2] = np.stack(np.meshgrid(np.arange(128), np.arange(128),indexing = "ij"), axis = -1)
-            result[2] = np.concatenate([result[2], np.ones((128,128,1))], axis = -1)
-
-            
         return tuple(result)
 
 
@@ -622,10 +618,6 @@ class StarDistBase(BaseModel):
 
             if self._is_multiclass():
                 p = np.moveaxis(results[2],channel,-1)
-
-                p = np.stack(np.meshgrid(np.arange(128), np.arange(128),indexing = "ij"), axis = -1)
-                p = np.concatenate([p, np.ones((128,128,1))], axis = -1)
-
                 prob_classa = p[inds]
 
                 
