@@ -571,7 +571,6 @@ class StarDistBase(BaseModel):
                                            disable=(not show_tile_progress), total=np.prod(n_tiles)):
 
                 results_tile = predict_direct(tile)
-
                 
                 # account for grid
                 s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
@@ -596,7 +595,8 @@ class StarDistBase(BaseModel):
                 pointsa.extend(_points)
                 
                 if self._is_multiclass():
-                    p = np.moveaxis(results_tile[2],channel,-1)
+                    p = results_tile[2][s_src]
+                    p = np.moveaxis(p,channel,-1)
                     prob_classa.extend(p[inds])
                 
             proba = np.asarray(proba)
