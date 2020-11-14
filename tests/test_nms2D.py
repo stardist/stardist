@@ -132,8 +132,8 @@ def test_speed(nms_thresh = 0.3, grid = (1,1)):
     
     shape = (128,128)
     prob, dist = create_random_data(shape, n_rays = 32, radius=10, noise=.1)
-    prob = np.tile(prob, (32,32))
-    dist = np.tile(dist, (32,32,1))
+    prob = np.tile(prob, (8,8))
+    dist = np.tile(dist, (8,8,1))
     prob = prob[::grid[0],::grid[1]]
     dist = dist[::grid[0],::grid[1]]
 

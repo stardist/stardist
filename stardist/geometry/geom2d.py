@@ -173,6 +173,7 @@ def relabel_image_stardist(lbl, n_rays, **kwargs):
         raise ValueError("lbl image should be 2 dimensional")
     dist = star_dist(lbl, n_rays, **kwargs)
     points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
+    dist = dist[tuple(points.T)]
     return polygons_to_label(dist, points, shape=lbl.shape)
     
 
