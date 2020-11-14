@@ -170,11 +170,16 @@ def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
     pointsi = points[_sorted]
     inds_original = inds_original[_sorted]
 
-    verbose and print("non-maximum suppression...")
+    if verbose:
+        print("non-maximum suppression...")
+        t = time()
 
     inds = non_maximum_suppression_inds(disti, pointsi, scores=probi, thresh=nms_thresh, use_kdtree = use_kdtree, verbose=verbose)
 
-    verbose and print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
+    if verbose:
+        print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
+        print("NMS took %.4f s" % (time() - t))
+
     return pointsi[inds], probi[inds], disti[inds], inds_original[inds]
 
     
