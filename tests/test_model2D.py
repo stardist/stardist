@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pytest
 from pathlib import Path
+from itertools import product
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
@@ -308,24 +309,26 @@ def test_speed(model2d):
     model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(8,8))
-
-    t1 = time()
-    labels1, res1 = model.predict_instances(x, n_tiles=(4, 4), sparse = False)
-    t1 = time()-t1
+    x = np.tile(x,(16,16))
+    print(x.shape)
     
-    t2 = time()
-    labels2, res2 = model.predict_instances(x, n_tiles=(4, 4), sparse = True)
-    t2 = time()-t2
-
-    print("\n\n")
-    print(f"dense:   {t1:.2f}s")
-    print(f"sparse:  {t2:.2f}s")
+    stats = []
+    for n_tiles,sparse in product((None,(2,2)),(True, False)):
+           t = time()
+           labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
+           t = time()-t
+           s = f"{n_tiles}\t{sparse}\t{t:.2f}s"
+           print(s)
+           stats.append(s)
+    
+    for s in stats:
+        print(s) 
 
     # assert np.allclose(labels1, labels2)
     # assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys()))])
+    # return labels1, res1, labels2, res2
 
-    return labels1, res1, labels2, res2
+
 
 
 
@@ -380,4 +383,6 @@ def test_load_and_export_TF(model2d):
     model.export_TF(single_output=True, upsample_grid=True)
     
 if __name__ == '__main__':
-    res = _test_model_multiclass(n_classes=2,classes = "area", n_channel=1)
+    # res = _test_model_multiclass(n_classes=2,classes = "area", n_channel=1)
+    from conftest import _model2d
+    test_speed(_model2d())
