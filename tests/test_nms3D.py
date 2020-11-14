@@ -43,11 +43,19 @@ def test_label():
     return polyhedron_to_label(dist, points, rays, shape=(33, 44, 55))
 
 
-def test_nms_and_label(nms_thresh=0.1, shape=(33, 44, 55), noise=.1, n_rays=32):
-    points, probi, disti, rays = create_random_suppressed(
-        nms_thresh, shape=shape, noise=noise, n_rays=n_rays)
-    lbl = polyhedron_to_label(disti, points, rays, shape=shape)
-    return lbl
+def test_nms_kdtree(nms_thresh=0.1, shape=(33, 44, 55), noise=.1, n_rays=32):
+    prob, dist, rays = create_random_data(shape, noise, n_rays)
+    points1, probi1, disti1 = non_maximum_suppression_3d(dist, prob, rays,
+                                                         prob_thresh=0.9,nms_thresh=nms_thresh,
+                                                         use_kdtree=False, verbose=True)
+    points2, probi2, disti2 = non_maximum_suppression_3d(dist, prob, rays,
+                                                         prob_thresh=0.9,nms_thresh=nms_thresh,
+                                                         use_kdtree=True, verbose=True)
+    assert np.allclose(points1, points2)
+    assert np.allclose(probi1 , probi2)
+    assert np.allclose(disti1 , disti2)
+    return (points1, probi1, disti1),(points2, probi2, disti2)
+
 
 @pytest.mark.parametrize('noise',(0,.2,.6,.9))
 @pytest.mark.parametrize('n_rays',(32,65,100))
@@ -113,6 +121,4 @@ def test_rays_volume_area(n_rays = 187):
     return lbl
 
 if __name__ == '__main__':
-    # np.random.seed(42)
-    # lbl = test_nms_and_label(.2, shape=(44, 55, 66), noise=.2)
     lbl = test_rays_volume_area()

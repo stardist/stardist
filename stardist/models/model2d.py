@@ -23,7 +23,7 @@ from .base import StarDistBase, StarDistDataBase
 from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
-from ..nms import non_maximum_suppression
+from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 
 
 
@@ -460,23 +460,32 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_class = None,
-                                   prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction_old(self, img_shape, prob, dist, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+        from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
+        from stardist.nms import _non_maximum_suppression_old
+        
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
 
-        coord = dist_to_coord(dist, grid=self.config.grid)
-        inds = non_maximum_suppression(coord, prob, grid=self.config.grid,
+        coord = _dist_to_coord_old(dist, grid=self.config.grid)
+        points = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
                                        prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-        labels = polygons_to_label(coord, prob, inds, shape=img_shape)
+
+        
+        labels = _polygons_to_label_old(coord, prob, points, shape=img_shape)
+
+        sort_ind = np.argsort(prob[tuple(points.T)])[::-1]
+        points = points[sort_ind]
+        prob = prob[points[:,0],points[:,1]]
+        coord = coord[points[:,0],points[:,1]]
+
         # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
-        inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
+        # inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
         # adjust for grid
         points = inds*np.array(self.config.grid)
 
-        res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points,
-                            prob=prob[inds[:,0],inds[:,1]])
+        res_dict = dict(coord=coord, points=points, prob=prob)
 
         if prob_class is not None:
             # build the list of class ids per label via majority vote
@@ -498,6 +507,66 @@ class StarDist2D(StarDistBase):
             
         return labels, res_dict
 
+    def _instances_from_prediction(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+        """ 
+        if points is None     -> dense prediction 
+        if points is not None -> sparse prediction 
+
+        if prob_class is None     -> single class prediction 
+        if prob_class is not None -> multi  class prediction 
+        """
+        
+        if prob_thresh is None: prob_thresh = self.thresholds.prob
+        if nms_thresh  is None: nms_thresh  = self.thresholds.nms
+        if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
+
+        # sparse prediction
+        if points is not None:
+            points, probi, disti, indsi = non_maximum_suppression_sparse(dist, prob, points,
+                                                                  nms_thresh=nms_thresh,
+                                                                  **nms_kwargs)
+            if prob_class is not None:
+                prob_class = prob_class[indsi]
+
+        # dense prediction 
+        else:
+            points, probi, disti = non_maximum_suppression(dist, prob, 
+                                                           grid=self.config.grid,
+                                                           prob_thresh=prob_thresh,
+                                                           nms_thresh=nms_thresh,
+                                                           **nms_kwargs)
+            if prob_class is not None:
+                inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
+                prob_class = prob_class[inds[0],inds[1]]
+
+                
+        labels = polygons_to_label(disti, points, prob = probi, shape=img_shape)
+        coord = dist_to_coord(disti, points)
+        res_dict = dict(coord=coord, points=points, prob=probi)
+
+        # multi class prediction
+        if prob_class is not None:
+            # build the list of class ids per label via majority vote
+            # zoom prob_class to img_shape
+            # prob_class_up = zoom(prob_class,
+            #                      tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:2], img_shape))+(1,),
+            #                      order=0)
+            # class_prob, label_ids = [],[]
+            # for reg in regionprops(labels):
+            #     m = labels[reg.slice]==reg.label
+            #     # use average class prob per object (maybe better to use center one?)
+            #     p = np.mean(prob_class_up[reg.slice][m],axis=0)
+            #     class_prob.append(p)
+            #     label_ids.append(reg.label)                
+            # # just a sanity check whether labels where in sorted order
+            # assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
+            # class_prob = np.array(class_prob).reshape((-1,prob_class.shape[-1]))
+            
+            prob_class = np.asarray(prob_class)
+            res_dict.update(dict(class_prob = prob_class))
+            
+        return labels, res_dict  
+    
 
     def _axes_div_by(self, query_axes):
         self.config.backbone == 'unet' or _raise(NotImplementedError())

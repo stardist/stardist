@@ -68,6 +68,16 @@ def test_load_and_predict(model2d):
     assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
     return labels
 
+def test_load_and_predict_big():
+    model_path = path_model2d()
+    model = StarDist2D(None, name=model_path.name,
+                       basedir=str(model_path.parent))
+    img, _ = real_image2d()
+    x = normalize(img, 1, 99.8)
+    x = np.tile(x,(8,8))
+    labels, polygons = model.predict_instances(x)
+    return labels
+
 
 def test_optimize_thresholds(model2d):
     model = model2d
@@ -191,8 +201,7 @@ def test_load_and_export_TF(model2d):
 
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
-    from skimage.measure import regionprops
-    
+    from skimage.measure import regionprops    
     img, mask = real_image2d()
     img = normalize(img,1,99.8) 
 
@@ -231,18 +240,16 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
-    s = model.train(X, Y, classes = classes, epochs = 1, 
+    s = model.train(X, Y, classes = classes, epochs = 100, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
-    labels, res = model.predict_instances(img)
+    labels1, res1 = model.predict_instances(img)
+    labels2, res2 = model.predict_instances(img, sparse = True)
 
-    # img = np.tile(img, (2,2)+(1,)*(img.ndim-2))
-    # labels1, res1 = model.predict_instances(img)
-
-    # labels2, res2 = model.predict_instances_big(img, axes='YX' if img.ndim==2 else "YXC",
-    #                                           block_size=256,
-    #                                           min_overlap=8, context=8)
-    # return  model, img, labels1, labels2, res1, res2
+    assert np.allclose(labels1, labels2)
+    assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys()))])
+    
+    return model, img, res1, res2
 
 @pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
@@ -290,12 +297,62 @@ def print_receptive_fields():
                 fov   = model._compute_receptive_field()
                 print(f"backbone: {backbone} \t n_depth: {n_depth} \t grid {grid} -> fov: {fov}")
 
+def test_predict_dense_sparse(model2d):
+    model = model2d
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+    labels1, res1 = model.predict_instances(x, n_tiles=(2, 2), sparse = False)
+    labels2, res2 = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
+    assert np.allclose(labels1, labels2)
+    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+    return labels2, res1, labels2, res2
+
+
+
+def test_speed(model2d):
+    from time import time
+    
+    model = model2d
+    img, mask = real_image2d()
+    x = normalize(img, 1, 99.8)
+    x = np.tile(x,(8,8))
+
+    t1 = time()
+    labels1, res1 = model.predict_instances(x, n_tiles=(4, 4), sparse = False)
+    t1 = time()-t1
+    
+    t2 = time()
+    labels2, res2 = model.predict_instances(x, n_tiles=(4, 4), sparse = True)
+    t2 = time()-t2
+
+    print("\n\n")
+    print(f"dense:   {t1:.2f}s")
+    print(f"sparse:  {t2:.2f}s")
+
+    # assert np.allclose(labels1, labels2)
+    # assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys()))])
+
+    return labels1, res1, labels2, res2
+
+
+
+def render_label_pred_example2(model2d):
+    model = model2d
+    img, y_gt = real_image2d()
+    x = normalize(img, 1, 99.8)
+    y, _ = model.predict_instances(x)
+
+    im = render_label_pred(y_gt, y , img = x)
+    import matplotlib.pyplot as plt
+    plt.figure(1, figsize = (12,4))
+    plt.subplot(1,4,1);plt.imshow(x);plt.title("img")
+    plt.subplot(1,4,2);plt.imshow(render_label(y_gt, img = x));plt.title("gt")
+    plt.subplot(1,4,3);plt.imshow(render_label(y, img = x));plt.title("pred")
+    plt.subplot(1,4,4);plt.imshow(im);plt.title("tp (green) fp (red) fn(blue)")
+    plt.tight_layout()
+    plt.show()
+    return im
+
 
 if __name__ == '__main__':
-    # from conftest import model2d
-
-    a, b, s = test_stardistdata(n_classes = 2,classes = 2)
-    a, b, s = test_stardistdata(n_classes = 2,classes = 1)
-
-
-    _test_model_multiclass(n_classes=1,classes = (1,1,1), n_channel=3)
+    res = _test_model_multiclass(n_classes=2,classes = "area", n_channel=1)

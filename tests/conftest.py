@@ -20,7 +20,6 @@ def _model2d():
 def model2d():
     return _model2d()
 
-
 def _model3d():
     from utils import path_model3d
     from stardist.models import StarDist3D

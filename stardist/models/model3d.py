@@ -24,7 +24,7 @@ from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
-from ..nms import non_maximum_suppression_3d
+from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
 
 
 
@@ -562,13 +562,33 @@ class StarDist3D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist,  points = None, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+        """if points are given, use sparse prediction"""
+
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
 
         rays = rays_from_json(self.config.rays_json)
-        points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, grid=self.config.grid,
-                                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+
+        # if points is given, assume sparse prediction (else dense)
+        if points is not None:
+            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob,
+                                                                     points,  rays,
+                                                                     nms_thresh=nms_thresh,
+                                                                     **nms_kwargs)
+            if prob_class is not None:
+                prob_class = prob_class[indsi]
+            
+        else:
+            points, probi, disti = non_maximum_suppression_3d(dist, prob, rays,
+                                                          grid=self.config.grid,
+                                                          prob_thresh=prob_thresh,
+                                                          nms_thresh=nms_thresh,
+                                                          **nms_kwargs)
+            if prob_class is not None:
+                inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
+                prob_class = prob_class[inds[0],inds[1]]
+
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
         labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
@@ -590,20 +610,23 @@ class StarDist3D(StarDistBase):
         if prob_class is not None:
             # build the list of class ids per label via majority vote
             # zoom prob_class to img_shape
-            prob_class_up = zoom(prob_class,
-                                 tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:3], img_shape))+(1,),
-                                 order=0)
-            class_id, label_ids = [], []
-            for reg in regionprops(labels):
-                m = labels[reg.slice]==reg.label
-                cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
-                class_id.append(cls_id)
-                label_ids.append(reg.label)
-            # just a sanity check whether labels where in sorted order
-            assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
-            res_dict.update(dict(classes = class_id))
-            res_dict.update(dict(labels = label_ids))
-            self.p = prob_class_up
+            # prob_class_up = zoom(prob_class,
+            #                      tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:3], img_shape))+(1,),
+            #                      order=0)
+            # class_id, label_ids = [], []
+            # for reg in regionprops(labels):
+            #     m = labels[reg.slice]==reg.label
+            #     cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
+            #     class_id.append(cls_id)
+            #     label_ids.append(reg.label)
+            # # just a sanity check whether labels where in sorted order
+            # assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
+            # res_dict.update(dict(classes = class_id))
+            # res_dict.update(dict(labels = label_ids))
+            # self.p = prob_class_up
+           
+            prob_class = np.asarray(prob_class)
+            res_dict.update(dict(class_prob = prob_class))
 
         return labels, res_dict
 
