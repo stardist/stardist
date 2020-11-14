@@ -107,24 +107,6 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     return points1, img1, points2, img2
 
 
-# def test_pretrained():
-#     from stardist.models import StarDist2D
-#     img = normalize(real_image2d()[0])
-
-#     model = StarDist2D.from_pretrained("2D_versatile_fluo")
-#     prob,dist = model.predict(img)
-#     y1, res1 = model._instances_from_prediction_old(img.shape,prob,dist, nms_thresh=.3)
-
-#     y2, res2 = model._instances_from_prediction(img.shape,prob,dist, nms_thresh=.3)
-
-#     for k in res1.keys():
-#         assert np.allclose(res1[k],res2[k])
-        
-#     assert np.allclose(y1,y2)
-    
-#     return y1, res1, y2, res2
-
-
 def test_speed(nms_thresh = 0.3, grid = (1,1)):
     np.random.seed(42)
     from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old

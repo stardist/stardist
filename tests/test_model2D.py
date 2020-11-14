@@ -188,15 +188,6 @@ def test_imagej_rois_export(tmpdir, model2d):
     export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
 
 
-def test_load_and_export_TF(model2d):
-    model = model2d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def print_receptive_fields():
     for backbone in ("unet",):
         for n_depth in (1,2,3):
@@ -265,6 +256,39 @@ def render_label_pred_example2(model2d):
     return im
 
 
+def test_pretrained_integration():
+    from stardist.models import StarDist2D
+    img = normalize(real_image2d()[0])
+
+    model = StarDist2D.from_pretrained("2D_versatile_fluo")
+    prob,dist = model.predict(img)
+
+    y1, res1 = model._instances_from_prediction(img.shape,prob,dist, nms_thresh=.3)
+    y2, res2 = model._instances_from_prediction_old(img.shape,prob,dist, nms_thresh=.3)
+
+    # reorder as polygons is inverted in newer versions
+    res2 = dict((k,v[::-1]) for k,v in res2.items())        
+    y2[y2>0] = np.max(y2)-y2[y2>0]+1
+
+    for k in res1.keys():
+        assert np.allclose(res1[k],res2[k])
+        
+    assert np.allclose(y1,y2)
+    
+    return y1, res1, y2, res2
+
+
+
+# this test has to be at the end of the model
+def test_load_and_export_TF(model2d):
+    model = model2d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+    
 if __name__ == '__main__':
     from conftest import _model2d
     y1, res1, y2, res2 =test_predict_dense_sparse(_model2d())
