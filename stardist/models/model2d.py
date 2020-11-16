@@ -460,7 +460,7 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, skip_label_creation=False, **nms_kwargs):
         from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
         from stardist.nms import _non_maximum_suppression_old
         
@@ -485,7 +485,7 @@ class StarDist2D(StarDistBase):
             
         return labels, res_dict
 
-    def _instances_from_prediction(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, skip_label_creation=False, **nms_kwargs):
         """ 
         if points is None     -> dense prediction 
         if points is not None -> sparse prediction 
@@ -516,8 +516,8 @@ class StarDist2D(StarDistBase):
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
                 prob_class = prob_class[inds[0],inds[1]]
 
-                
-        labels = polygons_to_label(disti, points, prob = probi, shape=img_shape)
+        labels = None if skip_label_creation else polygons_to_label(disti, points, prob = probi, shape=img_shape)
+            
         coord = dist_to_coord(disti, points)
         res_dict = dict(coord=coord, points=points, prob=probi)
 

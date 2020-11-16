@@ -391,7 +391,6 @@ class StarDistBase(BaseModel):
             In multiclass prediction mode returns (`prob`, `dist`, `prob_class`) with `prob_class` being the probability map for each of the n_classes+1 classes (background being the first)
 
         """
-        
         if n_tiles is None:
             n_tiles = [1]*img.ndim
         try:
@@ -505,7 +504,7 @@ class StarDistBase(BaseModel):
         (prob, dist, [prob_class], points)   flat list of probs, dists, (optional prob_class) and points
         """
         if prob_thresh is None: prob_thresh = self.thresholds.prob
-        
+               
         if n_tiles is None:
             n_tiles = [1]*img.ndim
         try:
@@ -595,16 +594,10 @@ class StarDistBase(BaseModel):
                 pointsa.extend(_points)
                 
                 if self._is_multiclass():
-                    p = results_tile[2][s_src]
+                    p = results_tile[2][s_src].copy()
                     p = np.moveaxis(p,channel,-1)
                     prob_classa.extend(p[inds])
-                
-            proba = np.asarray(proba)
-            dista = np.asarray(dista)
-            pointsa = np.asarray(pointsa)
-            prob_classa = np.asarray(prob_classa)
-            
-            
+                                      
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
             results = predict_direct(x)            
@@ -618,20 +611,23 @@ class StarDistBase(BaseModel):
 
             if self._is_multiclass():
                 p = np.moveaxis(results[2],channel,-1)
-                prob_classa = p[inds]
+                prob_classa = p[inds].copy()
 
                 
-        if not self._is_multiclass():
-            prob_classa = None
-            
+        proba = np.asarray(proba)
+        dista = np.asarray(dista).reshape((-1,self.config.n_rays))
+        pointsa = np.asarray(pointsa).reshape((-1,self.config.n_dim))
+        
         if self._is_multiclass():
+            prob_classa = np.asarray(prob_classa).reshape((-1,self.config.n_classes+1))            
             return proba, dista, prob_classa, pointsa
         else:
+            prob_classa = None
             return proba, dista, pointsa
 
     
     def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse = False, 
+                          sparse = False,  skip_label_creation = False, 
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
@@ -716,6 +712,7 @@ class StarDistBase(BaseModel):
         return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = points,
                                                prob_class = prob_class,
+                                               skip_label_creation = skip_label_creation,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
                                                overlap_label=overlap_label,
@@ -767,7 +764,7 @@ class StarDistBase(BaseModel):
                                                **nms_kwargs)
 
 
-    def predict_instances_big(self, img, axes, block_size, min_overlap, context=None,
+    def predict_instances_big(self, img, axes, block_size, min_overlap, context=None, 
                               labels_out=None, labels_out_dtype=np.int32, show_progress=True, **kwargs):
         """Predict instance segmentation from very large input images.
 
@@ -884,6 +881,7 @@ class StarDistBase(BaseModel):
         # actual computation
         for block in blocks:
             labels, polys = self.predict_instances(block.read(img, axes=axes), **kwargs)
+            print(labels.shape)
             labels = block.crop_context(labels, axes=axes_out)
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
