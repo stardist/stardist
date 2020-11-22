@@ -627,7 +627,7 @@ class StarDistBase(BaseModel):
 
     
     def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse = False,  skip_label_creation = False, 
+                          sparse = False,  
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
@@ -712,7 +712,6 @@ class StarDistBase(BaseModel):
         return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = points,
                                                prob_class = prob_class,
-                                               skip_label_creation = skip_label_creation,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
                                                overlap_label=overlap_label,
