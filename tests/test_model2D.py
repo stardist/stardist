@@ -313,11 +313,19 @@ def test_speed(model2d):
     print(x.shape)
     
     stats = []
-    for n_tiles,sparse in product((None,(2,2)),(True, False)):
+    
+    for mode, n_tiles,sparse in product(("normal", "big"),(None,(2,2)),(True, False)):
            t = time()
-           labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
+           if mode=="normal":
+               labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
+           else:
+               labels, res = model.predict_instances_big(x,axes = "YX",
+                                                         block_size = 2048+128,
+                                                         context = 64, min_overlap = 64,
+                                                         n_tiles=n_tiles, sparse = sparse)
+               
            t = time()-t
-           s = f"{n_tiles}\t{sparse}\t{t:.2f}s"
+           s = f"mode={mode}\ttiles={n_tiles}\tsparse={sparse}\t{t:.2f}s"
            print(s)
            stats.append(s)
     
@@ -376,6 +384,11 @@ def test_load_and_export_TF(model2d):
     model.export_TF(single_output=True, upsample_grid=True)
     
 if __name__ == '__main__':
-    # res = _test_model_multiclass(n_classes=2,classes = "area", n_channel=1)
     from conftest import _model2d
     test_speed(_model2d())
+
+    
+
+
+    
+    

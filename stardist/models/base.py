@@ -881,7 +881,6 @@ class StarDistBase(BaseModel):
         # actual computation
         for block in blocks:
             labels, polys = self.predict_instances(block.read(img, axes=axes), **kwargs)
-            print(labels.shape)
             labels = block.crop_context(labels, axes=axes_out)
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
