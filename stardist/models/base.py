@@ -883,8 +883,9 @@ class StarDistBase(BaseModel):
             labels = block.crop_context(labels, axes=axes_out)
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
+            # this should not change the order of labels
             labels = relabel_sequential(labels, label_offset)[0]
-            
+
             # labels, fwd_map, _ = relabel_sequential(labels, label_offset)
             # if len(incomplete) > 0:
             #     problem_ids.extend([fwd_map[i] for i in incomplete])

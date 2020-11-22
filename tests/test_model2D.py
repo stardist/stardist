@@ -237,15 +237,25 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     s = model.train(X, Y, classes = classes, epochs = 100, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
-    labels1, res1 = model.predict_instances(img)
-    labels2, res2 = model.predict_instances(img, sparse = True)
+
+    img = np.tile(img,(4,4) if img.ndim==2 else (4,4,1))
+
+    kwargs = dict(prob_thresh=.2)
+    labels1, res1 = model.predict_instances(img, **kwargs)
+    labels2, res2 = model.predict_instances(img, sparse = True, **kwargs)
+    labels3, res3 = model.predict_instances_big(img, axes="YX" if img.ndim==2 else "YXC",
+                                                block_size=640, min_overlap=32, context=96, **kwargs)
 
     assert np.allclose(labels1, labels2)
-    assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys()))])
+    assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
     
     return model, img, res1, res2
 
-@pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
+@pytest.mark.parametrize('n_classes, classes, n_channel',
+                         [ (None, "auto", 1),
+                           (1, "auto", 3),
+                           (3, (1,2,3),3)]
+                         )
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir)
@@ -298,7 +308,7 @@ def test_predict_dense_sparse(model2d):
     labels1, res1 = model.predict_instances(x, n_tiles=(2, 2), sparse = False)
     labels2, res2 = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
     assert np.allclose(labels1, labels2)
-    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
+    assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray))
     return labels2, res1, labels2, res2
 
 
@@ -309,7 +319,7 @@ def test_speed(model2d):
     model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(16,16))
+    x = np.tile(x,(8,8))
     print(x.shape)
     
     stats = []
@@ -366,7 +376,8 @@ def test_pretrained_integration():
     y2[y2>0] = np.max(y2)-y2[y2>0]+1
 
     for k in res1.keys():
-        assert np.allclose(res1[k],res2[k])
+        if isinstance(res1[k], np.ndarray):
+            assert np.allclose(res1[k],res2[k])
         
     assert np.allclose(y1,y2)
     
@@ -385,8 +396,8 @@ def test_load_and_export_TF(model2d):
     
 if __name__ == '__main__':
     from conftest import _model2d
-    test_speed(_model2d())
-
+    # test_speed(_model2d())
+    _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None)
     
 
 

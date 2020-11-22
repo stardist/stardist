@@ -524,8 +524,8 @@ class StarDist2D(StarDistBase):
         # multi class prediction
         if prob_class is not None:            
             prob_class = np.asarray(prob_class)
-            classes    = dict((i+1, c) for i,c in enumerate(np.argmax(prob_class, axis = 1)))  
-            res_dict.update(dict(class_prob = prob_class, classes = classes))
+            class_id = np.argmax(prob_class, axis = -1)            
+            res_dict.update(dict(class_prob = prob_class, class_id = class_id))
             
             
         return labels, res_dict  
