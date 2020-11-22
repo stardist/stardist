@@ -330,7 +330,7 @@ def test_speed(model2d):
                labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
            else:
                labels, res = model.predict_instances_big(x,axes = "YX",
-                                                         block_size = 2048+128,
+                                                         block_size = 1024+256,
                                                          context = 64, min_overlap = 64,
                                                          n_tiles=n_tiles, sparse = sparse)
                
