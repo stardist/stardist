@@ -708,7 +708,6 @@ class StarDistBase(BaseModel):
             prob, dist, points = res
             prob_class = None
             
-        
         return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = points,
                                                prob_class = prob_class,
