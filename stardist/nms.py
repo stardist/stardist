@@ -222,8 +222,8 @@ def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, use_bbox=True
 
     inds = c_non_max_suppression_inds(_prep(dist,  np.float32),
                                       _prep(points, np.float32),
-                                      np.int(use_bbox),
                                       np.int(use_kdtree),
+                                      np.int(use_bbox),
                                       np.int(verbose),
                                       np.float32(thresh))
 

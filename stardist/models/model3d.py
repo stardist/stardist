@@ -626,8 +626,9 @@ class StarDist3D(StarDistBase):
             # self.p = prob_class_up
            
             prob_class = np.asarray(prob_class)
-            res_dict.update(dict(class_prob = prob_class))
-
+            class_id = np.argmax(prob_class, axis = -1)            
+            res_dict.update(dict(class_prob = prob_class, class_id = class_id))
+            
         return labels, res_dict
 
 

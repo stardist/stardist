@@ -422,7 +422,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   if (verbose){
     printf("Non Maximum Suppression (2D) ++++ \n");
-    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: thresh   = %.3f \nNMS: use_bbox = %d\n NMS:  use_kdtree =  %d\n", n_polys, n_rays, threshold, use_bbox, use_kdtree);
+    printf("NMS: n_polys    = %d \nNMS: n_rays     = %d  \nNMS: thresh     = %.3f \nNMS: use_bbox   = %d\nNMS: use_kdtree = %d\n", n_polys, n_rays, threshold, use_bbox, use_kdtree);
 #ifdef _OPENMP
     printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif

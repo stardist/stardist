@@ -627,7 +627,7 @@ class StarDistBase(BaseModel):
 
     
     def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse = False,  skip_label_creation = False, 
+                          sparse = False,  
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
@@ -708,11 +708,9 @@ class StarDistBase(BaseModel):
             prob, dist, points = res
             prob_class = None
             
-        
         return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = points,
                                                prob_class = prob_class,
-                                               skip_label_creation = skip_label_creation,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
                                                overlap_label=overlap_label,
@@ -884,8 +882,9 @@ class StarDistBase(BaseModel):
             labels = block.crop_context(labels, axes=axes_out)
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
             # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
+            # this should not change the order of labels
             labels = relabel_sequential(labels, label_offset)[0]
-            
+
             # labels, fwd_map, _ = relabel_sequential(labels, label_offset)
             # if len(incomplete) > 0:
             #     problem_ids.extend([fwd_map[i] for i in incomplete])
