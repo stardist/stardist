@@ -76,8 +76,8 @@ Currently we provide some pretrained models in 2D that might already be suitable
 
 | key | Modality (Staining) | Image format | Example Image    | Description  | 
 | :-- | :-: | :-:| :-:| :-- |
-| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a subset of the [ DSB 2018 nuclei segmentation challenge dataset](https://data.broadinstitute.org/bbbc/BBBC038/). | 
-|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TCGA archive](http://cancergenome.nih.gov/). |
+| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a [ subset of the DSB 2018 nuclei segmentation challenge dataset](https://github.com/mpicbg-csbd/stardist/releases/download/0.1.0/dsb2018.zip). | 
+|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TNBC dataset from Naylor et al. (2018)](https://zenodo.org/record/1175282#.X6mwG9so-CN). |
 
 
 You can access these pretrained models from `stardist.models.StarDist2D`
@@ -135,9 +135,9 @@ If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wi
 
 ### macOS
 The default Apple C/C++ compiler (`clang`) does not come with OpenMP support and the package build will likely fail.
-To properly build `stardist` you need to install a OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (which will currently install `gcc-9`/`g++-9`). After that, you can build the package like this (adjust compiler names/paths as necessary):
+To properly build `stardist` you need to install an OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (e.g. installing `gcc-10`/`g++-10` or newer). After that, you can build the package like this (adjust compiler names/paths as necessary):
 
-    CC=gcc-9 CXX=g++-9 pip install stardist
+    CC=gcc-10 CXX=g++-10 pip install stardist
 
 If you use `conda` on macOS and after `import stardist` see errors similar to the following:
 
