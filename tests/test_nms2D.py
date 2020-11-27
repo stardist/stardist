@@ -47,7 +47,7 @@ def test_acc(img, grid):
     prob = edt_prob(img)[::grid[0],::grid[1]]
     dist = star_dist(img, n_rays=32, mode="cpp")[::grid[0],::grid[1]]
     coord = dist_to_coord(dist, grid = grid)
-    points = non_maximum_suppression(coord, prob, prob_thresh=0.4)
+    points = non_maximum_suppression(coord, prob, grid=grid, prob_thresh=0.4)
     img2 = polygons_to_label(coord, prob, points, shape=img.shape)
     m = matching(img, img2)
     acc = m.accuracy
