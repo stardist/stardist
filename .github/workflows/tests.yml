@@ -1,0 +1,28 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+        TENSORFLOW: ['tensorflow']
+        include:
+          - python-version: 3.6
+            TENSORFLOW: ['tensorflow<2']
+          - python-version: 3.7
+            TENSORFLOW: ['tensorflow<2']
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip wheel setuptools
+      - run: pip install pytest
+      - run: pip install "${{ matrix.TENSORFLOW }}"
+      - run: pip install .
+      - run: pytest -v --durations=50 -m "not gpu"
