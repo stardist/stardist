@@ -7,14 +7,15 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      # fail-fast: false
       matrix:
         python-version: [3.6, 3.7, 3.8]
-        TENSORFLOW: ['tensorflow']
+        TENSORFLOW: ["tensorflow"]
         include:
           - python-version: 3.6
-            TENSORFLOW: ['tensorflow<2']
+            TENSORFLOW: "tensorflow<2"
           - python-version: 3.7
-            TENSORFLOW: ['tensorflow<2']
+            TENSORFLOW: "tensorflow<2"
 
     steps:
       - uses: actions/checkout@v2
