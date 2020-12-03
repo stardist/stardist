@@ -383,6 +383,8 @@ class StarDist2D(StarDistBase):
         classes = self._parse_classes_arg(classes, len(X))
 
         validation_data is not None or _raise(ValueError())
+        if self._is_multiclass() and len(validation_data)==2:
+            validation_data = tuple(validation_data) + ("auto",)    
         
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)== (2 if self.config.n_classes is None else 3))
             or _raise(ValueError(f'len(validation_data) = {len(validation_data)} but should be {"2" if self.config.n_classes is None else "3"}')))
@@ -413,6 +415,8 @@ class StarDist2D(StarDistBase):
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
+                       
+
         classes_val = self._parse_classes_arg(validation_data[2], len(validation_data[0])) if self._is_multiclass() else None
 
         _data_val = StarDistData2D(validation_data[0],validation_data[1],

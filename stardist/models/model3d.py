@@ -480,6 +480,9 @@ class StarDist3D(StarDistBase):
         classes = self._parse_classes_arg(classes, len(X))
 
         validation_data is not None or _raise(ValueError())
+        if self._is_multiclass() and len(validation_data)==2:
+            validation_data = tuple(validation_data) + ("auto",)    
+        
         ((isinstance(validation_data,(list,tuple)) and len(validation_data)== (2 if self.config.n_classes is None else 3))
             or _raise(ValueError(f'len(validation_data) = {len(validation_data)} but should be {"2" if self.config.n_classes is None else "3"}')))
 
