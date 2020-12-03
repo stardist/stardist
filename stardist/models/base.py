@@ -22,9 +22,12 @@ from csbdeep.internals.predict import tile_iterator, total_n_tiles
 from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
+from scipy.optimize import minimize_scalar
+
 from ..sample_patches import get_valid_inds
 from ..nms import _ind_prob_thresh
 from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
+from ..matching import matching_dataset
 
 # TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
@@ -219,7 +222,7 @@ class StarDistBase(BaseModel):
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)
-        threshs = dict(prob=None, nms=None)
+        threshs = dict(prob=None, nms=None, refine=None)
         if basedir is not None:
             try:
                 threshs = load_json(str(self.logdir / 'thresholds.json'))
@@ -230,6 +233,9 @@ class StarDistBase(BaseModel):
                 if threshs.get('nms') is None or not (0 < threshs.get('nms') < 1):
                     print("- Invalid 'nms' threshold (%s), using default value." % str(threshs.get('nms')))
                     threshs['nms'] = None
+                if threshs.get('refine') is None:
+                    print("- Invalid 'refine' threshold (%s), using default value." % str(threshs.get('refine')))
+                    threshs['refine'] = None
             except FileNotFoundError:
                 if config is None and len(tuple(self.logdir.glob('*.h5'))) > 0:
                     print("Couldn't load thresholds from 'thresholds.json', using default values. "
@@ -238,8 +244,9 @@ class StarDistBase(BaseModel):
         self.thresholds = dict (
             prob = 0.5 if threshs['prob'] is None else threshs['prob'],
             nms  = 0.4 if threshs['nms']  is None else threshs['nms'],
+            refine  = 0.5 if threshs['refine']  is None else threshs['refine'],
         )
-        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+        print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}, refine_thresh={refine:g} .".format(prob=self.thresholds.prob, nms=self.thresholds.nms, refine=self.thresholds.refine))
 
 
     @property
@@ -628,7 +635,7 @@ class StarDistBase(BaseModel):
     
     def predict_instances(self, img, axes=None, normalizer=None,
                           sparse = False,  
-                          prob_thresh=None, nms_thresh=None,
+                          prob_thresh=None, nms_thresh=None, refine_thresh=False, 
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
                           predict_kwargs=None, nms_kwargs=None, overlap_label=None):
@@ -713,6 +720,7 @@ class StarDistBase(BaseModel):
                                                prob_class = prob_class,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
+                                               refine_thresh=refine_thresh,
                                                overlap_label=overlap_label,
                                                **nms_kwargs)
 
@@ -949,8 +957,9 @@ class StarDistBase(BaseModel):
             else:
                 return {**predict_kwargs, 'n_tiles': self._guess_n_tiles(x), 'show_tile_progress': False}
 
+        Yhat_val_full = [self.predict(x, **_predict_kwargs(x)) for x in X_val]
         # only take first two elements of predict in case multi class is activated
-        Yhat_val = [self.predict(x, **_predict_kwargs(x))[:2] for x in X_val]
+        Yhat_val      = [x[:2] for x in Yhat_val_full]
 
         opt_prob_thresh, opt_measure, opt_nms_thresh = None, -np.inf, None
         for _opt_nms_thresh in nms_threshs:
@@ -962,12 +971,56 @@ class StarDistBase(BaseModel):
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
         print("Using optimized values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+
+        # with the optimzed nms and prob thresh, find the best refinement/watershed threshold
+        if self._is_multiclass():
+            opt_threshs["refine"] = self._optimize_refine_threshold(Y_val, Yhat_val_full,
+                                                                   prob_thresh=opt_prob_thresh,
+                                                                   nms_thresh=opt_nms_thresh)[0]
+            
         if save_to_json and self.basedir is not None:
             print("Saving to 'thresholds.json'.")
             save_json(opt_threshs, str(self.logdir / 'thresholds.json'))
         return opt_threshs
 
+    def _optimize_refine_threshold(self, Y, Yhat, prob_thresh, nms_thresh, iou_thresh=.5, measure='mean_true_score', predict_kwargs=None, tol=1e-2, maxiter=20, verbose=1):
+        np.isscalar(nms_thresh) or _raise(ValueError("nms_thresh must be a scalar"))
+        np.isscalar(prob_thresh) or _raise(ValueError("prob_thresh must be a scalar"))
+        values = dict()
 
+        bracket = (.1,1.9)
+        with tqdm(total=maxiter, disable=(verbose!=1)) as progress:
+            def fn(thr):
+                refine_thresh = np.clip(thr, *bracket)
+                value = values.get(refine_thresh)
+                if value is None:
+                    Y_instances = [self._instances_from_prediction(y.shape, prob=prob,
+                                                                   dist=dist,
+                                                            prob_class=prob_class,
+                                                            prob_thresh=prob_thresh,
+                                                            refine_thresh=refine_thresh,
+                                                            nms_thresh=nms_thresh)[0] for y,(prob,dist,prob_class) in zip(Y,Yhat)]
+                    stats = matching_dataset(Y, Y_instances, thresh=iou_thresh, show_progress=False, parallel=True)
+                    values[refine_thresh] = value = stats._asdict()[measure] 
+                if verbose > 1:
+                    print("{now}   thresh: {refine_thresh:f}   {measure}: {value:f}".format(
+                        now = datetime.datetime.now().strftime('%H:%M:%S'),
+                        refine_thresh = refine_thresh,
+                        measure = measure,
+                        value = value,
+                    ), flush=True)
+                else:
+                    progress.update()
+                    progress.set_postfix_str("{refine_thresh:.3f} -> {value:.3f}".format(refine_thresh=refine_thresh, value=value))
+                    progress.refresh()
+                return -value
+
+            opt = minimize_scalar(fn, method='golden', bracket=bracket, tol=tol, options={'maxiter': maxiter})
+
+        verbose > 1 and print('\n',opt, flush=True)
+        return opt.x, -opt.fun
+        
+    
     def _guess_n_tiles(self, img):
         axes = self._normalize_axes(img, axes=None)
         shape = list(img.shape)

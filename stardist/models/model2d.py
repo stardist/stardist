@@ -9,7 +9,7 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
-from skimage.segmentation import clear_border
+from skimage.segmentation import clear_border, watershed
 from skimage.measure  import regionprops
 from scipy.ndimage import zoom
 from distutils.version import LooseVersion
@@ -489,7 +489,7 @@ class StarDist2D(StarDistBase):
             
         return labels, res_dict
 
-    def _instances_from_prediction(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None,  **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, refine_thresh=False, overlap_label = None,  **nms_kwargs):
         """ 
         if points is None     -> dense prediction 
         if points is not None -> sparse prediction 
@@ -497,6 +497,9 @@ class StarDist2D(StarDistBase):
         if prob_class is None     -> single class prediction 
         if prob_class is not None -> multi  class prediction 
         """
+        if refine_thresh is not False and not self._is_multiclass() and sparse:
+            raise NotImplementedError("refinement only supported for non-sparse multiclass models!")
+        
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
@@ -507,7 +510,7 @@ class StarDist2D(StarDistBase):
                                                                   nms_thresh=nms_thresh,
                                                                   **nms_kwargs)
             if prob_class is not None:
-                prob_class = prob_class[indsi]
+                prob_classi = prob_class[indsi]
 
         # dense prediction 
         else:
@@ -518,7 +521,7 @@ class StarDist2D(StarDistBase):
                                                            **nms_kwargs)
             if prob_class is not None:
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
-                prob_class = prob_class[inds[0],inds[1]]
+                prob_classi = prob_class[inds[0],inds[1]]
 
         labels = polygons_to_label(disti, points, prob = probi, shape=img_shape)
             
@@ -527,10 +530,27 @@ class StarDist2D(StarDistBase):
 
         # multi class prediction
         if prob_class is not None:            
-            prob_class = np.asarray(prob_class)
-            class_id = np.argmax(prob_class, axis = -1)            
-            res_dict.update(dict(class_prob = prob_class, class_id = class_id))
+            prob_classi = np.asarray(prob_classi)
+            class_id = np.argmax(prob_classi, axis = -1)            
+            res_dict.update(dict(class_prob = prob_classi, class_id = class_id))
+
+        if refine_thresh is not False:
             
+            zoom_factor = tuple(s1/s2 for s1, s2 in zip(img_shape, prob.shape))
+
+            prob_fg  = np.sum(prob_class[...,1:], axis = -1)
+            prob_all = prob_fg + prob
+            prob_all[0] = 0
+            prob_all[-1] = 0
+            prob_all[:,0] = 0
+            prob_all[:,-1] = 0
+            labels[0] = 0
+            labels[-1] = 0
+            labels[:,0] = 0
+            labels[:,-1] = 0
+            
+            prob_all = zoom(prob_all, zoom_factor, order=1)
+            labels = watershed(-prob_all, markers=labels,mask=prob_all>refine_thresh)                     
             
         return labels, res_dict  
     
