@@ -400,8 +400,7 @@ class StarDistBase(BaseModel):
             raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
         all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
             ValueError("all values of n_tiles must be integer values >= 1"))
-        if not _is_floatarray(img):
-            warnings.warn("Predicting on non-float image ( forgot to normalize? )")
+        
 
         n_tiles = tuple(map(int,n_tiles))
 
@@ -425,6 +424,9 @@ class StarDistBase(BaseModel):
         x = normalizer.before(x, axes_net)
         x = resizer.before(x, axes_net, axes_net_div_by)
 
+        if not _is_floatarray(x):
+            warnings.warn("Predicting on non-float input... ( forgot to normalize? )")
+        
         def predict_direct(tile):
             xs = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
             return tuple(x[0] for x in xs)
@@ -631,6 +633,7 @@ class StarDistBase(BaseModel):
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose = False,
+                          return_labels = True,
                           predict_kwargs=None, nms_kwargs=None, overlap_label=None):
         """Predict instance segmentation from input image.
 
@@ -713,6 +716,7 @@ class StarDistBase(BaseModel):
                                                prob_class = prob_class,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
+                                               return_labels = return_labels, 
                                                overlap_label=overlap_label,
                                                **nms_kwargs)
 
@@ -895,7 +899,9 @@ class StarDistBase(BaseModel):
 
             for k,v in polys.items():
                 polys_all.setdefault(k,[]).append(v)
+                
             label_offset += len(polys['prob'])
+            del labels 
 
         polys_all = {k: (np.concatenate(v) if k in OBJECT_KEYS else v[0]) for k,v in polys_all.items()}
 
