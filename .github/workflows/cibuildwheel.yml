@@ -2,7 +2,7 @@
 # - https://github.com/matplotlib/matplotlib/blob/master/.github/workflows/cibuildwheel.yml
 # - https://github.com/scikit-image/scikit-image/blob/master/.github/workflows/cibuildwheel.yml
 
-name: Build CI wheels
+name: Build wheels
 
 on:
   push:
