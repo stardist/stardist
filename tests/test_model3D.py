@@ -79,15 +79,6 @@ def test_load_and_predict_with_overlap(model3d):
     return model, labels
 
 
-def test_load_and_export_TF(model3d):
-    model = model3d
-    assert any(g>1 for g in model.config.grid)
-    # model.export_TF(single_output=False, upsample_grid=False)
-    # model.export_TF(single_output=False, upsample_grid=True)
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def test_optimize_thresholds(model3d):
     model = model3d
     img, mask = real_image3d()
@@ -157,6 +148,15 @@ def test_mesh_export(model3d):
     return s
 
 
+def test_load_and_export_TF(model3d):
+    model = model3d
+    assert any(g>1 for g in model.config.grid)
+    # model.export_TF(single_output=False, upsample_grid=False)
+    # model.export_TF(single_output=False, upsample_grid=True)
+    model.export_TF(single_output=True, upsample_grid=False)
+    model.export_TF(single_output=True, upsample_grid=True)
+
+
 def print_receptive_fields():
     backbone = "unet"
     for n_depth in (1,2,3):
@@ -177,5 +177,5 @@ def print_receptive_fields():
 
 
 if __name__ == '__main__':
-    from conftest import model3d
-    model, lbl = test_load_and_predict_with_overlap(model3d())
+    from conftest import _model3d
+    model, lbl = test_load_and_predict_with_overlap(_model3d())
