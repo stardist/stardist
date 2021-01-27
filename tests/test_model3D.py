@@ -121,11 +121,12 @@ def test_optimize_thresholds(model3d):
     return model
 
 
-def test_stardistdata():
+def test_stardistdata(grid):
+    np.random.seed(42)
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
-    s = StarDistData3D([img, img], [mask, mask], batch_size=1,
+    s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
                        patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
     (img,), (prob, dist) = s[0]
     return (img,), (prob, dist), s
@@ -291,5 +292,7 @@ if __name__ == '__main__':
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
 
 
-    test_classes()
-    res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1)
+    # test_classes()
+    # res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1)
+
+    (img,), (prob, dist), s = test_stardistdata((1,1,1))

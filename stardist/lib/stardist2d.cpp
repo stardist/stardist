@@ -69,8 +69,14 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
   dims_dst[2] = n_rays;
 
   dst = (PyArrayObject*)PyArray_SimpleNew(3,dims_dst,NPY_FLOAT32);
-
-# pragma omp parallel for schedule(dynamic)
+    
+  // # pragma omp parallel for schedule(dynamic)
+  // strangely, using schedule(dynamic) leads to segfault on OSX when importing skimage first
+#ifdef __APPLE__    
+#pragma omp parallel for 
+#else
+#pragma omp parallel for schedule(dynamic) 
+#endif
   for (int i=0; i<dims[0]; i++) {
     for (int j=0; j<dims[1]; j++) {
       const unsigned short value = *(unsigned short *)PyArray_GETPTR2(src,i,j);
@@ -112,7 +118,7 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
 
     }
   }
-
+          
   return PyArray_Return(dst);
 }
 
@@ -549,7 +555,13 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
     
 
     // inner loop 
-#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)   shared(suppressed) 
+    // remove  schedule(dynamic) on OSX as it leads to segfaults sometimes (TODO)
+#ifdef __APPLE__    
+#pragma omp parallel for reduction(+:count_suppressed)   shared(suppressed) 
+#else
+#pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)   shared(suppressed)
+#endif
+    
     for (int neigh=0; neigh<results.size(); neigh++) {
     // for (int j=i+1; j<n_polys; j++) {
 

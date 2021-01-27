@@ -43,12 +43,16 @@ class StarDistData3D(StarDistDataBase):
         self.rays = rays
         self.anisotropy = anisotropy
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
-
+        self.grid = grid
         # re-use arrays
         if self.batch_size > 1:
             self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size)+(() if self.n_channel is None else (self.n_channel,)), dtype=np.float32)
-            self.out_edt_prob = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
-            self.out_star_dist3D = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.float32)
+            
+            # self.out_edt_prob = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
+            # self.out_star_dist3D = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.float32)
+            patch_size_grid = tuple( (p-1)//g+1 for p,g in zip(self.patch_size,self.grid))
+            self.out_edt_prob = np.empty((self.batch_size,)+patch_size_grid, dtype=np.float32)
+            self.out_star_dist3D = np.empty((self.batch_size,)+patch_size_grid+(len(self.rays),), dtype=np.float32)
 
 
     def __getitem__(self, i):
@@ -77,7 +81,7 @@ class StarDistData3D(StarDistDataBase):
         else:
             prob = np.stack(tmp, out=self.out_edt_prob[:len(Y)])
 
-        tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode) for lbl in Y]
+        tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode, grid=self.grid) for lbl in Y]
         if len(Y) == 1:
             dist = tmp[0][np.newaxis]
         else:
@@ -85,10 +89,9 @@ class StarDistData3D(StarDistDataBase):
 
         prob = dist_mask = np.expand_dims(prob, -1)
 
-        # subsample wth given grid
+        # subsample wth given grid (dist is already subsampled)
         dist_mask = dist_mask[self.ss_grid]
         prob      = prob[self.ss_grid]
-        dist      = dist[self.ss_grid]
 
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
