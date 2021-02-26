@@ -568,7 +568,7 @@ class StarDist3D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist,  points = None, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist,  points = None, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels = True, **nms_kwargs):
         """if points are given, use sparse prediction"""
 
         if prob_thresh is None: prob_thresh = self.thresholds.prob
@@ -597,19 +597,23 @@ class StarDist3D(StarDistBase):
 
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
-        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
 
-        # map the overlap_label to something positive and back
-        # (as relabel_sequential doesn't like negative values)
-        if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
-            overlap_mask = (labels == overlap_label)
-            overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
-            labels[overlap_mask] = overlap_label2
-            labels, fwd, bwd = relabel_sequential(labels)
-            labels[labels == fwd[overlap_label2]] = overlap_label
+        if return_labels:
+            labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
+
+            # map the overlap_label to something positive and back
+            # (as relabel_sequential doesn't like negative values)
+            if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
+                overlap_mask = (labels == overlap_label)
+                overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
+                labels[overlap_mask] = overlap_label2
+                labels, fwd, bwd = relabel_sequential(labels)
+                labels[labels == fwd[overlap_label2]] = overlap_label
+            else:
+                labels, _,_ = relabel_sequential(labels)
         else:
-            labels, _,_ = relabel_sequential(labels)
-
+            labels = None
+            
         res_dict = dict(dist=disti, points=points, prob=probi, rays=rays,
                             rays_vertices = rays.vertices,rays_faces=rays.faces)
             
