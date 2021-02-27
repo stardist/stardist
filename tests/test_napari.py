@@ -5,9 +5,11 @@ from stardist.data import  test_image_nuclei_2d
 from utils import circle_image, real_image3d, path_model3d
 from csbdeep.utils import normalize
 from conftest import _model3d
-import napari
+
 
 def show_surface():
+
+    import napari
     
     model = _model3d()
     img, mask = real_image3d()
@@ -25,8 +27,6 @@ def show_surface():
 
     surface = surface_from_polys(polys)
 
-
-    import napari 
     with napari.gui_qt(): 
         # add the surface
         viewer = napari.view_image(img) 
@@ -34,6 +34,7 @@ def show_surface():
 
 
 def show_napari():
+    import napari
     x = test_image_nuclei_2d()
 
     with napari.gui_qt():
