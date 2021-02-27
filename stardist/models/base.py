@@ -367,8 +367,9 @@ class StarDistBase(BaseModel):
     def predict_instances(self, img, axes=None, normalizer=None,
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
-                          verbose = False,
-                          predict_kwargs=None, nms_kwargs=None, overlap_label=None):
+                          verbose=False,
+                          predict_kwargs=None, nms_kwargs=None,
+                          overlap_label=None, return_predict=False):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -401,10 +402,12 @@ class StarDistBase(BaseModel):
             Keyword arguments for non-maximum suppression.
         overlap_label: scalar or None
             if not None, label the regions where polygons overlap with that value
+        return_predict: bool
+            Also return the outputs of :func:`predict` (in a separate tuple)
 
         Returns
         -------
-        (:class:`numpy.ndarray`, dict)
+        (:class:`numpy.ndarray`, dict), (optional: return tuple of :func:`predict`)
             Returns a tuple of the label instances image and also
             a dictionary with the details (coordinates, etc.) of all remaining polygons/polyhedra.
 
@@ -422,7 +425,11 @@ class StarDistBase(BaseModel):
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
         prob, dist = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles, show_tile_progress=show_tile_progress, **predict_kwargs)
-        return self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label=overlap_label, **nms_kwargs)
+        labels, polys = self._instances_from_prediction(_shape_inst, prob, dist, prob_thresh=prob_thresh, nms_thresh=nms_thresh, overlap_label=overlap_label, **nms_kwargs)
+        if return_predict:
+            return (labels, polys), (prob, dist)
+        else:
+            return labels, polys
 
 
     def predict_instances_big(self, img, axes, block_size, min_overlap, context=None,
@@ -531,7 +538,7 @@ class StarDistBase(BaseModel):
         # problem_ids = []
         label_offset = 1
 
-        kwargs_override = dict(axes=axes, overlap_label=None)
+        kwargs_override = dict(axes=axes, overlap_label=None, return_predict=False)
         if show_progress:
             kwargs_override['show_tile_progress'] = False # disable progress for predict_instances
         for k,v in kwargs_override.items():
