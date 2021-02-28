@@ -490,7 +490,7 @@ class StarDist3D(StarDistBase):
 
         # map the overlap_label to something positive and back
         # (as relabel_sequential doesn't like negative values)
-        if overlap_label is not None and overlap_label<0:
+        if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
             overlap_mask = (labels == overlap_label)
             overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
             labels[overlap_mask] = overlap_label2

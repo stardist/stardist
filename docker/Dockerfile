@@ -1,8 +1,8 @@
-FROM tensorflow/tensorflow:1.13.2-gpu-py3-jupyter
+FROM tensorflow/tensorflow:1.15.4-gpu-py3-jupyter
 
 LABEL maintainer="ko.sugawara@ens-lyon.fr"
 
-ARG NVIDIA_DRIVER_VERSION=430
+ARG NVIDIA_DRIVER_VERSION=455
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ocl-icd-dev \
@@ -13,4 +13,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python3 -m pip install --upgrade pip
 RUN pip install stardist gputools edt

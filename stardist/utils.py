@@ -284,3 +284,8 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
 
     verbose > 1 and print('\n',opt, flush=True)
     return opt.x, -opt.fun
+
+
+def _is_floatarray(x):
+    return isinstance(x.dtype.type(0),np.floating)
+    

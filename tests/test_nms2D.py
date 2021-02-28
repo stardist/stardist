@@ -41,12 +41,13 @@ def test_bbox_search(img):
     check_similar(nms_a, nms_b)
 
 
+@pytest.mark.parametrize('grid', ((1,1),(2,2)))
 @pytest.mark.parametrize('img', (real_image2d()[1], ))
-def test_acc(img):
-    prob = edt_prob(img)
-    dist = star_dist(img, n_rays=32, mode="cpp")
-    coord = dist_to_coord(dist)
-    points = non_maximum_suppression(coord, prob, prob_thresh=0.4)
+def test_acc(img, grid):
+    prob = edt_prob(img)[::grid[0],::grid[1]]
+    dist = star_dist(img, n_rays=32, mode="cpp")[::grid[0],::grid[1]]
+    coord = dist_to_coord(dist, grid = grid)
+    points = non_maximum_suppression(coord, prob, grid=grid, prob_thresh=0.4)
     img2 = polygons_to_label(coord, prob, points, shape=img.shape)
     m = matching(img, img2)
     acc = m.accuracy

@@ -18,12 +18,12 @@ Adam = keras_import('optimizers', 'Adam')
 ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')
 
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict, load_json, save_json
-from csbdeep.internals.predict import tile_iterator
+from csbdeep.internals.predict import tile_iterator, total_n_tiles
 from csbdeep.internals.train import RollingSequence
 from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
-from ..utils import _is_power_of_2, optimize_threshold
+from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
 
 
 # TODO: support (optional) classification of objects?
@@ -91,8 +91,8 @@ class StarDistDataBase(RollingSequence):
 
         if isinstance(X, (np.ndarray, tuple, list)) and \
            isinstance(Y, (np.ndarray, tuple, list)):
-            all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y)) or _raise("images and masks should have corresponding shapes/dimensions")
-            all(x.shape[:nD]>=tuple(patch_size) for x in X) or _raise("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size))
+            all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y)) or _raise(ValueError("images and masks should have corresponding shapes/dimensions"))
+            all(x.shape[:nD]>=tuple(patch_size) for x in X) or _raise(ValueError("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size)))
 
         if x_ndim == nD:
             self.n_channel = None
@@ -290,6 +290,9 @@ class StarDistBase(BaseModel):
             raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
         all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
             ValueError("all values of n_tiles must be integer values >= 1"))
+        if not _is_floatarray(img):
+            warnings.warn("Predicting on non-float image ( forgot to normalize? )")
+
         n_tiles = tuple(map(int,n_tiles))
 
         axes     = self._normalize_axes(img, axes)
@@ -332,8 +335,10 @@ class StarDistBase(BaseModel):
             n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
                                 in zip(axes_net_tile_overlaps, axes_net_div_by)]
 
+            num_tiles_used = total_n_tiles(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps)
+
             for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
-                                           disable=(not show_tile_progress), total=np.prod(n_tiles)):
+                                           disable=(not show_tile_progress), total=num_tiles_used):
                 prob_tile, dist_tile = predict_direct(tile)
                 # account for grid
                 s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
