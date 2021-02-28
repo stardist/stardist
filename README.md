@@ -57,8 +57,7 @@ compatible with the respective version of TensorFlow.
 #### Notes
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
-- Since this package relies on a C++ extension, you could run into compilation problems (see [Troubleshooting](#troubleshooting) below). We currently do not provide pre-compiled binaries.
-- StarDist uses the deep learning library [Keras](https://keras.io), which requires a suitable [backend](https://keras.io/backend/#keras-backends) (we currently only support [TensorFlow](http://www.tensorflow.org/)).
+- We provide pre-compiled binaries ("wheels") that should work for most Linux and Windows platforms, and also recent versions of macOS (Catalina/10.15 or later). If you're having problems, please see [Troubleshooting](#troubleshooting) below.
 - *(Optional)* You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - *(Optional)* You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).
 
@@ -128,7 +127,9 @@ To see how this could be done, have a look at the following [example QuPath proj
 
 ## Troubleshooting
 
-Installation requires Python 3.6 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/mpicbg-csbd/stardist/issues) if you have problems that are not resolved by the information below.
+If `pip install stardist` fails, it could be because there are no compatible wheels (`.whl`) for your platform ([see list](https://pypi.org/project/stardist/#files)). In this case, `pip` tries to compile a C++ extension that our Python package relies on (see below). While this often works on Linux out of the box, it will likely fail on Windows and macOS without installing a suitable compiler. (Note that you can enforce compilation by installing via `pip install stardist --no-binary :stardist:`.)
+
+Installation without using wheels requires Python 3.6 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/mpicbg-csbd/stardist/issues) if you have problems that are not resolved by the information below.
 
 If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wiki/OpenMP) to exploit multiple CPU cores for substantially reduced runtime on modern CPUs. This can be important to prevent slow model training.
 
@@ -154,7 +155,7 @@ Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio
 
 We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instructions can be found at the [plugin page](https://imagej.net/StarDist).
 
-## QuPath
+### QuPath
 
 Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/advanced/stardist.html) for documentation and installation instructions.
 
