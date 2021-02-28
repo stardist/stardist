@@ -7,7 +7,7 @@
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png)
 
-This repository contains the implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
+This repository contains the Python implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
 
 <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
 
@@ -42,7 +42,7 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package requires Python 3.6 (or newer).
+This package requires Python 3.6 (or newer). (If you only want to use the StarDist plugin for Fiji or QuPath, please read [this](#plugins-for-other-software).)
 
 1. Please first [install TensorFlow](https://www.tensorflow.org/install)
 (either TensorFlow 1 or 2) by following the official instructions.
@@ -148,11 +148,15 @@ please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuec
 ### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.6 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
 
-## ImageJ/Fiji Plugin
+## Plugins for other software
+
+### ImageJ/Fiji Plugin
 
 We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instructions can be found at the [plugin page](https://imagej.net/StarDist).
 
+## QuPath
 
+Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/advanced/stardist.html) for documentation and installation instructions.
 
 ## How to cite 
 ```bibtex
