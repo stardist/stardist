@@ -57,7 +57,7 @@ compatible with the respective version of TensorFlow.
 #### Notes
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
-- We provide pre-compiled binaries ("wheels") that should work for most Linux and Windows platforms, and also recent versions of macOS (Catalina/10.15 or later). If you're having problems, please see [Troubleshooting](#troubleshooting) below.
+- We provide pre-compiled binaries ("wheels") that should work for most Linux and Windows platforms, and also recent versions of macOS (Catalina/10.15 or later). If you're having problems, please see the [troubleshooting](#troubleshooting) section below.
 - *(Optional)* You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - *(Optional)* You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).
 
@@ -125,7 +125,13 @@ To see how this could be done, have a look at the following [example QuPath proj
 
 ![](https://github.com/mpicbg-csbd/stardist/raw/master/images/qupath.png)
 
-## Troubleshooting
+## Troubleshooting & Support
+
+1. Please first take a look at the [frequently asked questions (FAQ)]( https://stardist.net/docs/faq.html).
+2. If you need further help, please go to the [image.sc forum](https://forum.image.sc) and try to find out if the issue you're having has already been discussed or solved by other people. If not, feel free to create a new topic there and make sure to use the tag `stardist` (we are monitoring all questions with this tag).
+3. If you have a technical question related to the source code or believe to have found a bug, feel free to [open an issue](https://github.com/mpicbg-csbd/stardist/issues), but please check first if someone already created a similar issue.
+
+### Installation
 
 If `pip install stardist` fails, it could be because there are no compatible wheels (`.whl`) for your platform ([see list](https://pypi.org/project/stardist/#files)). In this case, `pip` tries to compile a C++ extension that our Python package relies on (see below). While this often works on Linux out of the box, it will likely fail on Windows and macOS without installing a suitable compiler. (Note that you can enforce compilation by installing via `pip install stardist --no-binary :stardist:`.)
 
@@ -133,8 +139,7 @@ Installation without using wheels requires Python 3.6 (or newer) and a working C
 
 If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wiki/OpenMP) to exploit multiple CPU cores for substantially reduced runtime on modern CPUs. This can be important to prevent slow model training.
 
-
-### macOS
+#### macOS
 The default Apple C/C++ compiler (`clang`) does not come with OpenMP support and the package build will likely fail.
 To properly build `stardist` you need to install an OpenMP-enabled GCC compiler, e.g. via [Homebrew](https://brew.sh) with `brew install gcc` (e.g. installing `gcc-10`/`g++-10` or newer). After that, you can build the package like this (adjust compiler names/paths as necessary):
 
@@ -146,7 +151,7 @@ If you use `conda` on macOS and after `import stardist` see errors similar to th
 
 please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
 
-### Windows
+#### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.6 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
 
 ## Plugins for other software
