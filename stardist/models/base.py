@@ -153,7 +153,7 @@ class StarDistDataBase(RollingSequence):
         if isinstance(X, (np.ndarray, tuple, list)) and \
            isinstance(Y, (np.ndarray, tuple, list)):
             all(y.ndim==nD and x.ndim==x_ndim and x.shape[:nD]==y.shape for x,y in zip(X,Y)) or _raise(ValueError("images and masks should have corresponding shapes/dimensions"))
-            all(x.shape[:nD]>=patch_size for x in X) or _raise(ValueError("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size)))
+            all(x.shape[:nD]>=tuple(patch_size) for x in X) or _raise(ValueError("Some images are too small for given patch_size {patch_size}".format(patch_size=patch_size)))
 
         if x_ndim == nD:
             self.n_channel = None

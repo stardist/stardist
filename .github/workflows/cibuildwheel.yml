@@ -1,0 +1,74 @@
+# adapted from:
+# - https://github.com/matplotlib/matplotlib/blob/master/.github/workflows/cibuildwheel.yml
+# - https://github.com/scikit-image/scikit-image/blob/master/.github/workflows/cibuildwheel.yml
+
+name: Build wheels
+
+on:
+  push:
+    branches:
+      - wheels
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, windows-latest, macos-10.15]
+        # os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: 3.7
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel
+
+      - uses: actions/checkout@v2
+        name: Checkout repository
+
+      - name: Build wheels for CPython (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew config
+          brew install gcc@9
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "cp3?-*"
+          CIBW_SKIP: "cp35-* cp39-*"
+          # install fork of 'delocate' to work around bug
+          CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
+           # TODO: make it work for 10.9 (required libstdc++.dylib and libgomp.dylib from gcc compiled for 10.15)
+          MACOSX_DEPLOYMENT_TARGET: 10.15
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          # use gcc instead of clang
+          CC: /usr/local/bin/gcc-9
+          CXX: /usr/local/bin/g++-9
+
+      - name: Build wheels for CPython (Linux and Windows)
+        if: startsWith(matrix.os, 'macos') == false
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          # only build for platforms where tensorflow is available
+          CIBW_BUILD: "cp3?-*x86_64 cp3?-*win_amd64"
+          CIBW_SKIP: "cp35-* cp39-*"
+          # numba is a requirement and only has wheels for manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+
+      - uses: actions/upload-artifact@v2
+        name: Upload wheels
+        with:
+          name: wheels
+          path: ./dist/*.whl
