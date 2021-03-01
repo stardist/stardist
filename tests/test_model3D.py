@@ -8,8 +8,8 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, backbone', [(73, (2, 2, 2), None, 'resnet'), (33, (1, 2, 4), 1, 'resnet'), (7, (2, 1, 1), 2, 'unet')])
-def test_model(tmpdir, n_rays, grid, n_channel, backbone):
+@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers', [(73, (2, 2, 2), None, 'resnet', 1), (33, (1, 2, 4), 1, 'resnet', 2), (7, (2, 1, 1), 2, 'unet', 8)])
+def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers):
     img = circle_image(shape=(64, 80, 96))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
@@ -35,7 +35,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
     )
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]))
+    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers)
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (1, 2, 3) if X[0].ndim == 3 else (1, 2, 3, 1)))

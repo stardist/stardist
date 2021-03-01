@@ -10,8 +10,8 @@ from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d
 
-@pytest.mark.parametrize('n_rays, grid, n_channel', [(17, (1, 1), None), (32, (2, 4), 1), (4, (8, 2), 2)])
-def test_model(tmpdir, n_rays, grid, n_channel):
+@pytest.mark.parametrize('n_rays, grid, n_channel, workers', [(17, (1, 1), None, 1), (32, (2, 4), 1, 2), (4, (8, 2), 2, 8)])
+def test_model(tmpdir, n_rays, grid, n_channel, workers):
     img = circle_image(shape=(160, 160))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
@@ -36,7 +36,7 @@ def test_model(tmpdir, n_rays, grid, n_channel):
     )
 
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]))
+    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers)
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
