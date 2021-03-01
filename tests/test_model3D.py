@@ -295,4 +295,6 @@ if __name__ == '__main__':
     # test_classes()
     # res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1)
 
-    (img,), (prob, dist), s = test_stardistdata((1,1,1))
+    # (img,), (prob, dist), s = test_stardistdata((1,1,1))
+
+    test_model("foo", 73, (2, 2, 2), None, 'resnet')

@@ -1196,7 +1196,7 @@ void _COMMON_non_maximum_suppression_sparse(
 
       long j = results[neigh].first;
 
-      if ((suppressed[j]) or (j<=i))
+      if ((suppressed[j]) || (j<=i))
         continue;
 
 

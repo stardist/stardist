@@ -568,7 +568,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       long j = results[neigh].first;
       // printf("%d %d",i,j);
       
-      if ((suppressed[j]) or (j<=i))
+      if ((suppressed[j]) || (j<=i))
         continue;
       
       // skip if bounding boxes are not even intersecting
