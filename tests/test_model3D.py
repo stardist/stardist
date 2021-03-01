@@ -121,6 +121,7 @@ def test_optimize_thresholds(model3d):
     return model
 
 
+@pytest.mark.parametrize('grid',((1,1,1),(1,4,4)))
 def test_stardistdata(grid):
     np.random.seed(42)
     from stardist.models import StarDistData3D

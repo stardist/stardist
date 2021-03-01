@@ -319,7 +319,7 @@ def test_speed(model2d):
     model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(8,8))
+    x = np.tile(x,(6,6))
     print(x.shape)
     
     stats = []
