@@ -159,7 +159,9 @@ class StarDistDataBase(RollingSequence):
             self.n_channel = None
         else:
             self.n_channel = X[0].shape[-1]
-            assert all(x.shape[-1]==self.n_channel for x in X)
+            if isinstance(X, (np.ndarray, tuple, list)):
+                assert all(x.shape[-1]==self.n_channel for x in X)
+                
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
