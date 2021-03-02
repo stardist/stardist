@@ -8,7 +8,7 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers', [(73, (2, 2, 2), None, 'resnet', 1), (33, (1, 2, 4), 1, 'resnet', 1), (7, (2, 1, 1), 2, 'unet', 1)])
+@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers', [(73, (2, 2, 2), None, 'resnet', 1), (16, (1, 2, 4), 1, 'resnet', 1), (7, (2, 1, 1), 2, 'unet', 1)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers):
     img = circle_image(shape=(64, 80, 96))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
@@ -31,7 +31,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers):
         train_steps_per_epoch=1,
         train_batch_size=2,
         train_loss_weights=(4, 1),
-        train_patch_size=(48, 64, 64),
+        train_patch_size=(48, 64, 32),
     )
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
