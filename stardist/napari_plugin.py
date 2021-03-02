@@ -1,17 +1,16 @@
 """
 TODO:
-- cache selected models?
+- cache selected model instances (when re-running the plugin, e.g. for different images)
 - option to use CPU or GPU, limit GPU memory ('allow_growth'?)
 - execute in different thread, ability to cancel?
 - normalize per channel or jointly
-- other output types (labels, shapes, surface). possible to choose dynamically?
-- support custom models from file system (also url?)
-- advanced options (n_tiles, boundary exclusion, show cnn output)
-- restore defaults button
 - make ui pretty
-- how to deal with errors? catch and show to user?
-- let user choose output type (labels, polys, both)
+- how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
+- support timelapse processing?
 - show progress for tiled prediction and/or timelapse processing?
+- load prob and nms thresholds from model
+- load model axes and check if compatible with chosen image/axes
+- errors when running the plugin multiple times (without deleting output layers first)
 """
 
 from napari_plugin_engine import napari_hook_implementation
@@ -111,6 +110,7 @@ def widget_wrapper():
         cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output'),
         defaults_button = dict(widget_type='PushButton', text='Restore Defaults'),
         layout          = 'vertical',
+        # persist         = True,
         call_button     = True,
     )
     def widget (
@@ -239,9 +239,12 @@ def widget_wrapper():
     widget.image.changed.connect(_image_changed)
 
     # TODO: check axes and let axes determine dimensionality
-    # def _axes_change(event):
-    #     print(f'axes = {widget.axes.value}')
-    # widget.axes.changed.connect(_axes_change)
+    def _axes_change(event):
+        value = str(event.value)
+        if value != value.upper():
+            with widget.axes.changed.blocker():
+                widget.axes.value = value.upper()
+    widget.axes.changed.connect(_axes_change)
 
     # allow to shrink model selector
     widget.model2d.native.setMinimumWidth(240)
