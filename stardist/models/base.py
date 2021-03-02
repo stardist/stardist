@@ -7,6 +7,7 @@ import math
 from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
+import threading
 
 from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
@@ -189,6 +190,7 @@ class StarDistDataBase(RollingSequence):
         self.sample_ind_cache = sample_ind_cache
         self._ind_cache_fg  = {}
         self._ind_cache_all = {}
+        self.lock = threading.Lock()
 
 
     def get_valid_inds(self, k, foreground_prob=None):
@@ -202,7 +204,8 @@ class StarDistDataBase(RollingSequence):
             patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
             inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
             if self.sample_ind_cache:
-                _ind_cache[k] = inds
+                with self.lock:
+                    _ind_cache[k] = inds
         if foreground_only and len(inds[0])==0:
             # no foreground pixels available
             return self.get_valid_inds(k, foreground_prob=0)

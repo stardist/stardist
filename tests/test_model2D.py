@@ -10,7 +10,7 @@ from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, workers', [(17, (1, 1), None, 1), (32, (2, 4), 1, 1), (4, (8, 2), 2, 1)])
+@pytest.mark.parametrize('n_rays, grid, n_channel, workers', [(17, (1, 1), None, 1), (32, (2, 4), 1, 1), (4, (8, 2), 2, 4)])
 def test_model(tmpdir, n_rays, grid, n_channel, workers):
     img = circle_image(shape=(160, 160))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
@@ -184,6 +184,43 @@ def test_stardistdata_sequence():
                        batch_size=1, patch_size=(100,100), n_rays=32, length=1)
     (img,), (prob, dist) = s[0]
     return (img,), (prob, dist), s
+
+
+def test_stardistdata_multithreaded(workers=5):
+    np.random.seed(42)
+    from stardist.models import StarDistData2D
+    from scipy.ndimage import rotate
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+
+    def augmenter(x,y):
+        deg = int(np.sum(y)%117)
+        print(deg)
+        # return x,y
+        x = rotate(x, deg, reshape=False, order=0)
+        y = rotate(y, deg, reshape=False, order=0)
+        # sleep(np.abs(deg)/180)
+        return x,y
+
+    n_samples = 4
+    
+    _ , mask = real_image2d()
+    Y = np.stack([mask+i for i in range(n_samples)])
+    s = StarDistData2D(Y.astype(np.float32), Y,
+                       grid = (1,1),
+                       n_classes = None, augmenter=augmenter,
+                       batch_size=1, patch_size=mask.shape, n_rays=32, length=len(Y))
+
+    a1, b1 = tuple(zip(*tuple(s[i] for i in range(n_samples))))
+
+    with ThreadPoolExecutor(max_workers=n_samples) as e:
+        a2, b2 = tuple(zip(*tuple(e.map(lambda i: s[i], range(n_samples)))))
+
+    assert all([np.allclose(_r1[0], _r2[0]) for _r1,_r2 in zip(a1, a2)])
+    assert all([np.allclose(_r1[0], _r2[0]) for _r1,_r2 in zip(b1, b2)])
+    assert all([np.allclose(_r1[1], _r2[1]) for _r1,_r2 in zip(b1, b2)])    
+    return a2, b2, s
+
 
 
 def test_imagej_rois_export(tmpdir, model2d):
@@ -397,8 +434,8 @@ def test_load_and_export_TF(model2d):
 if __name__ == '__main__':
     from conftest import _model2d
     # test_speed(_model2d())
-    _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None)
-    
-
+    # _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None)
+    # a,b,s = test_stardistdata_multithreaded()
+    # test_model("foo", 32, (1,1), None, 4)
     
     

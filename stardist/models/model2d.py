@@ -458,7 +458,7 @@ class StarDist2D(StarDistBase):
 
         history = fit(iter(data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, use_multiprocessing = workers>1, 
+                      workers=workers, 
                       callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
