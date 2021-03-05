@@ -150,6 +150,8 @@ class Config2D(BaseConfig):
         Regularizer to encourage distance predictions on background regions to be 0.
     train_foreground_only : float
         Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
+    train_sample_cache : bool
+        Activate caching of valid patch regions for all training images (disable to save memory for large datasets)
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
@@ -215,6 +217,7 @@ class Config2D(BaseConfig):
         self.train_patch_size          = 256,256
         self.train_background_reg      = 1e-4
         self.train_foreground_only     = 0.9
+        self.train_sample_cache        = True
 
         self.train_dist_loss           = 'mae'
         self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,1)
@@ -410,6 +413,7 @@ class StarDist2D(StarDistBase):
             use_gpu          = self.config.use_gpu,
             foreground_prob  = self.config.train_foreground_only,
             n_classes        = self.config.n_classes
+            sample_ind_cache = self.config.train_sample_cache,
         )
 
         # generate validation data and store in numpy arrays
@@ -425,9 +429,10 @@ class StarDist2D(StarDistBase):
         
         data_val = _data_val[0]
 
-        data_train = StarDistData2D(X, Y, classes = classes,
-                                    batch_size=self.config.train_batch_size, augmenter=augmenter,
-                                    length=epochs*steps_per_epoch, **data_kwargs)
+        # expose data generator as member for general diagnostics 
+        self.data_train = StarDistData2D(X, Y, classes = classes,
+                                         batch_size=self.config.train_batch_size,
+                                         augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
 
         if self.config.train_tensorboard:
             # show dist for three rays
@@ -455,8 +460,7 @@ class StarDist2D(StarDistBase):
                                         n_images=3, prob_out=False, output_slices=output_slices))
 
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
-
-        history = fit(iter(data_train), validation_data=data_val,
+        history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
                       workers=workers, 
                       callbacks=self.callbacks, verbose=1)

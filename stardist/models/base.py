@@ -130,8 +130,6 @@ class StarDistDataBase(RollingSequence):
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
 
-        # Y = [y.astype(np.uint16,  copy=False) for y in Y]
-
         # sanity checks
         len(X)==len(Y) and len(X)>0 or _raise(ValueError("X and Y should have same length!"))
 

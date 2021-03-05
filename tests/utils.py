@@ -5,6 +5,17 @@ from skimage.measure import label
 from scipy.ndimage.filters import gaussian_filter
 from pathlib import Path
 
+from csbdeep.utils.tf import keras_import
+Sequence = keras_import('utils','Sequence')
+
+
+class NumpySequence(Sequence):
+    def __init__(self, data):
+        self.data = data
+    def __getitem__(self,n):
+        return self.data[n]
+    def __len__(self):
+        return len(self.data)
 
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
