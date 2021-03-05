@@ -505,7 +505,7 @@ class StarDist3D(StarDistBase):
             anisotropy      = self.config.anisotropy,
             use_gpu         = self.config.use_gpu,
             foreground_prob = self.config.train_foreground_only,
-            n_classes        = self.config.n_classes
+            n_classes        = self.config.n_classes,
             sample_ind_cache = self.config.train_sample_cache,
         )
 
