@@ -56,10 +56,13 @@ def test_foreground_warning():
     # include a constant label image that must trigger a warning
     conf = Config2D(
         n_rays=32,
+        train_patch_size=(96, 96),
         train_foreground_only = 1,
-        train_steps_per_epoch = 1
+        train_steps_per_epoch = 1,
+        train_epochs=1,
+        train_batch_size=2,        
     )
-    X = np.ones((2,100,100), np.float32), np.zeros((2,100,100),np.uint16)
+    X,Y = np.ones((2,100,100), np.float32), np.ones((2,100,100),np.uint16)
 
     with pytest.warns(UserWarning):
         StarDist2D(conf, None, None).train(
@@ -204,8 +207,9 @@ def print_receptive_fields():
 
 if __name__ == '__main__':
     from conftest import model2d
-    model = test_model("tmpdir", 32, (1, 1), 1, False)
+    # model = test_model("tmpdir", 32, (1, 1), 1, False)
     
     # im = render_label_pred_example(model2d())
     # accs = test_pretrained_scales()
 
+    test_foreground_warning()

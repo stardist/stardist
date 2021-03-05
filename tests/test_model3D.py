@@ -52,14 +52,17 @@ def test_foreground_warning():
     # include a constant label image that must trigger a warning
     conf = Config3D(
         n_rays=32,
+        train_patch_size=(16, 32, 16),
         train_foreground_only = 1,
-        train_steps_per_epoch = 1
+        train_steps_per_epoch = 1,
+        train_epochs=1,
+        train_batch_size=2,        
     )
-    X = np.ones((2,32,48,16), np.float32), np.zeros((2,32,48,16),np.uint16)
+    X, Y = np.ones((2,32,48,16), np.float32), np.ones((2,32,48,16),np.uint16)
     
     with pytest.warns(UserWarning):
         StarDist3D(conf, None, None).train(
-            _X, _Y, validation_data=(X[-1:], Y[-1:]))
+            X, Y, validation_data=(X[-1:], Y[-1:]))
 
 
 def test_load_and_predict(model3d):
@@ -192,4 +195,6 @@ if __name__ == '__main__':
 
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
 
-    model = test_model("tmpdir", 32, (1, 1, 1), 1, "unet", True)
+    # model = test_model("tmpdir", 32, (1, 1, 1), 1, "unet", True)
+
+    test_foreground_warning()
