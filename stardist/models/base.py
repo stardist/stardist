@@ -80,8 +80,6 @@ class StarDistDataBase(RollingSequence):
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
 
-        # Y = [y.astype(np.uint16,  copy=False) for y in Y]
-
         # sanity checks
         assert len(X)==len(Y) and len(X)>0
         nD = len(patch_size)
@@ -98,7 +96,9 @@ class StarDistDataBase(RollingSequence):
             self.n_channel = None
         else:
             self.n_channel = X[0].shape[-1]
-            assert all(x.shape[-1]==self.n_channel for x in X)
+            if isinstance(X, (np.ndarray, tuple, list)):
+                assert all(x.shape[-1]==self.n_channel for x in X)
+                
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y

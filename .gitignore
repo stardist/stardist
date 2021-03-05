@@ -21,4 +21,4 @@ htmlcov/
 *.tfevents.*
 config.json
 thresholds.json
-examples/*/data
+examples/**/data
