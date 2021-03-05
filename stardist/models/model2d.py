@@ -131,7 +131,7 @@ class Config2D(BaseConfig):
     train_foreground_only : float
         Fraction (0..1) of patches that will only be sampled from regions that contain foreground pixels.
     train_sample_cache : bool
-        Activate caching of valid patch regions for all training images (disable for to save memory large datasets)
+        Activate caching of valid patch regions for all training images (disable to save memory for large datasets)
     train_dist_loss : str
         Training loss for star-convex polygon distances ('mse' or 'mae').
     train_loss_weights : tuple of float
