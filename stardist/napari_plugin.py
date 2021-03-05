@@ -183,7 +183,8 @@ def widget_wrapper():
         if output_type in (Output.Polys.value,Output.Both.value):
             if _is3D(image):
                 surface = surface_from_polys(polys)
-                layers.append((surface, dict(name='StarDist polyhedra', contrast_limits=(0,surface[-1].max())
+                layers.append((surface, dict(name='StarDist polyhedra',
+                                             contrast_limits=(0,surface[-1].max()),
                                              colormap=label_colormap(n_objects)), 'surface'))
             else:
                 # TODO: coordinates correct or need offset (0.5 or so)?
