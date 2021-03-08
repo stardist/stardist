@@ -10,8 +10,8 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d, NumpySequence
     
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, use_sequence', [(17, (1, 1), None, False), (32, (2, 4), 1, False), (4, (8, 2), 2, True)])
-def test_model(tmpdir, n_rays, grid, n_channel, use_sequence):
+@pytest.mark.parametrize('n_rays, grid, n_channel, use_sequence, workers', [(17, (1, 1), None, False, 1), (32, (2, 4), 1, False, 4), (4, (8, 2), 2, True, 2)])
+def test_model(tmpdir, n_rays, grid, n_channel, use_sequence, workers):
     img = circle_image(shape=(160, 160))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
@@ -41,7 +41,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, use_sequence):
     )
 
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]))
+    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers)
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
@@ -179,6 +179,7 @@ def test_stardistdata_sequence():
     return (img,), (prob, dist), s
 
 
+
 def test_imagej_rois_export(tmpdir, model2d):
     img = normalize(real_image2d()[0], 1, 99.8)
     labels, polys = model2d.predict_instances(img)
@@ -213,4 +214,6 @@ if __name__ == '__main__':
     # im = render_label_pred_example(model2d())
     # accs = test_pretrained_scales()
 
-    test_foreground_warning()
+    # test_foreground_warning()
+
+    test_model("tmpdir", 32, (1, 1), 1, False,4)

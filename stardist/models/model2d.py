@@ -285,7 +285,7 @@ class StarDist2D(StarDistBase):
         return Model([input_img], [output_prob,output_dist])
 
 
-    def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None, workers=1):
         """Train the neural network with the given data.
 
         Parameters
@@ -379,9 +379,12 @@ class StarDist2D(StarDistBase):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
                                                            n_images=3, prob_out=False, output_slices=output_slices))
 
+        print(f"using {workers} workers")
+            
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      workers=workers, use_multiprocessing=workers>1,
                       callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
