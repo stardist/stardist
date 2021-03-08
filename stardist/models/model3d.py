@@ -476,6 +476,7 @@ class StarDist3D(StarDistBase):
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      # workers=4,
                       callbacks=self.callbacks, verbose=1)
         self._training_finished()
 
