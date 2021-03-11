@@ -11,7 +11,7 @@ from utils import circle_image, real_image3d, path_model3d, NumpySequence
 @pytest.mark.parametrize('n_rays, grid, n_channel, backbone, use_sequence', [(73, (2, 2, 2), None, 'resnet', False), (33, (1, 2, 4), 1, 'resnet', False), (7, (2, 1, 1), 2, 'unet', True)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, use_sequence):
     img = circle_image(shape=(64, 80, 96))
-    imgs = np.repeat(img[np.newaxis], 3, axis=0)
+    imgs = np.repeat(img[np.newaxis], 8, axis=0)
 
     if n_channel is not None:
         imgs = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
@@ -39,7 +39,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone, use_sequence):
     )
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]))
+    model.train(X, Y, validation_data=(X[:4], Y[:4]))
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (1, 2, 3) if X[0].ndim == 3 else (1, 2, 3, 1)))
