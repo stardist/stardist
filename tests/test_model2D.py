@@ -10,7 +10,7 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d, NumpySequence
     
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, use_sequence, workers', [(17, (1, 1), None, False, 1), (32, (2, 4), 1, False, 4), (4, (8, 2), 2, True, 2)])
+@pytest.mark.parametrize('n_rays, grid, n_channel, use_sequence, workers', [(17, (1, 1), None, False, 1), (32, (2, 4), 1, False, 1), (4, (8, 2), 2, True, 1)])
 def test_model(tmpdir, n_rays, grid, n_channel, use_sequence, workers):
     img = circle_image(shape=(160, 160))
     imgs = np.repeat(img[np.newaxis], 8, axis=0)
