@@ -49,16 +49,15 @@ with open(path.join(_dir,'README.md'), encoding="utf-8") as f:
 
 
 external_root = path.join(_dir, 'stardist', 'lib', 'external')
-    
-qhull_root = path.join(external_root,'qhull_src', 'src')
+
+qhull_root = path.join(external_root, 'qhull_src', 'src')
 qhull_src = sorted(glob(path.join(qhull_root, '*', '*.c*')))[::-1]
 
-nanoflann_root = path.join(external_root,'nanoflann')
+nanoflann_root = path.join(external_root, 'nanoflann')
 
-clipper_root = path.join(external_root,'clipper')
+clipper_root = path.join(external_root, 'clipper')
 clipper_src = sorted(glob(path.join(clipper_root, '*.cpp*')))[::-1]
 
-common_src = ['stardist/lib/utils.cpp']
 
 setup(
     name='stardist',
@@ -66,9 +65,9 @@ setup(
     description='StarDist',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/mpicbg-csbd/stardist',
+    url='https://github.com/stardist/stardist',
     author='Uwe Schmidt, Martin Weigert',
-    author_email='uschmidt@mpi-cbg.de, martin.weigert@epfl.ch',
+    author_email='research@uweschmidt.org, martin.weigert@epfl.ch',
     license='BSD 3-Clause License',
     packages=find_packages(),
     python_requires='>=3.6',
@@ -78,15 +77,15 @@ setup(
     ext_modules=[
         Extension(
             'stardist.lib.stardist2d',
-            sources=['stardist/lib/stardist2d.cpp','stardist/lib/utils.cpp']+clipper_src,
+            sources = ['stardist/lib/stardist2d.cpp', 'stardist/lib/utils.cpp'] + clipper_src,
             extra_compile_args = ['-std=c++11'],
-            include_dirs=get_numpy_include_dirs() + [clipper_root, nanoflann_root],
+            include_dirs = get_numpy_include_dirs() + [clipper_root, nanoflann_root],
         ),
         Extension(
             'stardist.lib.stardist3d',
-            sources=['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp']  + qhull_src,
+            sources = ['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp'] + qhull_src,
             extra_compile_args = ['-std=c++11'],
-            include_dirs=get_numpy_include_dirs() + [qhull_root, nanoflann_root],
+            include_dirs = get_numpy_include_dirs() + [qhull_root, nanoflann_root],
         ),
     ],
 
