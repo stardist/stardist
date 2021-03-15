@@ -18,7 +18,7 @@ def create_random_data(shape=(356, 299), radius=10, noise=.1, n_rays=32):
 def create_random_suppressed(shape=(356, 299), grid = (1,1), radius=10, noise=.1, n_rays=32, nms_thresh=.1):
     prob, dist = create_random_data(shape, radius, noise, n_rays)
     prob = prob[::grid[0],::grid[1]]
-    dist = dist[::grid[0],::grid[1]]    
+    dist = dist[::grid[0],::grid[1]]
     points, probi, disti = non_maximum_suppression(dist, prob, prob_thresh=0.9,
                                   nms_thresh=nms_thresh,
                                   verbose=True)
@@ -31,17 +31,20 @@ def test_large():
     return nms
 
 
-# @pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
-# def test_bbox_search(img):
-#     prob = edt_prob(img)
-#     dist = star_dist(img, n_rays=32, mode="cpp")
-#     points_a, prob_a, dist_a = non_maximum_suppression(
-#         dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=False)
-#     points_b, prob_b, dist_b = non_maximum_suppression(
-#         dist, prob, prob_thresh=0.4, verbose=False, max_bbox_search=True)
-#     check_similar(points_a, points_b)
-#     check_similar(prob_a, prob_b)
-#     check_similar(dist_a, dist_b)
+@pytest.mark.parametrize('img', (real_image2d()[1], random_image((128, 123))))
+def test_bbox_search_old(img):
+    from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
+    from stardist.nms import _non_maximum_suppression_old
+
+    prob = edt_prob(img)
+    dist = star_dist(img, n_rays=32, mode="cpp")
+    coord = _dist_to_coord_old(dist)
+    points_a = _non_maximum_suppression_old(coord, prob, prob_thresh=0.4, verbose=False, max_bbox_search=False)
+    points_b = _non_maximum_suppression_old(coord, prob, prob_thresh=0.4, verbose=False, max_bbox_search=True)
+    img2_a = _polygons_to_label_old(coord, prob, points_a, shape=img.shape)
+    img2_b = _polygons_to_label_old(coord, prob, points_b, shape=img.shape)
+    check_similar(points_a, points_b)
+    check_similar(img2_a, img2_b)
 
 
 @pytest.mark.parametrize('grid', ((1,1),(2,2)))
@@ -71,27 +74,27 @@ def test_acc(img, grid):
     acc = m.accuracy
     print("accuracy {acc:.2f}".format(acc=acc))
     assert acc > 0.9
-    
-@pytest.mark.parametrize('grid', ((1,1),(16,16)))    
-@pytest.mark.parametrize('n_rays', (11,32))    
-@pytest.mark.parametrize('shape', ((356, 299),(114, 217)))    
+
+@pytest.mark.parametrize('grid', ((1,1),(16,16)))
+@pytest.mark.parametrize('n_rays', (11,32))
+@pytest.mark.parametrize('shape', ((356, 299),(114, 217)))
 def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     np.random.seed(42)
     from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
     from stardist.nms import _non_maximum_suppression_old
-    
+
     prob, dist = create_random_data(shape, n_rays = n_rays, radius=10, noise=.1)
     prob = prob[::grid[0],::grid[1]]
     dist = dist[::grid[0],::grid[1]]
     coord = _dist_to_coord_old(dist, grid = grid)
     inds1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
-                                         grid = grid, 
+                                         grid = grid,
                                          nms_thresh=nms_thresh,
                                          verbose=True)
     points1 = inds1*np.array(grid)
     sort_ind = np.argsort(prob[tuple(inds1.T)])[::-1]
     points1 = points1[sort_ind]
-    
+
     points2, probi2, disti2 = non_maximum_suppression(dist, prob,
                                                       grid = grid, prob_thresh=0.9,
                                                       nms_thresh=nms_thresh,
@@ -101,9 +104,10 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     img2 = polygons_to_label(disti2, points2, shape=shape)
 
 
-    np.allclose(img1>0, img2>0)
-    # np.allclose(points1, points2)
-    
+    assert len(points1) == len(points2)
+    assert np.allclose(points1, points2)
+    assert np.allclose(img1>0, img2>0)
+
     return points1, img1, points2, img2
 
 
@@ -112,7 +116,7 @@ def test_speed(nms_thresh = 0.3, grid = (1,1)):
     from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
     from stardist.nms import _non_maximum_suppression_old
     from time import time
-    
+
     shape = (128,128)
     prob, dist = create_random_data(shape, n_rays = 32, radius=10, noise=.1)
     prob = np.tile(prob, (8,8))
@@ -123,21 +127,21 @@ def test_speed(nms_thresh = 0.3, grid = (1,1)):
     t1 = time()
     coord = _dist_to_coord_old(dist, grid = grid)
     points1 = _non_maximum_suppression_old(coord, prob, prob_thresh=0.9,
-                                           grid = grid, 
+                                           grid = grid,
                                            nms_thresh=nms_thresh,
                                            verbose=True)
     t1 = time()-t1
-    
+
     points1 = points1*np.array(grid)
     sort_ind = np.argsort(prob[tuple(points1.T)])[::-1]
     points1 = points1[sort_ind]
 
     t2 = time()
-    
+
     points2, probi2, disti2 = non_maximum_suppression(dist, prob,
                                                       grid = grid, prob_thresh=0.9,
                                                       nms_thresh=nms_thresh,
-                                                      use_kdtree = True, 
+                                                      use_kdtree = True,
                                                       verbose=True)
     t2 = time()-t2
 
@@ -157,7 +161,7 @@ def bench():
     shape = (128,128)
     prob, dist = create_random_data(shape, n_rays = 32, radius=10, noise=.1)
     prob_thresh = 0.9
-    
+
     def _f1(n):
         _prob = np.tile(prob, (n,n))
         _dist = np.tile(dist, (n,n,1))
@@ -177,7 +181,7 @@ def bench():
         points2, probi2, disti2 = non_maximum_suppression(_dist, _prob,
                                                           prob_thresh=prob_thresh,
                                                           nms_thresh=.2,
-                                                          use_kdtree = True, 
+                                                          use_kdtree = True,
                                                       verbose=True)
         t = time()-t
         return np.count_nonzero(_prob>prob_thresh), t
@@ -188,4 +192,4 @@ def bench():
 
 if __name__ == '__main__':
     points1, img1, points2, img2 = test_old_new((62,82),32,(2,2), nms_thresh = .1)
-    
+

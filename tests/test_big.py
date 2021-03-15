@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import pytest
 
@@ -7,7 +6,13 @@ from stardist.matching import matching, relabel_sequential
 from stardist import calculate_extents, polyhedron_to_label
 from utils import real_image2d, real_image3d
 
-from stardist.big import BlockND, render_polygons, Polygon, Polyhedron
+from stardist.geometry import polygons_to_label_coord
+from stardist.big import BlockND, Polygon, Polyhedron
+
+
+
+def render_polygons(polys, shape):
+    return polygons_to_label_coord(polys['coord'], shape=shape)
 
 
 
