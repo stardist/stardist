@@ -33,7 +33,7 @@ def draw_polygons(coord, score, poly_idx, grid=(1,1), cmap=None, show_dist=False
                          cmap=cmap, show_dist=show_dist)
 
 
-def _draw_polygons(polygons, points=None, scores=None, grid=None, cmap=None, show_dist=False):
+def draw_polygons(polygons, points, scores=None, grid=(1,1), cmap=None, show_dist=False):
     """
         polygons is a list/array of x,y coordinate lists/arrays
         points is a list/array of x,y coordinates
@@ -43,6 +43,8 @@ def _draw_polygons(polygons, points=None, scores=None, grid=None, cmap=None, sho
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
 
+    grid = _normalize_grid(grid,2)
+    
     if grid is not None:
         warn("parameter 'grid' has no effect anymore, please remove")
     if points is None:
