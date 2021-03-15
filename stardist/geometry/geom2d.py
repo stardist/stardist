@@ -133,17 +133,17 @@ def dist_to_coord(dist, points):
     phis = ray_angles(n_rays)
     coord = points[...,np.newaxis] + (dist[:,np.newaxis]*np.array([np.sin(phis),np.cos(phis)]))
     return coord
-        
-    
-def polygons_to_label_coord(coord, shape, labels =None):
-    """renders polygons to image of given shape 
+
+
+def polygons_to_label_coord(coord, shape, labels=None):
+    """renders polygons to image of given shape
 
     coord.shape   = (n_polys, n_rays)
     """
     coord = np.asarray(coord)
-    if labels is None: labels=np.arange(1,len(coord)+1)
+    if labels is None: labels = np.arange(len(coord))
 
-    assert coord.ndim==3 and coord.shape[1]==2  and len(coord)==len(labels)
+    assert coord.ndim==3 and coord.shape[1]==2 and len(coord)==len(labels)
 
     lbl = np.zeros(shape,np.int32)
     
@@ -154,8 +154,8 @@ def polygons_to_label_coord(coord, shape, labels =None):
     return lbl
 
 
-def polygons_to_label(dist, points, shape, prob = None, thr=-np.inf):
-    """converts distances and center points to label image 
+def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
+    """converts distances and center points to label image
 
     dist.shape   = (n_polys, n_rays)
     points.shape = (n_polys, 2)
@@ -164,7 +164,7 @@ def polygons_to_label(dist, points, shape, prob = None, thr=-np.inf):
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
-    prob = np.ones(len(points)) if prob is None else np.asanyarray(prob)
+    prob = np.inf*np.ones(len(points)) if prob is None else np.asanyarray(prob)
 
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points)
     assert len(points)==len(prob) and points.shape[1]==2 and prob.ndim==1 
@@ -176,7 +176,7 @@ def polygons_to_label(dist, points, shape, prob = None, thr=-np.inf):
     dist = dist[ind]
     prob = prob[ind]
 
-    ind = np.argsort(prob)
+    ind = np.argsort(prob, kind='stable')
     points = points[ind]
     dist = dist[ind]
     

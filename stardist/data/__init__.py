@@ -1,5 +1,3 @@
-
-
 def abspath(path):
     import os
     base_path = os.path.abspath(os.path.dirname(__file__))
@@ -9,7 +7,6 @@ def test_image_nuclei_2d():
     from tifffile import imread
     img = imread(abspath("images/dsb_test_image.tif"))
     return img
-
 
 def test_image_nuclei_3d():
     from tifffile import imread

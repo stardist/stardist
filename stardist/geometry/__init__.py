@@ -7,5 +7,4 @@ from .geom3d import star_dist3D, polyhedron_to_label, relabel_image_stardist3D, 
 
 from .geom2d import _dist_to_coord_old, _polygons_to_label_old
 
-
 #, dist_to_volume, dist_to_centroid
