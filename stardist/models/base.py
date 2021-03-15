@@ -837,7 +837,7 @@ class StarDistBase(BaseModel):
         if np.isscalar(block_size):  block_size  = n*[block_size]
         if np.isscalar(min_overlap): min_overlap = n*[min_overlap]
         if np.isscalar(context):     context     = n*[context]
-        block_size, min_overlap, contexbt = list(block_size), list(min_overlap), list(context)
+        block_size, min_overlap, context = list(block_size), list(min_overlap), list(context)
         assert n == len(block_size) == len(min_overlap) == len(context)
 
         if 'C' in axes:

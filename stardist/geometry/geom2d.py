@@ -78,6 +78,7 @@ def star_dist(a, n_rays=32, mode='cpp'):
     else:
         _raise(ValueError("Unknown mode %s" % mode))
 
+
 def _dist_to_coord_old(rhos, grid=(1,1)):
     """convert from polar to cartesian coordinates for a single image (3-D array) or multiple images (4-D array)"""
 
@@ -136,13 +137,14 @@ def dist_to_coord(dist, points):
 
 
 def polygons_to_label_coord(coord, shape, labels=None):
-    """renders polygons to image of given shape (old version)
+    """renders polygons to image of given shape
 
     coord.shape   = (n_polys, n_rays)
     """
     coord = np.asarray(coord)
     if labels is None: labels = np.arange(len(coord))
 
+    _check_label_array(labels, "labels")
     assert coord.ndim==3 and coord.shape[1]==2 and len(coord)==len(labels)
 
     lbl = np.zeros(shape,np.int32)
@@ -164,7 +166,7 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
-    prob = np.inf*np.ones(len(points)) if prob is None else np.asanyarray(prob)
+    prob = np.inf*np.ones(len(points)) if prob is None else np.asarray(prob)
 
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points)
     assert len(points)==len(prob) and points.shape[1]==2 and prob.ndim==1
@@ -196,8 +198,5 @@ def relabel_image_stardist(lbl, n_rays, **kwargs):
     return polygons_to_label(dist, points, shape=lbl.shape)
 
 
-
 def ray_angles(n_rays=32):
     return np.linspace(0,2*np.pi,n_rays,endpoint=False)
-
-

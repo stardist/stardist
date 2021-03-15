@@ -7,7 +7,7 @@ from skimage.draw import polygon
 from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict
 from itertools import product
 
-from .geometry import polygons_to_label, polygons_to_label_coord, polyhedron_to_label
+from .geometry import polygons_to_label_coord, polyhedron_to_label
 
 
 
@@ -598,9 +598,5 @@ def _grid_divisible(grid, size, name=None, verbose=True):
 
 
 
-def render_polygons(polys, shape):
-    # TODO: this function doesn't belong here
-    # -> should really refactor polygons_to_label...
-    assert isinstance(polys,dict) and all(k in polys for k in ('prob','coord','points'))
-    return polygons_to_label_coord(polys["coord"], shape=shape)
-
+# def render_polygons(polys, shape):
+#     return polygons_to_label_coord(polys['coord'], shape=shape)

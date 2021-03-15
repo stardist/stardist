@@ -3,7 +3,7 @@ import numpy as np
 from time import time
 from .utils import _normalize_grid
 
-def _ind_prob_thresh(prob, prob_thresh, b = 2):
+def _ind_prob_thresh(prob, prob_thresh, b=2):
     if b is not None and np.isscalar(b):
         b = ((b,b),)*prob.ndim
 
@@ -40,9 +40,9 @@ def _non_maximum_suppression_old(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, p
     #     _mask = np.zeros_like(mask)
     #     _mask[b:-b,b:-b] = True
     #     mask &= _mask
-    
+
     mask = _ind_prob_thresh(prob, prob_thresh, b)
-    
+
     polygons = coord[mask]
     scores   = prob[mask]
 
@@ -75,10 +75,10 @@ def _non_maximum_suppression_old(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, p
 
 
 def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_thresh=0.5,
-                            use_bbox=True, use_kdtree = True, verbose=False):
+                            use_bbox=True, use_kdtree=True, verbose=False):
     """Non-Maximum-Supression of 2D polygons
-    
-    Retains only polygons whose overlap is smaller than nms_thresh 
+
+    Retains only polygons whose overlap is smaller than nms_thresh
 
     dist.shape = (Ny,Nx, n_rays)
     prob.shape = (Ny,Nx)
@@ -88,14 +88,14 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
     points, prob, dist = non_maximum_suppression(dist, prob, ....
 
     """
-    
+
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
     assert prob.ndim == 2 and dist.ndim == 3  and prob.shape == dist.shape[:2]
     dist = np.asarray(dist)
     prob = np.asarray(prob)
     n_rays = dist.shape[-1]
-    
+
     grid = _normalize_grid(grid,2)
 
     # mask = prob > prob_thresh
@@ -135,8 +135,8 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
 def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
                                    use_bbox=True, use_kdtree = True, verbose=False):
     """Non-Maximum-Supression of 2D polygons from a list of dists, probs (scores), and points
-    
-    Retains only polyhedra whose overlap is smaller than nms_thresh 
+
+    Retains only polyhedra whose overlap is smaller than nms_thresh
 
     dist.shape = (n_polys, n_rays)
     prob.shape = (n_polys,)
@@ -144,13 +144,13 @@ def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
 
     returns the retained instances
 
-    (pointsi, probi, disti, indsi) 
+    (pointsi, probi, disti, indsi)
 
-    with 
+    with
     pointsi = points[indsi] ...
 
     """
-    
+
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
     dist = np.asarray(dist)
@@ -160,7 +160,7 @@ def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
 
     assert dist.ndim == 2 and prob.ndim == 1 and points.ndim == 2 and \
         points.shape[-1]==2 and len(prob) == len(dist) == len(points)
-    
+
     verbose and print("predicting instances with nms_thresh = {nms_thresh}".format(nms_thresh=nms_thresh), flush=True)
 
     inds_original = np.arange(len(prob))
@@ -182,9 +182,6 @@ def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
 
     return pointsi[inds], probi[inds], disti[inds], inds_original[inds]
 
-    
-    
-
 
 def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, use_bbox=True, use_kdtree = True, verbose=1):
     """
@@ -205,7 +202,7 @@ def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, use_bbox=True
     """
 
     from .lib.stardist2d import c_non_max_suppression_inds
-    
+
     assert dist.ndim == 2
     assert points.ndim == 2
 
@@ -233,10 +230,10 @@ def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, use_bbox=True
 #########
 
 
-def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, use_kdtree = True, verbose=False):
-    """Non-Maximum-Supression of 3D polyhedra 
-    
-    Retains only polyhedra whose overlap is smaller than nms_thresh 
+def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0.5, prob_thresh=0.5, use_kdtree=True, verbose=False):
+    """Non-Maximum-Supression of 3D polyhedra
+
+    Retains only polyhedra whose overlap is smaller than nms_thresh
 
     dist.shape = (Nz,Ny,Nx, n_rays)
     prob.shape = (Nz,Ny,Nx)
@@ -245,24 +242,25 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
 
     points, prob, dist = non_maximum_suppression_3d(dist, prob, ....
     """
-    
+
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
     dist = np.asarray(dist)
     prob = np.asarray(prob)
-    
+
     assert prob.ndim == 3 and dist.ndim == 4 and dist.shape[-1] == len(rays) and prob.shape == dist.shape[:3]
-    
+
     grid = _normalize_grid(grid,3)
 
     verbose and print("predicting instances with prob_thresh = {prob_thresh} and nms_thresh = {nms_thresh}".format(prob_thresh=prob_thresh, nms_thresh=nms_thresh), flush=True)
 
-    ind_thresh = prob > prob_thresh
-    if b is not None and b > 0:
-        _ind_thresh = np.zeros_like(ind_thresh)
-        _ind_thresh[b:-b,b:-b,b:-b] = True
-        ind_thresh &= _ind_thresh
+    # ind_thresh = prob > prob_thresh
+    # if b is not None and b > 0:
+    #     _ind_thresh = np.zeros_like(ind_thresh)
+    #     _ind_thresh[b:-b,b:-b,b:-b] = True
+    #     ind_thresh &= _ind_thresh
 
+    ind_thresh = _ind_prob_thresh(prob, prob_thresh, b)
     points = np.stack(np.where(ind_thresh), axis=1)
     verbose and print("found %s candidates"%len(points))
     probi = prob[ind_thresh]
@@ -285,20 +283,20 @@ def non_maximum_suppression_3d(dist, prob, rays, grid=(1,1,1), b=2, nms_thresh=0
 
 def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=0.5, use_kdtree = True, verbose=False):
     """Non-Maximum-Supression of 3D polyhedra from a list of dists, probs and points
-    
-    Retains only polyhedra whose overlap is smaller than nms_thresh 
+
+    Retains only polyhedra whose overlap is smaller than nms_thresh
     dist.shape = (n_polys, n_rays)
     prob.shape = (n_polys,)
     points.shape = (n_polys,3)
 
     returns the retained instances
 
-    (pointsi, probi, disti, indsi) 
+    (pointsi, probi, disti, indsi)
 
-    with 
+    with
     pointsi = points[indsi] ...
     """
-    
+
     # TODO: using b>0 with grid>1 can suppress small/cropped objects at the image boundary
 
     dist = np.asarray(dist)
@@ -307,7 +305,7 @@ def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=
 
     assert dist.ndim == 2 and prob.ndim == 1 and points.ndim == 2 and \
         dist.shape[-1] == len(rays) and points.shape[-1]==3 and len(prob) == len(dist) == len(points)
-    
+
     verbose and print("predicting instances with nms_thresh = {nms_thresh}".format(nms_thresh=nms_thresh), flush=True)
 
     inds_original = np.arange(len(prob))
@@ -316,7 +314,7 @@ def non_maximum_suppression_3d_sparse(dist, prob, points, rays, b=2, nms_thresh=
     disti = dist[_sorted]
     pointsi = points[_sorted]
     inds_original = inds_original[_sorted]
-    
+
     verbose and print("non-maximum suppression...")
 
     inds = non_maximum_suppression_3d_inds(disti, pointsi, rays=rays, scores=probi, thresh=nms_thresh, use_kdtree = use_kdtree, verbose=verbose)
