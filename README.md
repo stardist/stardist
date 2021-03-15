@@ -1,15 +1,15 @@
 [![PyPI version](https://badge.fury.io/py/stardist.svg)](https://pypi.org/project/stardist)
-[![Test](https://github.com/mpicbg-csbd/stardist/workflows/Test/badge.svg)](https://github.com/mpicbg-csbd/stardist/actions?query=workflow%3ATest)
-[![Test (PyPI)](https://github.com/mpicbg-csbd/stardist/workflows/Test%20(PyPI)/badge.svg)](https://github.com/mpicbg-csbd/stardist/actions?query=workflow%3A%22Test+%28PyPI%29%22)
+[![Test](https://github.com/stardist/stardist/workflows/Test/badge.svg)](https://github.com/stardist/stardist/actions?query=workflow%3ATest)
+[![Test (PyPI)](https://github.com/stardist/stardist/workflows/Test%20(PyPI)/badge.svg)](https://github.com/stardist/stardist/actions?query=workflow%3A%22Test+%28PyPI%29%22)
 [![Image.sc forum](https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftags%2Fstardist.json&query=%24.topic_list.tags.0.topic_count&colorB=brightgreen&suffix=%20topics&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAABPklEQVR42m3SyyqFURTA8Y2BER0TDyExZ+aSPIKUlPIITFzKeQWXwhBlQrmFgUzMMFLKZeguBu5y+//17dP3nc5vuPdee6299gohUYYaDGOyyACq4JmQVoFujOMR77hNfOAGM+hBOQqB9TjHD36xhAa04RCuuXeKOvwHVWIKL9jCK2bRiV284QgL8MwEjAneeo9VNOEaBhzALGtoRy02cIcWhE34jj5YxgW+E5Z4iTPkMYpPLCNY3hdOYEfNbKYdmNngZ1jyEzw7h7AIb3fRTQ95OAZ6yQpGYHMMtOTgouktYwxuXsHgWLLl+4x++Kx1FJrjLTagA77bTPvYgw1rRqY56e+w7GNYsqX6JfPwi7aR+Y5SA+BXtKIRfkfJAYgj14tpOF6+I46c4/cAM3UhM3JxyKsxiOIhH0IO6SH/A1Kb1WBeUjbkAAAAAElFTkSuQmCC)](https://forum.image.sc/tags/stardist)
 
 # *StarDist* - Object Detection with Star-convex Shapes 
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_overview.png)
+![](https://github.com/stardist/stardist/raw/master/images/stardist_overview.png)
 
 This repository contains the Python implementation of star-convex object detection for 2D and 3D images, as described in the papers: 
 
-<img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
+<img src="https://github.com/stardist/stardist/raw/master/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
 
 - Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
@@ -27,11 +27,11 @@ Please [cite the paper(s)](#how-to-cite) if you are using this code in your rese
 The following figure illustrates the general approach for 2D images. The training data consists of corresponding pairs of input (i.e. raw) images and fully annotated label images (i.e. every pixel is labeled with a unique object id or 0 for background). 
 A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum suppression (NMS) of these candidates.  
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_2d.png)
+![](https://github.com/stardist/stardist/raw/master/images/overview_2d.png)
 
 The approach for 3D volumes is similar to the one described for 2D, using pairs of input and fully annotated label volumes as training data.
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/overview_3d.png)
+![](https://github.com/stardist/stardist/raw/master/images/overview_3d.png)
 
 ## Webinar/Tutorial 
 
@@ -64,9 +64,9 @@ compatible with the respective version of TensorFlow.
 
 ## Usage
 
-We provide example workflows for 2D and 3D via Jupyter [notebooks](https://github.com/mpicbg-csbd/stardist/tree/master/examples) that illustrate how this package can be used.
+We provide example workflows for 2D and 3D via Jupyter [notebooks](https://github.com/stardist/stardist/tree/master/examples) that illustrate how this package can be used.
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/example_steps.png)
+![](https://github.com/stardist/stardist/raw/master/images/example_steps.png)
 
 ### Pretrained Models for 2D
 
@@ -75,8 +75,8 @@ Currently we provide some pretrained models in 2D that might already be suitable
 
 | key | Modality (Staining) | Image format | Example Image    | Description  | 
 | :-- | :-: | :-:| :-:| :-- |
-| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a [subset of the DSB 2018 nuclei segmentation challenge dataset](https://github.com/mpicbg-csbd/stardist/releases/download/0.1.0/dsb2018.zip). | 
-|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/mpicbg-csbd/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TNBC dataset from Naylor et al. (2018)](https://zenodo.org/record/1175282#.X6mwG9so-CN). |
+| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/stardist/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a [subset of the DSB 2018 nuclei segmentation challenge dataset](https://github.com/stardist/stardist/releases/download/0.1.0/dsb2018.zip). | 
+|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/stardist/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TNBC dataset from Naylor et al. (2018)](https://zenodo.org/record/1175282#.X6mwG9so-CN). |
 
 
 You can access these pretrained models from `stardist.models.StarDist2D`
@@ -106,7 +106,7 @@ Although each of these provide decent annotation tools, we currently recommend u
 3. Successively add a new label and annotate a single cell instance with the brush tool (always check the `override` option) until *all* cells are labeled
 4. Export the label image via `Save Labeling...` and `File format > TIF Image` 
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/labkit_2d_labkit.png)
+![](https://github.com/stardist/stardist/raw/master/images/labkit_2d_labkit.png)
 
 
 Additional tips:
@@ -119,23 +119,23 @@ Additional tips:
 1. Install [QuPath](https://qupath.github.io/)
 2. Create a new project (`File -> Project...-> Create project`) and add your raw images 
 3. Annotate nuclei/objects
-4. Run [this script](https://raw.githubusercontent.com/mpicbg-csbd/stardist/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
+4. Run [this script](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
 
-To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/mpicbg-csbd/stardist/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
+To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
 
-![](https://github.com/mpicbg-csbd/stardist/raw/master/images/qupath.png)
+![](https://github.com/stardist/stardist/raw/master/images/qupath.png)
 
 ## Troubleshooting & Support
 
 1. Please first take a look at the [frequently asked questions (FAQ)]( https://stardist.net/docs/faq.html).
 2. If you need further help, please go to the [image.sc forum](https://forum.image.sc) and try to find out if the issue you're having has already been discussed or solved by other people. If not, feel free to create a new topic there and make sure to use the tag `stardist` (we are monitoring all questions with this tag).
-3. If you have a technical question related to the source code or believe to have found a bug, feel free to [open an issue](https://github.com/mpicbg-csbd/stardist/issues), but please check first if someone already created a similar issue.
+3. If you have a technical question related to the source code or believe to have found a bug, feel free to [open an issue](https://github.com/stardist/stardist/issues), but please check first if someone already created a similar issue.
 
 ### Installation
 
 If `pip install stardist` fails, it could be because there are no compatible wheels (`.whl`) for your platform ([see list](https://pypi.org/project/stardist/#files)). In this case, `pip` tries to compile a C++ extension that our Python package relies on (see below). While this often works on Linux out of the box, it will likely fail on Windows and macOS without installing a suitable compiler. (Note that you can enforce compilation by installing via `pip install stardist --no-binary :stardist:`.)
 
-Installation without using wheels requires Python 3.6 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/mpicbg-csbd/stardist/issues) if you have problems that are not resolved by the information below.
+Installation without using wheels requires Python 3.6 (or newer) and a working C++ compiler. We have only tested [GCC](http://gcc.gnu.org) (macOS, Linux), [Clang](https://clang.llvm.org) (macOS), and [Visual Studio](https://visualstudio.microsoft.com) (Windows 10). Please [open an issue](https://github.com/stardist/stardist/issues) if you have problems that are not resolved by the information below.
 
 If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wiki/OpenMP) to exploit multiple CPU cores for substantially reduced runtime on modern CPUs. This can be important to prevent slow model training.
 
@@ -149,7 +149,7 @@ If you use `conda` on macOS and after `import stardist` see errors similar to th
 
     Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next
 
-please see [this issue](https://github.com/mpicbg-csbd/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
+please see [this issue](https://github.com/stardist/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
 
 #### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.6 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
