@@ -121,7 +121,7 @@ def _polygons_to_label_old(coord, prob, points, shape=None, thr=-np.inf):
 
 
 def dist_to_coord(dist, points):
-    """convert from polar to cartesian coordinates for a list of distances and center points 
+    """convert from polar to cartesian coordinates for a list of distances and center points
     dist.shape   = (n_polys, n_rays)
     points.shape = (n_polys, 2)
     return coord.shape = (n_polys,2,n_rays)
@@ -136,7 +136,7 @@ def dist_to_coord(dist, points):
 
 
 def polygons_to_label_coord(coord, shape, labels=None):
-    """renders polygons to image of given shape
+    """renders polygons to image of given shape (old version)
 
     coord.shape   = (n_polys, n_rays)
     """
@@ -146,7 +146,7 @@ def polygons_to_label_coord(coord, shape, labels=None):
     assert coord.ndim==3 and coord.shape[1]==2 and len(coord)==len(labels)
 
     lbl = np.zeros(shape,np.int32)
-    
+
     for i,c in zip(labels,coord):
         rr,cc = polygon(*c, shape)
         lbl[rr,cc] = i+1
@@ -160,17 +160,17 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
     dist.shape   = (n_polys, n_rays)
     points.shape = (n_polys, 2)
 
-    label ids will be consecutive and adhere to the order given 
+    label ids will be consecutive and adhere to the order given
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
     prob = np.inf*np.ones(len(points)) if prob is None else np.asanyarray(prob)
 
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points)
-    assert len(points)==len(prob) and points.shape[1]==2 and prob.ndim==1 
+    assert len(points)==len(prob) and points.shape[1]==2 and prob.ndim==1
 
     n_rays = dist.shape[1]
-    
+
     ind = prob>thr
     points = points[ind]
     dist = dist[ind]
@@ -179,12 +179,12 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
     ind = np.argsort(prob, kind='stable')
     points = points[ind]
     dist = dist[ind]
-    
+
     coord = dist_to_coord(dist, points)
 
     return polygons_to_label_coord(coord, shape=shape, labels=ind)
-    
-    
+
+
 def relabel_image_stardist(lbl, n_rays, **kwargs):
     """relabel each label region in `lbl` with its star representation"""
     _check_label_array(lbl, "lbl")
@@ -194,7 +194,7 @@ def relabel_image_stardist(lbl, n_rays, **kwargs):
     points = np.array(tuple(np.array(r.centroid).astype(int) for r in regionprops(lbl)))
     dist = dist[tuple(points.T)]
     return polygons_to_label(dist, points, shape=lbl.shape)
-    
+
 
 
 def ray_angles(n_rays=32):
