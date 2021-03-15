@@ -136,7 +136,7 @@ def dist_to_coord(dist, points):
         
     
 def polygons_to_label_coord(coord, shape, labels =None):
-    """renders polygons to image of given shape 
+    """renders polygons to image of given shape (old version)
 
     coord.shape   = (n_polys, n_rays)
     """
@@ -149,7 +149,7 @@ def polygons_to_label_coord(coord, shape, labels =None):
     
     for i,c in zip(labels,coord):
         rr,cc = polygon(*c, shape)
-        lbl[rr,cc] = i+1
+        lbl[rr,cc] = i
 
     return lbl
 
