@@ -26,7 +26,6 @@ from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 
 
-
 class StarDistData2D(StarDistDataBase):
 
     def __init__(self, X, Y, batch_size, n_rays, length,
@@ -523,7 +522,7 @@ class StarDist2D(StarDistBase):
                                                            **nms_kwargs)
             if prob_class is not None:
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
-                prob_class = prob_class[inds[0],inds[1]]
+                prob_class = prob_class[inds]
 
         if return_labels:
             labels = polygons_to_label(disti, points, prob = probi, shape=img_shape)

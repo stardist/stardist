@@ -1222,7 +1222,7 @@ void _COMMON_non_maximum_suppression_sparse(
       // if it doesn't intersect at all, we can move on...
       iou = fmin(1.f,A_inter/(A_min+1e-10));
 
-      if ((A_inter<1.e-10)||(iou<=threshold)){
+      if ((use_bbox) && ((A_inter<1.e-10)||(iou<=threshold))){
         count_kept_pretest++;
         continue;
       }

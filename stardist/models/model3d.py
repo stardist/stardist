@@ -571,7 +571,13 @@ class StarDist3D(StarDistBase):
 
 
     def _instances_from_prediction(self, img_shape, prob, dist,  points = None, prob_class = None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels = True, **nms_kwargs):
-        """if points are given, use sparse prediction"""
+        """
+        if points is None     -> dense prediction
+        if points is not None -> sparse prediction
+
+        if prob_class is None     -> single class prediction
+        if prob_class is not None -> multi  class prediction
+        """
 
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
@@ -595,7 +601,7 @@ class StarDist3D(StarDistBase):
                                                           **nms_kwargs)
             if prob_class is not None:
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
-                prob_class = prob_class[inds[0],inds[1]]
+                prob_class = prob_class[inds]
 
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")

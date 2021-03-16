@@ -278,7 +278,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
-    s = model.train(X, Y, classes = classes, epochs = 100, 
+    s = model.train(X, Y, classes = classes, epochs = 30, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
@@ -293,7 +293,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     assert np.allclose(labels1, labels2)
     assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
     
-    return model, img, res1, res2
+    return model, img, res1, res2, res3
 
 @pytest.mark.parametrize('n_classes, classes, n_channel',
                          [ (None, "auto", 1),

@@ -238,7 +238,7 @@ def test_classes():
     
     return p
 
-def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
+def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None, epochs=20):
     from skimage.measure import regionprops
     
     img, mask = real_image3d()
@@ -258,12 +258,13 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         n_classes = n_classes,
         use_gpu=False,
         train_epochs=1,
-        train_steps_per_epoch=1,
+        train_steps_per_epoch=10,
         train_batch_size=1,
         train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
-        train_patch_size=(16,16,16),
+        train_patch_size=(24,32,32),
     )
 
+    # efine some classes according to the areas
     if n_classes is not None and n_classes>1 and classes=="area":
         regs = regionprops(mask)
         areas = tuple(r.area for r in regs)
@@ -280,17 +281,31 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
     
-    s = model.train(X, Y, classes = classes, epochs = 1, 
+    s = model.train(X, Y, classes = classes, epochs = epochs, 
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
     labels, res = model.predict_instances(img)
-    return  model, X,Y, labels, res
+    # return  model, X,Y, classes, labels, res
+
+    img = np.tile(img,(4,2,2) if img.ndim==3 else (4,2,2,1))
+
+    kwargs = dict(prob_thresh=.5)
+    labels1, res1 = model.predict_instances(img, **kwargs)
+    labels2, res2 = model.predict_instances(img, sparse = True, **kwargs)
+    labels3, res3 = model.predict_instances_big(img, axes="ZYX" if img.ndim==3 else "ZYXC",
+                                                block_size=96, min_overlap=8, context=8, **kwargs)
+
+    assert np.allclose(labels1, labels2)
+    assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
     
-@pytest.mark.parametrize('n_classes, classes, n_channel', [(None, "auto", 1), (1, "auto", 3), (3, (1,2,3),3)])
-def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
+    return model, img, res1, res2, res3
+
+    
+@pytest.mark.parametrize('n_classes, classes, n_channel, epochs', [(None, "auto", 1, 1), (1, "area", 3, 1), (3, (1,2,3), 3, 1)])
+def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
-                                  n_channel=n_channel, basedir = tmpdir)
+                                  n_channel=n_channel, basedir = tmpdir, epochs=epochs)
 
 
 # this test has to be at the end of the model
@@ -309,9 +324,5 @@ if __name__ == '__main__':
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
 
 
-    # test_classes()
-    # res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1)
+    res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1, epochs=2)
 
-    # (img,), (prob, dist), s = test_stardistdata((1,1,1))
-
-    test_model("foo", 73, (2, 2, 2), None, 'resnet', 1, False)

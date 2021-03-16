@@ -572,7 +572,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
         continue;
       
       // skip if bounding boxes are not even intersecting
-      if (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j]))
+      if ((use_bbox) && (!bbox_intersect(bbox_x1[i], bbox_x2[i], bbox_y1[i], bbox_y2[i], bbox_x1[j], bbox_x2[j], bbox_y1[j], bbox_y2[j])))
         continue;
 
       const float area_inter = poly_intersection_area(poly_paths[i], poly_paths[j]);
