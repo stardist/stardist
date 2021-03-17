@@ -5,11 +5,11 @@ from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
-from utils import circle_image, real_image3d, path_model3d
+from utils import circle_image, real_image3d, path_model3d, NumpySequence
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, backbone', [(73, (2, 2, 2), None, 'resnet'), (33, (1, 2, 4), 1, 'resnet'), (7, (2, 1, 1), 2, 'unet')])
-def test_model(tmpdir, n_rays, grid, n_channel, backbone):
+@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, use_sequence', [(73, (2, 2, 2), None, 'resnet', False), (33, (1, 2, 4), 1, 'resnet', False), (7, (2, 1, 1), 2, 'unet', True)])
+def test_model(tmpdir, n_rays, grid, n_channel, backbone, use_sequence):
     img = circle_image(shape=(64, 80, 96))
     imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
@@ -21,6 +21,9 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
     X = imgs+.6*np.random.uniform(0, 1, imgs.shape)
     Y = (imgs if imgs.ndim == 4 else imgs[..., 0]).astype(int)
 
+    if use_sequence:
+        X, Y = NumpySequence(X), NumpySequence(Y)
+    
     conf = Config3D(
         backbone=backbone,
         rays=n_rays,
@@ -32,6 +35,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
         train_batch_size=2,
         train_loss_weights=(4, 1),
         train_patch_size=(48, 64, 64),
+        train_sample_cache = not use_sequence,
     )
 
     model = StarDist3D(conf, name='stardist', basedir=str(tmpdir))
@@ -39,17 +43,28 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone):
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (1, 2, 3) if X[0].ndim == 3 else (1, 2, 3, 1)))
-    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
 
+    # deactivate as order of labels might not be the same
+    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
+    return model
+
+
+def test_foreground_warning():
     # ask to train only with foreground patches when there are none
     # include a constant label image that must trigger a warning
-    conf.train_foreground_only = 1
-    conf.train_steps_per_epoch = 1
-    _X = X[:2]
-    _Y = [np.zeros_like(Y[0]), np.ones_like(Y[1])]
+    conf = Config3D(
+        n_rays=32,
+        train_patch_size=(16, 32, 16),
+        train_foreground_only = 1,
+        train_steps_per_epoch = 1,
+        train_epochs=1,
+        train_batch_size=2,        
+    )
+    X, Y = np.ones((2,32,48,16), np.float32), np.ones((2,32,48,16),np.uint16)
+    
     with pytest.warns(UserWarning):
-        StarDist3D(conf, name='stardist', basedir=None).train(
-            _X, _Y, validation_data=(X[-1:], Y[-1:]))
+        StarDist3D(conf, None, None).train(
+            X, Y, validation_data=(X[-1:], Y[-1:]))
 
 
 def test_load_and_predict(model3d):
@@ -177,5 +192,11 @@ def print_receptive_fields():
 
 
 if __name__ == '__main__':
+
     from conftest import _model3d
-    model, lbl = test_load_and_predict_with_overlap(_model3d())
+
+    # model, lbl = test_load_and_predict_with_overlap(_model3d())
+
+    # model = test_model("tmpdir", 32, (1, 1, 1), 1, "unet", True)
+
+    test_foreground_warning()

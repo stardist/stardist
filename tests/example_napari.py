@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 from stardist.models import Config3D, StarDist3D
-from stardist.data import  test_image_nuclei_2d
+from stardist.data import  test_image_nuclei_2d, test_image_nuclei_3d
 from utils import circle_image, real_image3d, path_model3d
 from csbdeep.utils import normalize
 from conftest import _model3d
@@ -33,20 +33,33 @@ def show_surface():
         viewer.add_surface(surface) 
 
 
-def show_napari():
+def show_napari_2d():
     import napari
     x = test_image_nuclei_2d()
 
     with napari.gui_qt():
         viewer =  napari.Viewer()
 
-        # add the surface
         viewer.add_image(x)
 
-        key = ("StarDist", "StarDist")  # (Plugin Name, Widget Name)
+        key = ("StarDist", "StarDist") 
+        
         viewer.window._add_plugin_dock_widget(key)
 
+def show_napari_3d():
+    import napari
+    x = test_image_nuclei_3d()
+
+    with napari.gui_qt():
+        viewer =  napari.Viewer()
+
+        viewer.add_image(x)
+
+        key = ("StarDist", "StarDist") 
+        
+        viewer.window._add_plugin_dock_widget(key)
+        
 if __name__ == '__main__':
 
-    show_napari()
+    show_napari_3d()
 
