@@ -16,7 +16,9 @@ o load model axes and check if compatible with chosen image/axes
 
 from napari_plugin_engine import napari_hook_implementation
 from magicgui import magicgui, magic_factory
+from magicgui.events import Event
 
+import functools
 import numpy as np
 from csbdeep.utils import _raise, normalize, axes_check_and_normalize
 from csbdeep.models.pretrained import get_registered_models, get_model_folder
@@ -95,6 +97,25 @@ def surface_from_polys(polys):
     return [np.array(vertices), np.array(faces), np.array(values)]
 
 
+def change_handler(*widgets, connect=True, init=True, debug=True):
+    def decorator_change_handler(handler):
+        @functools.wraps(handler)
+        def wrapper(event):
+            if debug:
+                if isinstance(event, Event):
+                    print(f"{event.type}{' (blocked)' if event.blocked else ''}: {event.source.name} = {event.value}")
+                    # for a in ['blocked','handled','native','source','sources','type','value']:
+                    #     try: print(f'- event.{a} = {getattr(event,a)}')
+                    #     except: pass
+                else:
+                    print(f"{handler.__name__}({str(event)})")
+            return handler(event)
+        for widget in widgets:
+            if connect: widget.changed.connect(wrapper)
+            if init:    widget.changed(value=widget.value)
+        return wrapper
+    return decorator_change_handler
+
 
 # TODO: replace with @magic_factory(..., widget_init=...)
 def widget_wrapper():
@@ -104,24 +125,24 @@ def widget_wrapper():
         image           = dict(label='Input Image'),
         axes            = dict(widget_type='LineEdit', label='Input Axes'),
         label_nn        = dict(widget_type='Label', label='<br>Neural Network Prediction:'),
-        model2d         = dict(widget_type='ComboBox', label='2D Model', choices=models2d, value=CUSTOM_MODEL),
-        model3d         = dict(widget_type='ComboBox', label='3D Model', choices=models3d, value=CUSTOM_MODEL),
+        model2d         = dict(widget_type='ComboBox', label='2D Model', choices=models2d, value=DEFAULTS['model2d']),
+        model3d         = dict(widget_type='ComboBox', label='3D Model', choices=models3d, value=DEFAULTS['model3d']),
         model_folder    = dict(widget_type='FileEdit', label=' ', mode='d'),
-        norm_image      = dict(widget_type='CheckBox', text='Normalize Image'),
+        norm_image      = dict(widget_type='CheckBox', text='Normalize Image', value=DEFAULTS['norm_image']),
         label_nms       = dict(widget_type='Label', label='<br>NMS Postprocessing:'),
-        perc_low        = dict(widget_type='FloatSpinBox', label='Percentile low',              min=0.0, max=100.0, step=0.1),
-        perc_high       = dict(widget_type='FloatSpinBox', label='Percentile high',             min=0.0, max=100.0, step=0.1),
-        prob_thresh     = dict(widget_type='FloatSpinBox', label='Probability/Score Threshold', min=0.0, max=  1.0, step=0.05),
-        nms_thresh      = dict(widget_type='FloatSpinBox', label='Overlap Threshold',           min=0.0, max=  1.0, step=0.05),
-        output_type     = dict(widget_type='ComboBox', label='Output Type', choices=output_choices),
+        perc_low        = dict(widget_type='FloatSpinBox', label='Percentile low',              min=0.0, max=100.0, step=0.1,  value=DEFAULTS['perc_low']),
+        perc_high       = dict(widget_type='FloatSpinBox', label='Percentile high',             min=0.0, max=100.0, step=0.1,  value=DEFAULTS['perc_high']),
+        prob_thresh     = dict(widget_type='FloatSpinBox', label='Probability/Score Threshold', min=0.0, max=  1.0, step=0.05, value=DEFAULTS['prob_thresh']),
+        nms_thresh      = dict(widget_type='FloatSpinBox', label='Overlap Threshold',           min=0.0, max=  1.0, step=0.05, value=DEFAULTS['nms_thresh']),
+        output_type     = dict(widget_type='ComboBox', label='Output Type', choices=output_choices, value=DEFAULTS['output_type']),
         label_adv       = dict(widget_type='Label', label='<br>Advanced Options:'),
-        n_tiles         = dict(widget_type='LineEdit', label='Number of Tiles'),
-        cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output'),
+        n_tiles         = dict(widget_type='LineEdit', label='Number of Tiles', value=DEFAULTS['n_tiles']),
+        cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output', value=DEFAULTS['cnn_output']),
         set_thresholds  = dict(widget_type='PushButton', text='Set optimized postprocessing thresholds (for selected model)'),
         defaults_button = dict(widget_type='PushButton', text='Restore Defaults'),
         progress_bar    = dict(widget_type='ProgressBar', label=' ', min=0, max=0, visible=False),
         layout          = 'vertical',
-        # persist         = True,
+        persist         = True,
         call_button     = True,
     )
     def widget (
@@ -199,80 +220,80 @@ def widget_wrapper():
                 # TODO: coordinates correct or need offset (0.5 or so)?
                 shapes = np.moveaxis(polys['coord'], 2,1)
                 layers.append((shapes, dict(name='StarDist polygons', shape_type='polygon',
-                                             edge_width=0.5, edge_color='coral', face_color=[0,0,0,0]), 'shapes'))
+                                            edge_width=0.5, edge_color='coral', face_color=[0,0,0,0]), 'shapes'))
         return layers
 
     # -------------------------------------------------------------------------
 
+    # hide percentile selection if normalization turned off
+    @change_handler(widget.norm_image)
+    def _norm_image_change(event):
+        widget.perc_low.visible = event.value
+        widget.perc_high.visible = event.value
+
     # ensure that percentile low < percentile high
+    @change_handler(widget.perc_low)
     def _perc_low_change(event):
         widget.perc_high.value = max(widget.perc_low.value+0.01, widget.perc_high.value)
+    @change_handler(widget.perc_high)
     def _perc_high_change(event):
         widget.perc_low.value  = min(widget.perc_low.value, widget.perc_high.value-0.01)
-    widget.perc_low.changed.connect(_perc_low_change)
-    widget.perc_high.changed.connect(_perc_high_change)
-
-
-    # hide percentile selection if normalization turned off
-    def _norm_image_change(event):
-        widget.perc_low.visible = widget.norm_image.value
-        widget.perc_high.visible = widget.norm_image.value
-    widget.norm_image.changed.connect(_norm_image_change)
 
 
     # show/hide model folder picker
     # load config/thresholds for selected pretrained model
+    @change_handler(widget.model2d, widget.model3d, init=False) # -> triggered by _image_change
     def _model_change(event):
-        if (widget.model2d.visible and widget.model2d.value == CUSTOM_MODEL) or \
-           (widget.model3d.visible and widget.model3d.value == CUSTOM_MODEL):
+        if (event.value == CUSTOM_MODEL):
             widget.model_folder.show()
+            widget.model_folder.changed(value=widget.model_folder.value)
         else:
             widget.model_folder.hide()
 
-            if event is not None:
-                model_class = StarDist2D if event.source == widget.model2d else StarDist3D
-                model_name  = event.value
-                key = model_class, model_name
+            model_class = StarDist2D if event.source == widget.model2d else StarDist3D
+            model_name  = event.value
+            key = model_class, model_name
 
-                if key not in model_configs:
+            if key not in model_configs:
 
-                    @thread_worker
-                    def _get_model_folder():
-                        return get_model_folder(*key)
+                @thread_worker
+                def _get_model_folder():
+                    return get_model_folder(*key)
 
-                    def _process_model_folder(path):
+                def _process_model_folder(path):
+                    try:
+                        model_configs[key] = load_json(str(path/'config.json'))
                         try:
-                            model_configs[key] = load_json(str(path/'config.json'))
-                            try:
-                                # not all models have associated thresholds
-                                model_threshs[key] = load_json(str(path/'thresholds.json'))
-                            except FileNotFoundError:
-                                pass
-                        finally:
-                            widget.call_button.enabled = True
-                            widget.progress_bar.hide()
+                            # not all models have associated thresholds
+                            model_threshs[key] = load_json(str(path/'thresholds.json'))
+                        except FileNotFoundError:
+                            pass
+                    finally:
+                        widget.call_button.enabled = True
+                        widget.progress_bar.hide()
 
-                    worker = _get_model_folder()
-                    worker.returned.connect(_process_model_folder)
-                    worker.start()
+                worker = _get_model_folder()
+                worker.returned.connect(_process_model_folder)
+                worker.start()
 
-                    # delay showing progress bar -> won't show up if model already downloaded
-                    # TODO: hacky -> better way to do this?
-                    time.sleep(0.1)
-                    widget.call_button.enabled = False
-                    widget.progress_bar.label = 'Downloading model...'
-                    widget.progress_bar.show()
-
-    widget.model2d.changed.connect(_model_change)
-    widget.model3d.changed.connect(_model_change)
+                # delay showing progress bar -> won't show up if model already downloaded
+                # TODO: hacky -> better way to do this?
+                time.sleep(0.1)
+                widget.call_button.enabled = False
+                widget.progress_bar.label = 'Downloading model...'
+                widget.progress_bar.show()
 
 
     # load config/thresholds from custom model path
+    @change_handler(widget.model_folder, init=False) # -> triggered by _model_change
     def _model_folder_change(event):
+        # path = event.value # bug, does (sometimes?) return the FileEdit widget instead its value
+        path = Path(widget.model_folder.value)
+        if not path.is_dir(): return
+        # TODO: replace 'widget.model2d.visible' with logic based on 'axes'
         # note: will be triggered at every keystroke (when typing the path)
         model_class = StarDist2D if widget.model2d.visible else StarDist3D
         model_name  = CUSTOM_MODEL
-        path = widget.model_folder.value
         key = model_class, model_name, path
         try:
             model_configs[key] = load_json(str(path/'config.json'))
@@ -283,36 +304,37 @@ def widget_wrapper():
         except FileNotFoundError:
             pass
 
-    widget.model_folder.changed.connect(_model_folder_change)
-
 
     # show 2d or 3d models (based on guessed image dimensionality)
-    def _image_changed(event):
-        image = widget.image.get_value()
+    @change_handler(widget.image, init=False) # -> triggered by napari
+    def _image_change(event):
+        image = event.value
         # TODO: bad logic
         if _is3D(image):
             widget.model2d.hide()
             widget.model3d.show()
+            widget.model3d.changed(value=widget.model3d.value)
             widget.axes.value = 'ZYX'
         elif _is2D(image):
             widget.model3d.hide()
             widget.model2d.show()
+            widget.model2d.changed(value=widget.model2d.value)
             widget.axes.value = 'YXC' if image.rgb else 'YX'
         else:
             raise NotImplementedError()
-        _model_change(None)
-    widget.image.changed.connect(_image_changed)
+
 
     # TODO: check axes and let axes determine dimensionality
+    @change_handler(widget.axes, init=False)
     def _axes_change(event):
         value = str(event.value)
         if value != value.upper():
             with widget.axes.changed.blocker():
                 widget.axes.value = value.upper()
-    widget.axes.changed.connect(_axes_change)
 
 
     # set thresholds to optimized values for chosen model
+    @change_handler(widget.set_thresholds, init=False)
     def _set_thresholds(event):
         if widget.model2d.visible:
             model_class = StarDist2D
@@ -336,31 +358,28 @@ def widget_wrapper():
         # # TODO: bad logic, need to check how many dims input image has?
         # # widget.axes.value = axes if config['n_channel_in'] > 1 else axes.replace('C','')
 
-    widget.set_thresholds.changed.connect(_set_thresholds)
 
+    # restore defaults
+    @change_handler(widget.defaults_button, init=False)
+    def restore_defaults(event=None):
+        for k,v in DEFAULTS.items():
+            # TODO: can trigger change events that change parameters again...
+            #       how block all events when restoring defaults?
+            getattr(widget,k).value = v
+
+    # -------------------------------------------------------------------------
 
     # allow to shrink model selector
     widget.model2d.native.setMinimumWidth(240)
     widget.model3d.native.setMinimumWidth(240)
 
-
     # make reset button smaller
     # widget.defaults_button.native.setMaximumWidth(150)
-
 
     # push 'call_button' to bottom
     layout = widget.native.layout()
     layout.insertStretch(layout.count()-2)
 
-
-    # restore defaults
-    def restore_defaults():
-        for k,v in DEFAULTS.items():
-            # TODO: can trigger change events that change parameters again...
-            #       how block all events when restoring defaults?
-            getattr(widget,k).value = v
-    restore_defaults()
-    widget.defaults_button.changed.connect(lambda e: restore_defaults())
 
     return widget
 
