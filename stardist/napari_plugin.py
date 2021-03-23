@@ -1,6 +1,7 @@
 """
 TODO:
 - cache selected model instances (when re-running the plugin, e.g. for different images)
+- apply only to field of view to apply to huge images?
 - option to use CPU or GPU, limit GPU memory ('allow_growth'?)
 - execute in different thread, ability to cancel?
 - normalize per channel or jointly
@@ -12,6 +13,7 @@ TODO:
 o load prob and nms thresholds from model
 o load model axes and check if compatible with chosen image/axes
 - errors when running the plugin multiple times (without deleting output layers first)
+- separate 'stardist-napari' package?
 """
 
 from napari_plugin_engine import napari_hook_implementation
@@ -20,7 +22,7 @@ from magicgui.events import Event
 
 import functools
 import numpy as np
-from csbdeep.utils import _raise, normalize, axes_check_and_normalize
+from csbdeep.utils import _raise, normalize, axes_check_and_normalize, axes_dict
 from csbdeep.models.pretrained import get_registered_models, get_model_folder
 from csbdeep.utils import load_json
 from .models import StarDist2D, StarDist3D
@@ -34,17 +36,18 @@ from enum import Enum
 import time
 
 # TODO: inelegant (wouldn't work if a pretrained model is called the same as CUSTOM_MODEL)
-CUSTOM_MODEL = 'Custom Model'
+CUSTOM_MODEL = 'CUSTOM_MODEL'
 
 # get available models
 _models2d, _aliases2d = get_registered_models(StarDist2D)
 _models3d, _aliases3d = get_registered_models(StarDist3D)
 # use first alias for model selection (if alias exists)
-models2d = [(_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m) for m in _models2d] + [CUSTOM_MODEL]
-models3d = [(_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m) for m in _models3d] + [CUSTOM_MODEL]
+models2d = [(_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m) for m in _models2d]
+models3d = [(_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m) for m in _models3d]
 
 model_configs = dict()
 model_threshs = dict()
+model_selected = None
 
 class Output(Enum):
     Labels = 'Label Image'
@@ -52,8 +55,15 @@ class Output(Enum):
     Both   = 'Both'
 output_choices = [Output.Labels.value, Output.Polys.value, Output.Both.value]
 
+class ModelType(Enum):
+    TwoD   = '2D'
+    ThreeD = '3D'
+    Custom = 'Custom 2D/3D'
+model_type_choices = [ModelType.TwoD.value, ModelType.ThreeD.value, ModelType.Custom.value]
+
 
 DEFAULTS = dict (
+    model_type   = ModelType.TwoD.value,
     model2d      = models2d[0],
     model3d      = models3d[0],
     norm_image   = True,
@@ -66,13 +76,6 @@ DEFAULTS = dict (
     cnn_output   = False,
 )
 
-
-# TODO: possible to know if an image is multi-channel/timelapse 2D or single-channel 3D?
-# TODO: best would be to know image axes...
-def _is3D(image):
-    return image.data.ndim == 3 and image.rgb == False
-def _is2D(image):
-    return image.data.ndim == 2 or image.rgb == True
 
 
 def surface_from_polys(polys):
@@ -97,7 +100,7 @@ def surface_from_polys(polys):
     return [np.array(vertices), np.array(faces), np.array(values)]
 
 
-def change_handler(*widgets, connect=True, init=True, debug=True):
+def change_handler(*widgets, init=True, debug=True):
     def decorator_change_handler(handler):
         @functools.wraps(handler)
         def wrapper(event):
@@ -111,8 +114,9 @@ def change_handler(*widgets, connect=True, init=True, debug=True):
                     print(f"{handler.__name__}({str(event)})")
             return handler(event)
         for widget in widgets:
-            if connect: widget.changed.connect(wrapper)
-            if init:    widget.changed(value=widget.value)
+            widget.changed.connect(wrapper)
+            if init:
+                widget.changed(value=widget.value)
         return wrapper
     return decorator_change_handler
 
@@ -123,11 +127,13 @@ def widget_wrapper():
     @magicgui (
         label_head      = dict(widget_type='Label', label='<h1>StarDist</h1>'),
         image           = dict(label='Input Image'),
-        axes            = dict(widget_type='LineEdit', label='Input Axes'),
+        axes            = dict(widget_type='LineEdit', label='Image Axes'),
         label_nn        = dict(widget_type='Label', label='<br>Neural Network Prediction:'),
-        model2d         = dict(widget_type='ComboBox', label='2D Model', choices=models2d, value=DEFAULTS['model2d']),
-        model3d         = dict(widget_type='ComboBox', label='3D Model', choices=models3d, value=DEFAULTS['model3d']),
-        model_folder    = dict(widget_type='FileEdit', label=' ', mode='d'),
+        model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
+        model2d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models2d, value=DEFAULTS['model2d']),
+        model3d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models3d, value=DEFAULTS['model3d']),
+        model_folder    = dict(widget_type='FileEdit', visible=False, label='Custom Model', mode='d'),
+        model_axes      = dict(widget_type='LineEdit', label='Model Axes', value=''),
         norm_image      = dict(widget_type='CheckBox', text='Normalize Image', value=DEFAULTS['norm_image']),
         label_nms       = dict(widget_type='Label', label='<br>NMS Postprocessing:'),
         perc_low        = dict(widget_type='FloatSpinBox', label='Percentile low',              min=0.0, max=100.0, step=0.1,  value=DEFAULTS['perc_low']),
@@ -146,13 +152,16 @@ def widget_wrapper():
         call_button     = True,
     )
     def widget (
+        viewer: napari.Viewer,
         label_head,
-        image: 'napari.layers.Image',
+        image: napari.layers.Image,
         axes,
         label_nn,
+        model_type,
         model2d,
         model3d,
         model_folder,
+        model_axes,
         norm_image,
         perc_low,
         perc_high,
@@ -168,15 +177,20 @@ def widget_wrapper():
         progress_bar,
     ) -> List[napari.types.LayerDataTuple]:
 
-        if _is3D(image):
-            if model3d == CUSTOM_MODEL:
+        key = {ModelType.TwoD.value:   (StarDist2D,   model2d),
+               ModelType.ThreeD.value: (StarDist3D,   model3d),
+               ModelType.Custom.value: (CUSTOM_MODEL, model_folder)}[model_type]
+        config = model_configs[key]
+
+        if config['n_dim'] == 3:
+            if key[0] == CUSTOM_MODEL:
                 path = Path(model_folder)
                 path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
                 model = StarDist3D(None, name=path.name, basedir=str(path.parent))
             else:
                 model = StarDist3D.from_pretrained(model3d)
         else:
-            if model2d == CUSTOM_MODEL:
+            if key[0] == CUSTOM_MODEL:
                 path = Path(model_folder)
                 path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
                 model = StarDist2D(None, name=path.name, basedir=str(path.parent))
@@ -211,7 +225,7 @@ def widget_wrapper():
         if output_type in (Output.Labels.value,Output.Both.value):
             layers.append((labels, dict(name='StarDist labels'), 'labels'))
         if output_type in (Output.Polys.value,Output.Both.value):
-            if _is3D(image):
+            if isinstance(model, StarDist3D):
                 surface = surface_from_polys(polys)
                 layers.append((surface, dict(name='StarDist polyhedra',
                                              contrast_limits=(0,surface[-1].max()),
@@ -222,6 +236,97 @@ def widget_wrapper():
                 layers.append((shapes, dict(name='StarDist polygons', shape_type='polygon',
                                             edge_width=0.5, edge_color='coral', face_color=[0,0,0,0]), 'shapes'))
         return layers
+
+    # -------------------------------------------------------------------------
+
+    def widgets_valid(*widgets, valid):
+        for widget in widgets:
+            widget.native.setStyleSheet("" if valid else "background-color: red")
+
+
+    def help(msg):
+        # it may take a little while until ready
+        while widget.viewer.value is None:
+            time.sleep(0.01)
+        widget.viewer.value.help = msg
+
+
+    class Updater:
+        def __init__(self, debug=True):
+            from types import SimpleNamespace
+            self.debug = debug
+            self.valid = SimpleNamespace(**{k:False for k in ('image_axes', 'model')})
+            self.args  = SimpleNamespace()
+
+        def __call__(self, k, valid, args=None):
+            assert k in vars(self.valid)
+            setattr(self.valid, k, bool(valid))
+            setattr(self.args, k, args)
+            self._update()
+
+        def _update(self):
+
+            def _model(valid):
+                widgets_valid(widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=valid)
+                if valid:
+                    config = self.args.model
+                    axes = config.get('axes', 'ZYXC'[-len(config['net_input_shape']):])
+                    widget.model_axes.value = axes.replace("C", f"C[{config['n_channel_in']}]")
+                    widget.model_folder.line_edit.tooltip = ''
+                    return axes, config
+                else:
+                    widget.model_axes.value = ''
+                    widget.model_folder.line_edit.tooltip = 'Invalid model directory'
+
+            def _image_axes(valid):
+                widgets_valid(widget.axes, valid=valid)
+                axes, image, err = getattr(self.args, 'image_axes', (None,None,None))
+                if valid:
+                    widget.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,image.data.shape)])
+                    return axes, image
+                else:
+                    if err is not None:
+                        err = str(err)
+                        widget.axes.tooltip = err[:-1] if err.endswith('.') else err
+                    else:
+                        widget.axes.tooltip = ''
+
+            all_valid = False
+            help_msg = ''
+            if self.valid.image_axes and self.valid.model:
+                # check if image and model are compatible
+                axes_image, image  = _image_axes(True)
+                axes_model, config = _model(True)
+                ch_model = config['n_channel_in']
+                ch_image = image.data.shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
+                all_valid = set(axes_model.replace('C','')) == set(axes_image.replace('C','')) and ch_model == ch_image
+
+                widgets_valid(widget.image, widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=all_valid)
+                if all_valid:
+                    help_msg = ''
+                else:
+                    help_msg = f'Model with axes {axes_model.replace("C", f"C[{ch_model}]")} and image with axes {axes_image.replace("C", f"C[{ch_image}]")} not compatible'
+            else:
+                # either model or image_axes ist invalid
+                widgets_valid(widget.image, valid=True)
+                _model(self.valid.model)
+                _image_axes(self.valid.image_axes)
+
+            # widgets_valid(widget.call_button, valid=all_valid)
+            help(help_msg)
+            widget.call_button.enabled = all_valid
+            if self.debug:
+                print(f"valid ({all_valid}):", ', '.join([f'{k}={v}' for k,v in vars(self.valid).items()]))
+
+    update = Updater()
+
+
+    def select_model(key):
+        # print(f"select_model: {key}")
+        global model_selected
+        model_selected = key
+        config = model_configs.get(key)
+        update('model', config is not None, config)
 
     # -------------------------------------------------------------------------
 
@@ -239,63 +344,73 @@ def widget_wrapper():
     def _perc_high_change(event):
         widget.perc_low.value  = min(widget.perc_low.value, widget.perc_high.value-0.01)
 
+    # -------------------------------------------------------------------------
+
+    # RadioButtons widget triggers a change event initially (either when 'value' is set in constructor, or via 'persist')
+    @change_handler(widget.model_type, init=False)
+    def _model_type_change(event):
+        selected = {ModelType.TwoD.value:   widget.model2d,
+                    ModelType.ThreeD.value: widget.model3d,
+                    ModelType.Custom.value: widget.model_folder}[event.value]
+        for w in set((widget.model2d, widget.model3d, widget.model_folder))-{selected}:
+            w.hide()
+        selected.show()
+        # trigger _model_change
+        selected.changed(value=selected.value)
+
 
     # show/hide model folder picker
     # load config/thresholds for selected pretrained model
-    @change_handler(widget.model2d, widget.model3d, init=False) # -> triggered by _image_change
+    # -> triggered by _model_type_change
+    @change_handler(widget.model2d, widget.model3d, init=False)
     def _model_change(event):
-        if (event.value == CUSTOM_MODEL):
-            widget.model_folder.show()
-            widget.model_folder.changed(value=widget.model_folder.value)
-        else:
-            widget.model_folder.hide()
+        model_class = StarDist2D if event.source == widget.model2d else StarDist3D
+        model_name  = event.value
+        key = model_class, model_name
 
-            model_class = StarDist2D if event.source == widget.model2d else StarDist3D
-            model_name  = event.value
-            key = model_class, model_name
+        if key not in model_configs:
+            @thread_worker
+            def _get_model_folder():
+                return get_model_folder(*key)
 
-            if key not in model_configs:
-
-                @thread_worker
-                def _get_model_folder():
-                    return get_model_folder(*key)
-
-                def _process_model_folder(path):
+            def _process_model_folder(path):
+                try:
+                    model_configs[key] = load_json(str(path/'config.json'))
+                    select_model(key)
                     try:
-                        model_configs[key] = load_json(str(path/'config.json'))
-                        try:
-                            # not all models have associated thresholds
-                            model_threshs[key] = load_json(str(path/'thresholds.json'))
-                        except FileNotFoundError:
-                            pass
-                    finally:
-                        widget.call_button.enabled = True
-                        widget.progress_bar.hide()
+                        # not all models have associated thresholds
+                        model_threshs[key] = load_json(str(path/'thresholds.json'))
+                    except FileNotFoundError:
+                        pass
+                finally:
+                    widget.call_button.enabled = True
+                    widget.progress_bar.hide()
 
-                worker = _get_model_folder()
-                worker.returned.connect(_process_model_folder)
-                worker.start()
+            worker = _get_model_folder()
+            worker.returned.connect(_process_model_folder)
+            worker.start()
 
-                # delay showing progress bar -> won't show up if model already downloaded
-                # TODO: hacky -> better way to do this?
-                time.sleep(0.1)
-                widget.call_button.enabled = False
-                widget.progress_bar.label = 'Downloading model...'
-                widget.progress_bar.show()
+            # delay showing progress bar -> won't show up if model already downloaded
+            # TODO: hacky -> better way to do this?
+            time.sleep(0.1)
+            widget.call_button.enabled = False
+            widget.progress_bar.label = 'Downloading model...'
+            widget.progress_bar.show()
+
+        else:
+            select_model(key)
 
 
     # load config/thresholds from custom model path
-    @change_handler(widget.model_folder, init=False) # -> triggered by _model_change
+    # -> triggered by _model_type_change
+    @change_handler(widget.model_folder, init=False)
     def _model_folder_change(event):
-        # path = event.value # bug, does (sometimes?) return the FileEdit widget instead its value
+        # path = event.value # bug, does (sometimes?) return the FileEdit widget instead of its value
         path = Path(widget.model_folder.value)
-        if not path.is_dir(): return
-        # TODO: replace 'widget.model2d.visible' with logic based on 'axes'
         # note: will be triggered at every keystroke (when typing the path)
-        model_class = StarDist2D if widget.model2d.visible else StarDist3D
-        model_name  = CUSTOM_MODEL
-        key = model_class, model_name, path
+        key = CUSTOM_MODEL, path
         try:
+            if not path.is_dir(): return
             model_configs[key] = load_json(str(path/'config.json'))
             try:
                 model_threshs[key] = load_json(str(path/'thresholds.json'))
@@ -303,68 +418,68 @@ def widget_wrapper():
                 pass
         except FileNotFoundError:
             pass
+        finally:
+            select_model(key)
 
+    # -------------------------------------------------------------------------
 
-    # show 2d or 3d models (based on guessed image dimensionality)
-    @change_handler(widget.image, init=False) # -> triggered by napari
+    # -> triggered by napari
+    @change_handler(widget.image, init=False)
     def _image_change(event):
         image = event.value
-        # TODO: bad logic
-        if _is3D(image):
-            widget.model2d.hide()
-            widget.model3d.show()
-            widget.model3d.changed(value=widget.model3d.value)
-            widget.axes.value = 'ZYX'
-        elif _is2D(image):
-            widget.model3d.hide()
-            widget.model2d.show()
-            widget.model2d.changed(value=widget.model2d.value)
-            widget.axes.value = 'YXC' if image.rgb else 'YX'
+        ndim = image.data.ndim
+        widget.image.tooltip = f"Shape: {image.data.shape}"
+
+        # TODO: guess images axes better...
+        axes = None
+        if ndim == 3:
+            axes = 'YXC' if image.rgb else 'ZYX'
+        elif ndim == 2:
+            axes = 'YX'
         else:
             raise NotImplementedError()
 
+        if (axes == widget.axes.value):
+            # make sure to trigger a change event, even if value didn't actually change (when persisted value is loaded)
+            widget.axes.changed(value=axes)
+        else:
+            widget.axes.value = axes
 
-    # TODO: check axes and let axes determine dimensionality
+
+    # -> triggered by _image_change
     @change_handler(widget.axes, init=False)
     def _axes_change(event):
         value = str(event.value)
-        if value != value.upper():
-            with widget.axes.changed.blocker():
-                widget.axes.value = value.upper()
+        # https://github.com/napari/magicgui/issues/187
+        # if value != value.upper():
+        #     with widget.axes.changed.blocker():
+        #         widget.axes.value = value.upper()
+        image = widget.image.value
+        try:
+            axes = axes_check_and_normalize(value, length=image.data.ndim, disallowed='S')
+            update('image_axes', True, (axes, image, None))
+        except ValueError as err:
+            update('image_axes', False, (value, image, err))
 
+    # -------------------------------------------------------------------------
 
     # set thresholds to optimized values for chosen model
     @change_handler(widget.set_thresholds, init=False)
     def _set_thresholds(event):
-        if widget.model2d.visible:
-            model_class = StarDist2D
-            model_name  = widget.model2d.value
-        else:
-            model_class = StarDist3D
-            model_name  = widget.model3d.value
-        key = model_class, model_name
-        if widget.model_folder.visible:
-            key = key + (widget.model_folder.value,)
-
+        key = {ModelType.TwoD.value:   (StarDist2D,   widget.model2d.value),
+               ModelType.ThreeD.value: (StarDist3D,   widget.model3d.value),
+               ModelType.Custom.value: (CUSTOM_MODEL, widget.model_folder.value)}[widget.model_type.value]
+        assert model_selected == key
         if key in model_threshs:
             thresholds = model_threshs[key]
-            # print(thresholds)
             widget.nms_thresh.value = thresholds['nms']
             widget.prob_thresh.value = thresholds['prob']
-
-        # config = model_configs[key]
-        # axes = config.get('axes','YX')
-        # print(axes)
-        # # TODO: bad logic, need to check how many dims input image has?
-        # # widget.axes.value = axes if config['n_channel_in'] > 1 else axes.replace('C','')
 
 
     # restore defaults
     @change_handler(widget.defaults_button, init=False)
     def restore_defaults(event=None):
         for k,v in DEFAULTS.items():
-            # TODO: can trigger change events that change parameters again...
-            #       how block all events when restoring defaults?
             getattr(widget,k).value = v
 
     # -------------------------------------------------------------------------
@@ -375,6 +490,9 @@ def widget_wrapper():
 
     # make reset button smaller
     # widget.defaults_button.native.setMaximumWidth(150)
+
+    # widget.model_axes.native.setReadOnly(True)
+    widget.model_axes.enabled = False
 
     # push 'call_button' to bottom
     layout = widget.native.layout()
