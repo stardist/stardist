@@ -8,7 +8,7 @@ TODO:
 - make ui pretty
 - show info messages in tooltip? or use a label to show info messages?
 - how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
-- support timelapse processing?
+- support timelapse or channel-wise processing?
 - show progress for tiled prediction and/or timelapse processing?
 o load prob and nms thresholds from model
 o load model axes and check if compatible with chosen image/axes
@@ -180,22 +180,16 @@ def widget_wrapper():
         key = {ModelType.TwoD.value:   (StarDist2D,   model2d),
                ModelType.ThreeD.value: (StarDist3D,   model3d),
                ModelType.Custom.value: (CUSTOM_MODEL, model_folder)}[model_type]
+        assert key == model_selected
         config = model_configs[key]
 
-        if config['n_dim'] == 3:
-            if key[0] == CUSTOM_MODEL:
-                path = Path(model_folder)
-                path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
-                model = StarDist3D(None, name=path.name, basedir=str(path.parent))
-            else:
-                model = StarDist3D.from_pretrained(model3d)
+        s = lambda _2d,_3d: _2d if config['n_dim'] == 2 else _3d
+        if key[0] == CUSTOM_MODEL:
+            path = Path(model_folder)
+            path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
+            model = s(StarDist2D,StarDist3D)(None, name=path.name, basedir=str(path.parent))
         else:
-            if key[0] == CUSTOM_MODEL:
-                path = Path(model_folder)
-                path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
-                model = StarDist2D(None, name=path.name, basedir=str(path.parent))
-            else:
-                model = StarDist2D.from_pretrained(model2d)
+            model = s(StarDist2D,StarDist3D).from_pretrained(s(model2d,model3d))
 
         x = image.data
         axes = axes_check_and_normalize(axes, length=x.ndim)
@@ -206,11 +200,9 @@ def widget_wrapper():
             else:
                 x = normalize(x, perc_low,perc_high)
 
-        results = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh, return_predict=cnn_output)
+        (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh, return_predict=True)
         layers = []
         if cnn_output:
-            (labels, polys), (prob, dist) = results
-            #
             from scipy.ndimage import zoom
             sc = tuple(model.config.grid)
             prob = zoom(prob, sc,      order=0)
@@ -218,13 +210,11 @@ def widget_wrapper():
             dist = np.moveaxis(dist, -1,0)
             layers.append((dist, dict(name='StarDist distances'),   'image'))
             layers.append((prob, dict(name='StarDist probability'), 'image'))
-        else:
-            labels, polys = results
-        n_objects = len(polys['points'])
 
         if output_type in (Output.Labels.value,Output.Both.value):
             layers.append((labels, dict(name='StarDist labels'), 'labels'))
         if output_type in (Output.Polys.value,Output.Both.value):
+            n_objects = len(polys['points'])
             if isinstance(model, StarDist3D):
                 surface = surface_from_polys(polys)
                 layers.append((surface, dict(name='StarDist polyhedra',
@@ -261,7 +251,7 @@ def widget_wrapper():
         def __call__(self, k, valid, args=None):
             assert k in vars(self.valid)
             setattr(self.valid, k, bool(valid))
-            setattr(self.args, k, args)
+            setattr(self.args,  k, args)
             self._update()
 
         def _update(self):
@@ -308,13 +298,13 @@ def widget_wrapper():
                     help_msg = f'Model with axes {axes_model.replace("C", f"C[{ch_model}]")} and image with axes {axes_image.replace("C", f"C[{ch_image}]")} not compatible'
             else:
                 # either model or image_axes ist invalid
-                widgets_valid(widget.image, valid=True)
                 _model(self.valid.model)
                 _image_axes(self.valid.image_axes)
+                widgets_valid(widget.image, valid=True)
 
-            # widgets_valid(widget.call_button, valid=all_valid)
             help(help_msg)
             widget.call_button.enabled = all_valid
+            # widgets_valid(widget.call_button, valid=all_valid)
             if self.debug:
                 print(f"valid ({all_valid}):", ', '.join([f'{k}={v}' for k,v in vars(self.valid).items()]))
 
@@ -376,14 +366,13 @@ def widget_wrapper():
             def _process_model_folder(path):
                 try:
                     model_configs[key] = load_json(str(path/'config.json'))
-                    select_model(key)
                     try:
                         # not all models have associated thresholds
                         model_threshs[key] = load_json(str(path/'thresholds.json'))
                     except FileNotFoundError:
                         pass
                 finally:
-                    widget.call_button.enabled = True
+                    select_model(key)
                     widget.progress_bar.hide()
 
             worker = _get_model_folder()
@@ -412,10 +401,7 @@ def widget_wrapper():
         try:
             if not path.is_dir(): return
             model_configs[key] = load_json(str(path/'config.json'))
-            try:
-                model_threshs[key] = load_json(str(path/'thresholds.json'))
-            except FileNotFoundError:
-                pass
+            model_threshs[key] = load_json(str(path/'thresholds.json'))
         except FileNotFoundError:
             pass
         finally:
