@@ -289,3 +289,12 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
 def _is_floatarray(x):
     return isinstance(x.dtype.type(0),np.floating)
     
+
+def abspath(root, relpath):
+    from pathlib import Path
+    root = Path(root)
+    if root.is_dir():
+        path = root/relpath
+    else:
+        path = root.parent/relpath
+    return str(path.absolute())

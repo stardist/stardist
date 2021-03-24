@@ -83,7 +83,7 @@ setup(
 
     entry_points={'napari.plugin': 'StarDist = stardist.napari_plugin'},
 
-    package_data={'stardist': ['kernels/*.cl', 'data/images/*']},
+    package_data={'stardist': [ 'kernels/*.cl', 'data/images/*', 'resources/*' ] },
 
     classifiers=[
         'Development Status :: 4 - Beta',

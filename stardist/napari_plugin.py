@@ -26,6 +26,7 @@ from csbdeep.utils import _raise, normalize, axes_check_and_normalize, axes_dict
 from csbdeep.models.pretrained import get_registered_models, get_model_folder
 from csbdeep.utils import load_json
 from .models import StarDist2D, StarDist3D
+from .utils import abspath
 from pathlib import Path
 
 import napari
@@ -120,16 +121,19 @@ def change_handler(*widgets, init=True, debug=True):
         return wrapper
     return decorator_change_handler
 
-
 # TODO: replace with @magic_factory(..., widget_init=...)
 def widget_wrapper():
-
+    logo = abspath( __file__, 'resources/stardist_logo_napari.png')
     @magicgui (
-        label_head      = dict(widget_type='Label', label='<h1>StarDist</h1>'),
-        image           = dict(label='Input Image'),
+        label_head      = dict(widget_type='Label',
+        label=f'<h2> <img src="{logo}"> StarDist</h2>'),
+        label_subhead   = dict(widget_type='Label',
+                label='Napari plugin for star-convex object detection for 2D and 3D images.<br> If you are using this code in your research please cite the <a href="https://github.com/stardist/stardist#how-to-cite"> papers </a>.'),
+        # image           = dict(label='Input Image'),
         axes            = dict(widget_type='LineEdit', label='Image Axes'),
         label_nn        = dict(widget_type='Label', label='<br>Neural Network Prediction:'),
-        model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
+        # model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
+        model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=["A","B","C"]),
         model2d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models2d, value=DEFAULTS['model2d']),
         model3d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models3d, value=DEFAULTS['model3d']),
         model_folder    = dict(widget_type='FileEdit', visible=False, label='Custom Model', mode='d'),
