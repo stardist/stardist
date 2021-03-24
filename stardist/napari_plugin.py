@@ -1,14 +1,14 @@
 """
 TODO:
-- cache selected model instances (when re-running the plugin, e.g. for different images)
-- apply only to field of view to apply to huge images?
+- apply only to field of view to apply to huge images? (cf https://forum.image.sc/t/how-could-i-get-the-viewed-coordinates/49709)
+- make ui pretty
 - option to use CPU or GPU, limit GPU memory ('allow_growth'?)
 - execute in different thread, ability to cancel?
+- support timelapse or channel-wise processing?
 - normalize per channel or jointly
-- make ui pretty
+- cache selected model instances (when re-running the plugin, e.g. for different images)
 - show info messages in tooltip? or use a label to show info messages?
 - how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
-- support timelapse or channel-wise processing?
 - show progress for tiled prediction and/or timelapse processing?
 o load prob and nms thresholds from model
 o load model axes and check if compatible with chosen image/axes
@@ -203,13 +203,11 @@ def widget_wrapper():
         (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh, return_predict=True)
         layers = []
         if cnn_output:
-            from scipy.ndimage import zoom
-            sc = tuple(model.config.grid)
-            prob = zoom(prob, sc,      order=0)
-            dist = zoom(dist, sc+(1,), order=0)
+            scale = tuple(model.config.grid)
             dist = np.moveaxis(dist, -1,0)
-            layers.append((dist, dict(name='StarDist distances'),   'image'))
-            layers.append((prob, dict(name='StarDist probability'), 'image'))
+            # TODO: check why scale can be the same tuple for prob and dist (which has a dimension more)
+            layers.append((dist, dict(name='StarDist distances', scale=(1,)+scale),   'image'))
+            layers.append((prob, dict(name='StarDist probability', scale=scale), 'image'))
 
         if output_type in (Output.Labels.value,Output.Both.value):
             layers.append((labels, dict(name='StarDist labels'), 'labels'))
@@ -231,7 +229,7 @@ def widget_wrapper():
 
     def widgets_valid(*widgets, valid):
         for widget in widgets:
-            widget.native.setStyleSheet("" if valid else "background-color: red")
+            widget.native.setStyleSheet("" if valid else "background-color: lightcoral")
 
 
     def help(msg):
