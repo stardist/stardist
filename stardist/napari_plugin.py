@@ -132,8 +132,7 @@ def widget_wrapper():
         # image           = dict(label='Input Image'),
         axes            = dict(widget_type='LineEdit', label='Image Axes'),
         label_nn        = dict(widget_type='Label', label='<br>Neural Network Prediction:'),
-        # model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
-        model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=["A","B","C"]),
+        model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
         model2d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models2d, value=DEFAULTS['model2d']),
         model3d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models3d, value=DEFAULTS['model3d']),
         model_folder    = dict(widget_type='FileEdit', visible=False, label='Custom Model', mode='d'),
@@ -158,6 +157,7 @@ def widget_wrapper():
     def widget (
         viewer: napari.Viewer,
         label_head,
+        label_subhead,
         image: napari.layers.Image,
         axes,
         label_nn,
