@@ -125,26 +125,23 @@ def change_handler(*widgets, init=True, debug=True):
 def widget_wrapper():
     logo = abspath( __file__, 'resources/stardist_logo_napari.png')
     @magicgui (
-        label_head      = dict(widget_type='Label',
-        label=f'<h2> <img src="{logo}"> StarDist</h2>'),
-        label_subhead   = dict(widget_type='Label',
-                label='Napari plugin for star-convex object detection for 2D and 3D images.<br> If you are using this code in your research please cite the <a href="https://github.com/stardist/stardist#how-to-cite"> papers </a>.'),
-        # image           = dict(label='Input Image'),
+        label_head      = dict(widget_type='Label', label=f'<h1><img src="{logo}">StarDist</h1>'),
+        image           = dict(label='Input Image'),
         axes            = dict(widget_type='LineEdit', label='Image Axes'),
-        label_nn        = dict(widget_type='Label', label='<br>Neural Network Prediction:'),
+        label_nn        = dict(widget_type='Label', label='<br><b>Neural Network Prediction:</b>'),
         model_type      = dict(widget_type='RadioButtons', label='Model Type', orientation='horizontal', choices=model_type_choices, value=DEFAULTS['model_type']),
         model2d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models2d, value=DEFAULTS['model2d']),
         model3d         = dict(widget_type='ComboBox', visible=False, label='Pre-trained Model', choices=models3d, value=DEFAULTS['model3d']),
         model_folder    = dict(widget_type='FileEdit', visible=False, label='Custom Model', mode='d'),
         model_axes      = dict(widget_type='LineEdit', label='Model Axes', value=''),
         norm_image      = dict(widget_type='CheckBox', text='Normalize Image', value=DEFAULTS['norm_image']),
-        label_nms       = dict(widget_type='Label', label='<br>NMS Postprocessing:'),
+        label_nms       = dict(widget_type='Label', label='<br><b>NMS Postprocessing:</b>'),
         perc_low        = dict(widget_type='FloatSpinBox', label='Percentile low',              min=0.0, max=100.0, step=0.1,  value=DEFAULTS['perc_low']),
         perc_high       = dict(widget_type='FloatSpinBox', label='Percentile high',             min=0.0, max=100.0, step=0.1,  value=DEFAULTS['perc_high']),
         prob_thresh     = dict(widget_type='FloatSpinBox', label='Probability/Score Threshold', min=0.0, max=  1.0, step=0.05, value=DEFAULTS['prob_thresh']),
         nms_thresh      = dict(widget_type='FloatSpinBox', label='Overlap Threshold',           min=0.0, max=  1.0, step=0.05, value=DEFAULTS['nms_thresh']),
         output_type     = dict(widget_type='ComboBox', label='Output Type', choices=output_choices, value=DEFAULTS['output_type']),
-        label_adv       = dict(widget_type='Label', label='<br>Advanced Options:'),
+        label_adv       = dict(widget_type='Label', label='<br><b>Advanced Options:</b>'),
         n_tiles         = dict(widget_type='LineEdit', label='Number of Tiles', value=DEFAULTS['n_tiles']),
         cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output', value=DEFAULTS['cnn_output']),
         set_thresholds  = dict(widget_type='PushButton', text='Set optimized postprocessing thresholds (for selected model)'),
@@ -157,7 +154,6 @@ def widget_wrapper():
     def widget (
         viewer: napari.Viewer,
         label_head,
-        label_subhead,
         image: napari.layers.Image,
         axes,
         label_nn,
@@ -234,6 +230,11 @@ def widget_wrapper():
     def widgets_valid(*widgets, valid):
         for widget in widgets:
             widget.native.setStyleSheet("" if valid else "background-color: lightcoral")
+
+    # https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum
+    for w in (widget.label_head, widget.label_nn, widget.label_nms, widget.label_adv):
+        w.native.setSizePolicy(1|2, 0)
+    widget.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite">cite us</a>.</small><br><br><tt>https://stardist.net</tt>'
 
 
     def help(msg):
