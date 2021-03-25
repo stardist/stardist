@@ -234,7 +234,7 @@ def widget_wrapper():
     # https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum
     for w in (widget.label_head, widget.label_nn, widget.label_nms, widget.label_adv):
         w.native.setSizePolicy(1|2, 0)
-    widget.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite">cite us</a>.</small><br><br><tt>https://stardist.net</tt>'
+    widget.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite">cite us</a>.</small><br><br><tt><a href="https://stardist.net">https://stardist.net</a></tt>'
 
 
     def help(msg):
@@ -477,6 +477,7 @@ def widget_wrapper():
     widget.model2d.native.setMinimumWidth(240)
     widget.model3d.native.setMinimumWidth(240)
 
+    widget.label_head.native.setOpenExternalLinks(True)
     # make reset button smaller
     # widget.defaults_button.native.setMaximumWidth(150)
 
