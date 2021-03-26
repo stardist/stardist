@@ -10,9 +10,7 @@ TODO:
 - show info messages in tooltip? or use a label to show info messages?
 - how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
 - show progress for tiled prediction and/or timelapse processing?
-o load prob and nms thresholds from model
-o load model axes and check if compatible with chosen image/axes
-- errors when running the plugin multiple times (without deleting output layers first)
+o errors when running the plugin multiple times (without deleting output layers first)
 - separate 'stardist-napari' package?
 """
 
@@ -43,8 +41,8 @@ CUSTOM_MODEL = 'CUSTOM_MODEL'
 _models2d, _aliases2d = get_registered_models(StarDist2D)
 _models3d, _aliases3d = get_registered_models(StarDist3D)
 # use first alias for model selection (if alias exists)
-models2d = [(_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m) for m in _models2d]
-models3d = [(_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m) for m in _models3d]
+models2d = [((_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m),m) for m in _models2d]
+models3d = [((_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m),m) for m in _models3d]
 
 model_configs = dict()
 model_threshs = dict()
@@ -56,17 +54,13 @@ class Output(Enum):
     Both   = 'Both'
 output_choices = [Output.Labels.value, Output.Polys.value, Output.Both.value]
 
-class ModelType(Enum):
-    TwoD   = '2D'
-    ThreeD = '3D'
-    Custom = 'Custom 2D/3D'
-model_type_choices = [ModelType.TwoD.value, ModelType.ThreeD.value, ModelType.Custom.value]
+model_type_choices = [('2D', StarDist2D), ('3D', StarDist3D), ('Custom 2D/3D', CUSTOM_MODEL)]
 
 
 DEFAULTS = dict (
-    model_type   = ModelType.TwoD.value,
-    model2d      = models2d[0],
-    model3d      = models3d[0],
+    model_type   = StarDist2D,
+    model2d      = models2d[0][1],
+    model3d      = models3d[0][1],
     norm_image   = True,
     perc_low     =  1.0,
     perc_high    = 99.8,
@@ -77,6 +71,8 @@ DEFAULTS = dict (
     cnn_output   = False,
 )
 
+def get_data(image: napari.layers.Image):
+    return image.data[0] if image.multiscale else image.data
 
 
 def surface_from_polys(polys):
@@ -123,7 +119,7 @@ def change_handler(*widgets, init=True, debug=True):
 
 # TODO: replace with @magic_factory(..., widget_init=...)
 def widget_wrapper():
-    logo = abspath( __file__, 'resources/stardist_logo_napari.png')
+    logo = abspath(__file__, 'resources/stardist_logo_napari.png')
     @magicgui (
         label_head      = dict(widget_type='Label', label=f'<h1><img src="{logo}">StarDist</h1>'),
         image           = dict(label='Input Image'),
@@ -177,9 +173,9 @@ def widget_wrapper():
         progress_bar,
     ) -> List[napari.types.LayerDataTuple]:
 
-        key = {ModelType.TwoD.value:   (StarDist2D,   model2d),
-               ModelType.ThreeD.value: (StarDist3D,   model3d),
-               ModelType.Custom.value: (CUSTOM_MODEL, model_folder)}[model_type]
+        key = {StarDist2D:   (StarDist2D,   model2d),
+               StarDist3D:   (StarDist3D,   model3d),
+               CUSTOM_MODEL: (CUSTOM_MODEL, model_folder)}[model_type]
         assert key == model_selected
         config = model_configs[key]
 
@@ -191,7 +187,8 @@ def widget_wrapper():
         else:
             model = s(StarDist2D,StarDist3D).from_pretrained(s(model2d,model3d))
 
-        x = image.data
+        lkwargs = {}
+        x = get_data(image)
         axes = axes_check_and_normalize(axes, length=x.ndim)
         if norm_image:
             # TODO: address joint vs. separate normalization
@@ -205,27 +202,37 @@ def widget_wrapper():
         if cnn_output:
             scale = tuple(model.config.grid)
             dist = np.moveaxis(dist, -1,0)
-            # TODO: check why scale can be the same tuple for prob and dist (which has a dimension more)
-            layers.append((dist, dict(name='StarDist distances', scale=(1,)+scale),   'image'))
-            layers.append((prob, dict(name='StarDist probability', scale=scale), 'image'))
+            layers.append((dist, dict(name='StarDist distances',   scale=(1,)+scale, **lkwargs), 'image'))
+            layers.append((prob, dict(name='StarDist probability', scale=     scale, **lkwargs), 'image'))
 
         if output_type in (Output.Labels.value,Output.Both.value):
-            layers.append((labels, dict(name='StarDist labels'), 'labels'))
+            layers.append((labels, dict(name='StarDist labels', **lkwargs), 'labels'))
         if output_type in (Output.Polys.value,Output.Both.value):
             n_objects = len(polys['points'])
             if isinstance(model, StarDist3D):
                 surface = surface_from_polys(polys)
                 layers.append((surface, dict(name='StarDist polyhedra',
                                              contrast_limits=(0,surface[-1].max()),
-                                             colormap=label_colormap(n_objects)), 'surface'))
+                                             colormap=label_colormap(n_objects), **lkwargs), 'surface'))
             else:
                 # TODO: coordinates correct or need offset (0.5 or so)?
                 shapes = np.moveaxis(polys['coord'], 2,1)
                 layers.append((shapes, dict(name='StarDist polygons', shape_type='polygon',
-                                            edge_width=0.5, edge_color='coral', face_color=[0,0,0,0]), 'shapes'))
+                                            edge_width=0.5, edge_color='coral', face_color=[0,0,0,0], **lkwargs), 'shapes'))
         return layers
 
     # -------------------------------------------------------------------------
+
+    widget_for_modeltype = {
+        StarDist2D:   widget.model2d,
+        StarDist3D:   widget.model3d,
+        CUSTOM_MODEL: widget.model_folder,
+    }
+
+    def widgets_inactive(*widgets, active):
+        for widget in widgets:
+            widget.visible = active
+            # widget.native.setStyleSheet("" if active else "text-decoration: line-through")
 
     def widgets_valid(*widgets, valid):
         for widget in widgets:
@@ -275,7 +282,7 @@ def widget_wrapper():
                 widgets_valid(widget.axes, valid=valid)
                 axes, image, err = getattr(self.args, 'image_axes', (None,None,None))
                 if valid:
-                    widget.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,image.data.shape)])
+                    widget.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,get_data(image).shape)])
                     return axes, image
                 else:
                     if err is not None:
@@ -291,7 +298,7 @@ def widget_wrapper():
                 axes_image, image  = _image_axes(True)
                 axes_model, config = _model(True)
                 ch_model = config['n_channel_in']
-                ch_image = image.data.shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
+                ch_image = get_data(image).shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
                 all_valid = set(axes_model.replace('C','')) == set(axes_image.replace('C','')) and ch_model == ch_image
 
                 widgets_valid(widget.image, widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=all_valid)
@@ -326,8 +333,7 @@ def widget_wrapper():
     # hide percentile selection if normalization turned off
     @change_handler(widget.norm_image)
     def _norm_image_change(event):
-        widget.perc_low.visible = event.value
-        widget.perc_high.visible = event.value
+        widgets_inactive(widget.perc_low, widget.perc_high, active=event.value)
 
     # ensure that percentile low < percentile high
     @change_handler(widget.perc_low)
@@ -342,10 +348,8 @@ def widget_wrapper():
     # RadioButtons widget triggers a change event initially (either when 'value' is set in constructor, or via 'persist')
     @change_handler(widget.model_type, init=False)
     def _model_type_change(event):
-        selected = {ModelType.TwoD.value:   widget.model2d,
-                    ModelType.ThreeD.value: widget.model3d,
-                    ModelType.Custom.value: widget.model_folder}[event.value]
-        for w in set((widget.model2d, widget.model3d, widget.model_folder))-{selected}:
+        selected = widget_for_modeltype[event.value]
+        for w in set((widget.model2d, widget.model3d, widget.model_folder)) - {selected}:
             w.hide()
         selected.show()
         # trigger _model_change
@@ -416,8 +420,8 @@ def widget_wrapper():
     @change_handler(widget.image, init=False)
     def _image_change(event):
         image = event.value
-        ndim = image.data.ndim
-        widget.image.tooltip = f"Shape: {image.data.shape}"
+        ndim = get_data(image).ndim
+        widget.image.tooltip = f"Shape: {get_data(image).shape}"
 
         # TODO: guess images axes better...
         axes = None
@@ -429,7 +433,7 @@ def widget_wrapper():
             raise NotImplementedError()
 
         if (axes == widget.axes.value):
-            # make sure to trigger a change event, even if value didn't actually change (when persisted value is loaded)
+            # make sure to trigger a change event, even if value didn't actually change (e.g. when persisted value is loaded)
             widget.axes.changed(value=axes)
         else:
             widget.axes.value = axes
@@ -445,7 +449,7 @@ def widget_wrapper():
         #         widget.axes.value = value.upper()
         image = widget.image.value
         try:
-            axes = axes_check_and_normalize(value, length=image.data.ndim, disallowed='S')
+            axes = axes_check_and_normalize(value, length=get_data(image).ndim, disallowed='S')
             update('image_axes', True, (axes, image, None))
         except ValueError as err:
             update('image_axes', False, (value, image, err))
@@ -455,9 +459,8 @@ def widget_wrapper():
     # set thresholds to optimized values for chosen model
     @change_handler(widget.set_thresholds, init=False)
     def _set_thresholds(event):
-        key = {ModelType.TwoD.value:   (StarDist2D,   widget.model2d.value),
-               ModelType.ThreeD.value: (StarDist3D,   widget.model3d.value),
-               ModelType.Custom.value: (CUSTOM_MODEL, widget.model_folder.value)}[widget.model_type.value]
+        model_type = widget.model_type.value
+        key = (model_type, widget_for_modeltype[model_type].value)
         assert model_selected == key
         if key in model_threshs:
             thresholds = model_threshs[key]
