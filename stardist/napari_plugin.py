@@ -34,7 +34,6 @@ from typing import List
 from enum import Enum
 import time
 
-# TODO: inelegant (wouldn't work if a pretrained model is called the same as CUSTOM_MODEL)
 CUSTOM_MODEL = 'CUSTOM_MODEL'
 
 # get available models
@@ -138,7 +137,7 @@ def widget_wrapper():
         nms_thresh      = dict(widget_type='FloatSpinBox', label='Overlap Threshold',           min=0.0, max=  1.0, step=0.05, value=DEFAULTS['nms_thresh']),
         output_type     = dict(widget_type='ComboBox', label='Output Type', choices=output_choices, value=DEFAULTS['output_type']),
         label_adv       = dict(widget_type='Label', label='<br><b>Advanced Options:</b>'),
-        n_tiles         = dict(widget_type='LineEdit', label='Number of Tiles', value=DEFAULTS['n_tiles']),
+        n_tiles         = dict(widget_type='LiteralEvalLineEdit', label='Number of Tiles', value=DEFAULTS['n_tiles']),
         cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output', value=DEFAULTS['cnn_output']),
         set_thresholds  = dict(widget_type='PushButton', text='Set optimized postprocessing thresholds (for selected model)'),
         defaults_button = dict(widget_type='PushButton', text='Restore Defaults'),
@@ -197,7 +196,8 @@ def widget_wrapper():
             else:
                 x = normalize(x, perc_low,perc_high)
 
-        (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh, return_predict=True)
+        (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
+                                                              n_tiles=tuple(n_tiles), return_predict=True)
         layers = []
         if cnn_output:
             scale = tuple(model.config.grid)
@@ -223,6 +223,10 @@ def widget_wrapper():
 
     # -------------------------------------------------------------------------
 
+    # don't want to load persisted values for these inputs
+    widget.axes.value = ''
+    widget.n_tiles.value = DEFAULTS['n_tiles']
+
     widget_for_modeltype = {
         StarDist2D:   widget.model2d,
         StarDist3D:   widget.model3d,
@@ -244,19 +248,13 @@ def widget_wrapper():
     widget.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite" style="color:gray;">cite us</a>.</small><br><br><tt><a href="https://stardist.net" style="color:gray;">https://stardist.net</a></tt>'
 
 
-    def help(msg):
-        # it may take a little while until ready
-        while widget.viewer.value is None:
-            time.sleep(0.01)
-        widget.viewer.value.help = msg
-
-
     class Updater:
         def __init__(self, debug=True):
             from types import SimpleNamespace
             self.debug = debug
-            self.valid = SimpleNamespace(**{k:False for k in ('image_axes', 'model')})
+            self.valid = SimpleNamespace(**{k:False for k in ('image_axes', 'model', 'n_tiles')})
             self.args  = SimpleNamespace()
+            self.viewer = None
 
         def __call__(self, k, valid, args=None):
             assert k in vars(self.valid)
@@ -264,7 +262,25 @@ def widget_wrapper():
             setattr(self.args,  k, args)
             self._update()
 
+        def help(self, msg):
+            self.viewer.help = msg
+
         def _update(self):
+
+            if self.viewer is None:
+                # when is this not safe to do and will hang forever?
+                while widget.viewer.value is None:
+                    time.sleep(0.01)
+                self.viewer = widget.viewer.value
+
+                @self.viewer.layers.events.removed.connect
+                def _layer_removed(event):
+                    layers_remaining = event.source
+                    if len(layers_remaining) == 0:
+                        widget.image.tooltip = ''
+                        widget.axes.value = ''
+                        widget.n_tiles.value = 'None'
+
 
             def _model(valid):
                 widgets_valid(widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=valid)
@@ -279,40 +295,69 @@ def widget_wrapper():
                     widget.model_folder.line_edit.tooltip = 'Invalid model directory'
 
             def _image_axes(valid):
-                widgets_valid(widget.axes, valid=valid)
                 axes, image, err = getattr(self.args, 'image_axes', (None,None,None))
+                widgets_valid(widget.axes, valid=(valid or (image is None and (axes is None or len(axes) == 0))))
                 if valid:
                     widget.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,get_data(image).shape)])
                     return axes, image
                 else:
                     if err is not None:
                         err = str(err)
-                        widget.axes.tooltip = err[:-1] if err.endswith('.') else err
+                        err = err[:-1] if err.endswith('.') else err
+                        widget.axes.tooltip = err
                     else:
                         widget.axes.tooltip = ''
 
+            def _n_tiles(valid):
+                n_tiles, image, err = getattr(self.args, 'n_tiles', (None,None,None))
+                widgets_valid(widget.n_tiles, valid=(valid or image is None))
+                if valid:
+                    widget.n_tiles.tooltip = 'no tiling' if n_tiles is None else '\n'.join([f'{t}: {s}' for t,s in zip(n_tiles,get_data(image).shape)])
+                    return n_tiles
+                else:
+                    msg = str(err) if err is not None else ''
+                    widget.n_tiles.tooltip = msg
+
+            def _valid_tiles_for_channel(axes_image, n_tiles):
+                if n_tiles is not None and 'C' in axes_image:
+                    return n_tiles[axes_dict(axes_image)['C']] == 1
+                return True
+
+            def _restore():
+                widgets_valid(widget.image, valid=widget.image.value is not None)
+
+
             all_valid = False
             help_msg = ''
-            if self.valid.image_axes and self.valid.model:
-                # check if image and model are compatible
+
+            if self.valid.image_axes and self.valid.n_tiles and self.valid.model:
                 axes_image, image  = _image_axes(True)
                 axes_model, config = _model(True)
-                ch_model = config['n_channel_in']
-                ch_image = get_data(image).shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
-                all_valid = set(axes_model.replace('C','')) == set(axes_image.replace('C','')) and ch_model == ch_image
-
-                widgets_valid(widget.image, widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=all_valid)
-                if all_valid:
-                    help_msg = ''
+                n_tiles = _n_tiles(True)
+                if not _valid_tiles_for_channel(axes_image, n_tiles):
+                    # check if image axes and n_tiles are compatible
+                    widgets_valid(widget.n_tiles, valid=False)
+                    err = 'number of tiles must be 1 for C axis'
+                    widget.n_tiles.tooltip = err
+                    _restore()
                 else:
-                    help_msg = f'Model with axes {axes_model.replace("C", f"C[{ch_model}]")} and image with axes {axes_image.replace("C", f"C[{ch_image}]")} not compatible'
-            else:
-                # either model or image_axes ist invalid
-                _model(self.valid.model)
-                _image_axes(self.valid.image_axes)
-                widgets_valid(widget.image, valid=True)
+                    # check if image and model are compatible
+                    ch_model = config['n_channel_in']
+                    ch_image = get_data(image).shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
+                    all_valid = set(axes_model.replace('C','')) == set(axes_image.replace('C','')) and ch_model == ch_image
 
-            help(help_msg)
+                    widgets_valid(widget.image, widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=all_valid)
+                    if all_valid:
+                        help_msg = ''
+                    else:
+                        help_msg = f'Model with axes {axes_model.replace("C", f"C[{ch_model}]")} and image with axes {axes_image.replace("C", f"C[{ch_image}]")} not compatible'
+            else:
+                _image_axes(self.valid.image_axes)
+                _n_tiles(self.valid.n_tiles)
+                _model(self.valid.model)
+                _restore()
+
+            self.help(help_msg)
             widget.call_button.enabled = all_valid
             # widgets_valid(widget.call_button, valid=all_valid)
             if self.debug:
@@ -416,7 +461,7 @@ def widget_wrapper():
 
     # -------------------------------------------------------------------------
 
-    # -> triggered by napari
+    # -> triggered by napari (if there are any open images on plugin launch)
     @change_handler(widget.image, init=False)
     def _image_change(event):
         image = event.value
@@ -433,26 +478,51 @@ def widget_wrapper():
             raise NotImplementedError()
 
         if (axes == widget.axes.value):
-            # make sure to trigger a change event, even if value didn't actually change (e.g. when persisted value is loaded)
+            # make sure to trigger a changed event, even if value didn't actually change
             widget.axes.changed(value=axes)
         else:
             widget.axes.value = axes
+        widget.n_tiles.changed(value=widget.n_tiles.value)
 
 
     # -> triggered by _image_change
     @change_handler(widget.axes, init=False)
     def _axes_change(event):
         value = str(event.value)
-        # https://github.com/napari/magicgui/issues/187
-        # if value != value.upper():
-        #     with widget.axes.changed.blocker():
-        #         widget.axes.value = value.upper()
+        if value != value.upper():
+            with widget.axes.changed.blocker():
+                widget.axes.value = value.upper()
         image = widget.image.value
         try:
+            image is not None or _raise(ValueError("no image selected"))
             axes = axes_check_and_normalize(value, length=get_data(image).ndim, disallowed='S')
             update('image_axes', True, (axes, image, None))
         except ValueError as err:
             update('image_axes', False, (value, image, err))
+
+
+    # -> triggered by _image_change
+    @change_handler(widget.n_tiles, init=False)
+    def _n_tiles_change(event):
+        image = widget.image.value
+        try:
+            image is not None or _raise(ValueError("no image selected"))
+            value = widget.n_tiles.get_value()
+            if value is None:
+                update('n_tiles', True, (None, image, None))
+                return
+            shape = get_data(image).shape
+            try:
+                value = tuple(value)
+                len(value) == len(shape) or _raise(TypeError())
+            except TypeError:
+                raise ValueError(f'must be a tuple/list of length {len(shape)}')
+            if not all(isinstance(t,int) and t >= 1 for t in value):
+                raise ValueError(f'each value must be an integer >= 1')
+            update('n_tiles', True, (value, image, None))
+        except (ValueError, SyntaxError) as err:
+            update('n_tiles', False, (None, image, err))
+
 
     # -------------------------------------------------------------------------
 
@@ -476,7 +546,8 @@ def widget_wrapper():
 
     # -------------------------------------------------------------------------
 
-    # allow to shrink model selector
+    # allow some widgets to shrink because their size depends on user input
+    widget.image.native.setMinimumWidth(240)
     widget.model2d.native.setMinimumWidth(240)
     widget.model3d.native.setMinimumWidth(240)
 
