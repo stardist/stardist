@@ -98,7 +98,7 @@ class StarDistDataBase(RollingSequence):
             self.n_channel = X[0].shape[-1]
             if isinstance(X, (np.ndarray, tuple, list)):
                 assert all(x.shape[-1]==self.n_channel for x in X)
-                
+
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
@@ -270,8 +270,9 @@ class StarDistBase(BaseModel):
             that are processed independently and re-assembled.
             This parameter denotes a tuple of the number of tiles for every image axis (see ``axes``).
             ``None`` denotes that no tiling should be used.
-        show_tile_progress: bool
-            Whether to show progress during tiled prediction.
+        show_tile_progress: bool or callable
+            If boolean, indicates whether to show progress (via tqdm) during tiled prediction.
+            if callable, must be a drop-in replacement for tqdm.
         predict_kwargs: dict
             Keyword arguments for ``predict`` function of Keras model.
 
@@ -336,6 +337,10 @@ class StarDistBase(BaseModel):
                                 in zip(axes_net_tile_overlaps, axes_net_div_by)]
 
             num_tiles_used = total_n_tiles(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps)
+
+            if callable(show_tile_progress):
+                tqdm = show_tile_progress
+                show_tile_progress = True
 
             for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
                                            disable=(not show_tile_progress), total=num_tiles_used):

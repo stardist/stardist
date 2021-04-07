@@ -16,6 +16,7 @@ o errors when running the plugin multiple times (without deleting output layers 
 
 from napari_plugin_engine import napari_hook_implementation
 from magicgui import magicgui, magic_factory
+from magicgui import widgets as mw
 from magicgui.events import Event
 
 import functools
@@ -141,7 +142,7 @@ def widget_wrapper():
         cnn_output      = dict(widget_type='CheckBox', text='Show CNN Output', value=DEFAULTS['cnn_output']),
         set_thresholds  = dict(widget_type='PushButton', text='Set optimized postprocessing thresholds (for selected model)'),
         defaults_button = dict(widget_type='PushButton', text='Restore Defaults'),
-        progress_bar    = dict(widget_type='ProgressBar', label=' ', min=0, max=0, visible=False),
+        progress_bar    = dict(label=' ', min=0, max=0, visible=False),
         layout          = 'vertical',
         persist         = True,
         call_button     = True,
@@ -169,7 +170,7 @@ def widget_wrapper():
         cnn_output,
         set_thresholds,
         defaults_button,
-        progress_bar,
+        progress_bar: mw.ProgressBar,
     ) -> List[napari.types.LayerDataTuple]:
 
         key = {StarDist2D:   (StarDist2D,   model2d),
@@ -196,8 +197,26 @@ def widget_wrapper():
             else:
                 x = normalize(x, perc_low,perc_high)
 
+        if n_tiles is not None:
+            n_tiles = tuple(n_tiles)
+            def progress(it, **kwargs):
+                progress_bar.min = 0
+                progress_bar.max = kwargs.get('total',0)
+                progress_bar.value = 0
+                # TODO: label doesn't show up sometimes (?)
+                progress_bar.label = 'Predicting...'
+                progress_bar.show()
+                for item in it:
+                    yield item
+                    progress_bar.increment()
+                progress_bar.hide()
+        else:
+            progress = False
+
+        # TODO: possible to run this in a @thread_worker? (and update the progress bar from it?)
+        #       example online calls viewer.add_image on return, but here want to return 'List[napari.types.LayerDataTuple]'
         (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
-                                                              n_tiles=tuple(n_tiles), return_predict=True)
+                                                              n_tiles=n_tiles, show_tile_progress=progress, return_predict=True)
         layers = []
         if cnn_output:
             scale = tuple(model.config.grid)
@@ -215,6 +234,7 @@ def widget_wrapper():
                                              contrast_limits=(0,surface[-1].max()),
                                              colormap=label_colormap(n_objects), **lkwargs), 'surface'))
             else:
+                # TODO: sometimes hangs for long time (indefinitely?) when returning many polygons (?)
                 # TODO: coordinates correct or need offset (0.5 or so)?
                 shapes = np.moveaxis(polys['coord'], 2,1)
                 layers.append((shapes, dict(name='StarDist polygons', shape_type='polygon',
@@ -391,6 +411,7 @@ def widget_wrapper():
     # -------------------------------------------------------------------------
 
     # RadioButtons widget triggers a change event initially (either when 'value' is set in constructor, or via 'persist')
+    # TODO: seems to be triggered too when a layer is added or removed (why?)
     @change_handler(widget.model_type, init=False)
     def _model_type_change(event):
         selected = widget_for_modeltype[event.value]
