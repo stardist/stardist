@@ -1,12 +1,10 @@
 """
 TODO:
 - apply only to field of view to apply to huge images? (cf https://forum.image.sc/t/how-could-i-get-the-viewed-coordinates/49709)
-- make ui pretty
 - option to use CPU or GPU, limit GPU memory ('allow_growth'?)
 - execute in different thread, ability to cancel?
 - support timelapse or channel-wise processing?
 - normalize per channel or jointly
-- cache selected model instances (when re-running the plugin, e.g. for different images)
 - show info messages in tooltip? or use a label to show info messages?
 - how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
 - show progress for tiled prediction and/or timelapse processing?
@@ -15,17 +13,14 @@ o errors when running the plugin multiple times (without deleting output layers 
 """
 
 from napari_plugin_engine import napari_hook_implementation
-from magicgui import magicgui, magic_factory
+from magicgui import magicgui
 from magicgui import widgets as mw
 from magicgui.events import Event
 
 import functools
+import time
 import numpy as np
-from csbdeep.utils import _raise, normalize, axes_check_and_normalize, axes_dict
-from csbdeep.models.pretrained import get_registered_models, get_model_folder
-from csbdeep.utils import load_json
-from .models import StarDist2D, StarDist3D
-from .utils import abspath
+
 from pathlib import Path
 
 import napari
@@ -33,46 +28,6 @@ from napari.qt.threading import thread_worker, create_worker
 from napari.utils.colormaps import label_colormap
 from typing import List
 from enum import Enum
-import time
-
-CUSTOM_MODEL = 'CUSTOM_MODEL'
-
-# get available models
-_models2d, _aliases2d = get_registered_models(StarDist2D)
-_models3d, _aliases3d = get_registered_models(StarDist3D)
-# use first alias for model selection (if alias exists)
-models2d = [((_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m),m) for m in _models2d]
-models3d = [((_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m),m) for m in _models3d]
-
-model_configs = dict()
-model_threshs = dict()
-model_selected = None
-
-class Output(Enum):
-    Labels = 'Label Image'
-    Polys  = 'Polygons / Polyhedra'
-    Both   = 'Both'
-output_choices = [Output.Labels.value, Output.Polys.value, Output.Both.value]
-
-model_type_choices = [('2D', StarDist2D), ('3D', StarDist3D), ('Custom 2D/3D', CUSTOM_MODEL)]
-
-
-DEFAULTS = dict (
-    model_type   = StarDist2D,
-    model2d      = models2d[0][1],
-    model3d      = models3d[0][1],
-    norm_image   = True,
-    perc_low     =  1.0,
-    perc_high    = 99.8,
-    prob_thresh  = 0.5,
-    nms_thresh   = 0.4,
-    output_type  = Output.Both.value,
-    n_tiles      = 'None',
-    cnn_output   = False,
-)
-
-def get_data(image: napari.layers.Image):
-    return image.data[0] if image.multiscale else image.data
 
 
 def surface_from_polys(polys):
@@ -97,29 +52,92 @@ def surface_from_polys(polys):
     return [np.array(vertices), np.array(faces), np.array(values)]
 
 
-def change_handler(*widgets, init=True, debug=True):
-    def decorator_change_handler(handler):
-        @functools.wraps(handler)
-        def wrapper(event):
-            if debug:
-                if isinstance(event, Event):
-                    print(f"{event.type}{' (blocked)' if event.blocked else ''}: {event.source.name} = {event.value}")
-                    # for a in ['blocked','handled','native','source','sources','type','value']:
-                    #     try: print(f'- event.{a} = {getattr(event,a)}')
-                    #     except: pass
-                else:
-                    print(f"{handler.__name__}({str(event)})")
-            return handler(event)
-        for widget in widgets:
-            widget.changed.connect(wrapper)
-            if init:
-                widget.changed(value=widget.value)
-        return wrapper
-    return decorator_change_handler
 
-# TODO: replace with @magic_factory(..., widget_init=...)
 def plugin_wrapper():
+    from csbdeep.utils import _raise, normalize, axes_check_and_normalize, axes_dict
+    from csbdeep.models.pretrained import get_registered_models, get_model_folder
+    from csbdeep.utils import load_json
+    from .models import StarDist2D, StarDist3D
+    from .utils import abspath
+
+    def get_data(image):
+        return image.data[0] if image.multiscale else image.data
+
+    def change_handler(*widgets, init=True, debug=True):
+        def decorator_change_handler(handler):
+            @functools.wraps(handler)
+            def wrapper(event):
+                if debug:
+                    if isinstance(event, Event):
+                        print(f"{event.type}{' (blocked)' if event.blocked else ''}: {event.source.name} = {event.value}")
+                        # for a in ['blocked','handled','native','source','sources','type','value']:
+                        #     try: print(f'- event.{a} = {getattr(event,a)}')
+                        #     except: pass
+                    else:
+                        print(f"{handler.__name__}({str(event)})")
+                return handler(event)
+            for widget in widgets:
+                widget.changed.connect(wrapper)
+                if init:
+                    widget.changed(value=widget.value)
+            return wrapper
+        return decorator_change_handler
+
+    # -------------------------------------------------------------------------
+
+    # get available models
+    _models2d, _aliases2d = get_registered_models(StarDist2D)
+    _models3d, _aliases3d = get_registered_models(StarDist3D)
+    # use first alias for model selection (if alias exists)
+    models2d = [((_aliases2d[m][0] if len(_aliases2d[m]) > 0 else m),m) for m in _models2d]
+    models3d = [((_aliases3d[m][0] if len(_aliases3d[m]) > 0 else m),m) for m in _models3d]
+
+    model_configs = dict()
+    model_threshs = dict()
+    model_selected = None
+
+    CUSTOM_MODEL = 'CUSTOM_MODEL'
+    model_type_choices = [('2D', StarDist2D), ('3D', StarDist3D), ('Custom 2D/3D', CUSTOM_MODEL)]
+
+    @functools.lru_cache(maxsize=None)
+    def get_model(model_type, model):
+        if model_type == CUSTOM_MODEL:
+            path = Path(model)
+            path.is_dir() or _raise(FileNotFoundError(f"{path} is not a directory"))
+            config = model_configs[(model_type,model)]
+            model_class = StarDist2D if config['n_dim'] == 2 else StarDist3D
+            return model_class(None, name=path.name, basedir=str(path.parent))
+        else:
+            return model_type.from_pretrained(model)
+
+    # -------------------------------------------------------------------------
+
+    class Output(Enum):
+        Labels = 'Label Image'
+        Polys  = 'Polygons / Polyhedra'
+        Both   = 'Both'
+    output_choices = [Output.Labels.value, Output.Polys.value, Output.Both.value]
+
+    # -------------------------------------------------------------------------
+
+    DEFAULTS = dict (
+        model_type   = StarDist2D,
+        model2d      = models2d[0][1],
+        model3d      = models3d[0][1],
+        norm_image   = True,
+        perc_low     =  1.0,
+        perc_high    = 99.8,
+        prob_thresh  = 0.5,
+        nms_thresh   = 0.4,
+        output_type  = Output.Both.value,
+        n_tiles      = 'None',
+        cnn_output   = False,
+    )
+
+    # -------------------------------------------------------------------------
+
     logo = abspath(__file__, 'resources/stardist_logo_napari.png')
+
     @magicgui (
         label_head      = dict(widget_type='Label', label=f'<h1><img src="{logo}">StarDist</h1>'),
         image           = dict(label='Input Image'),
@@ -177,16 +195,7 @@ def plugin_wrapper():
                StarDist3D:   (StarDist3D,   model3d),
                CUSTOM_MODEL: (CUSTOM_MODEL, model_folder)}[model_type]
         assert key == model_selected
-        config = model_configs[key]
-
-        s = lambda _2d,_3d: _2d if config['n_dim'] == 2 else _3d
-        if key[0] == CUSTOM_MODEL:
-            path = Path(model_folder)
-            path.exists() or _raise(FileNotFoundError(f"{path} doesn't exist."))
-            model = s(StarDist2D,StarDist3D)(None, name=path.name, basedir=str(path.parent))
-        else:
-            model = s(StarDist2D,StarDist3D).from_pretrained(s(model2d,model3d))
-
+        model = get_model(*model_selected)
         lkwargs = {}
         x = get_data(image)
         axes = axes_check_and_normalize(axes, length=x.ndim)
@@ -387,8 +396,7 @@ def plugin_wrapper():
 
 
     def select_model(key):
-        # print(f"select_model: {key}")
-        global model_selected
+        nonlocal model_selected
         model_selected = key
         config = model_configs.get(key)
         update('model', config is not None, config)
@@ -585,6 +593,7 @@ def plugin_wrapper():
 
 
     return plugin
+
 
 
 @napari_hook_implementation
