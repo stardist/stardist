@@ -339,10 +339,11 @@ class StarDistBase(BaseModel):
             num_tiles_used = total_n_tiles(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps)
 
             if callable(show_tile_progress):
-                tqdm = show_tile_progress
-                show_tile_progress = True
+                progress, show_tile_progress = show_tile_progress, True
+            else:
+                progress = tqdm
 
-            for tile, s_src, s_dst in tqdm(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
+            for tile, s_src, s_dst in progress(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
                                            disable=(not show_tile_progress), total=num_tiles_used):
                 prob_tile, dist_tile = predict_direct(tile)
                 # account for grid
