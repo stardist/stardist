@@ -118,7 +118,7 @@ def change_handler(*widgets, init=True, debug=True):
     return decorator_change_handler
 
 # TODO: replace with @magic_factory(..., widget_init=...)
-def widget_wrapper():
+def plugin_wrapper():
     logo = abspath(__file__, 'resources/stardist_logo_napari.png')
     @magicgui (
         label_head      = dict(widget_type='Label', label=f'<h1><img src="{logo}">StarDist</h1>'),
@@ -147,7 +147,7 @@ def widget_wrapper():
         persist         = True,
         call_button     = True,
     )
-    def widget (
+    def plugin (
         viewer: napari.Viewer,
         label_head,
         image: napari.layers.Image,
@@ -244,13 +244,13 @@ def widget_wrapper():
     # -------------------------------------------------------------------------
 
     # don't want to load persisted values for these inputs
-    widget.axes.value = ''
-    widget.n_tiles.value = DEFAULTS['n_tiles']
+    plugin.axes.value = ''
+    plugin.n_tiles.value = DEFAULTS['n_tiles']
 
     widget_for_modeltype = {
-        StarDist2D:   widget.model2d,
-        StarDist3D:   widget.model3d,
-        CUSTOM_MODEL: widget.model_folder,
+        StarDist2D:   plugin.model2d,
+        StarDist3D:   plugin.model3d,
+        CUSTOM_MODEL: plugin.model_folder,
     }
 
     def widgets_inactive(*widgets, active):
@@ -263,9 +263,9 @@ def widget_wrapper():
             widget.native.setStyleSheet("" if valid else "background-color: lightcoral")
 
     # https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum
-    for w in (widget.label_head, widget.label_nn, widget.label_nms, widget.label_adv):
+    for w in (plugin.label_head, plugin.label_nn, plugin.label_nms, plugin.label_adv):
         w.native.setSizePolicy(1|2, 0)
-    widget.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite" style="color:gray;">cite us</a>.</small><br><br><tt><a href="https://stardist.net" style="color:gray;">https://stardist.net</a></tt>'
+    plugin.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite" style="color:gray;">cite us</a>.</small><br><br><tt><a href="https://stardist.net" style="color:gray;">https://stardist.net</a></tt>'
 
 
     class Updater:
@@ -289,54 +289,54 @@ def widget_wrapper():
 
             if self.viewer is None:
                 # when is this not safe to do and will hang forever?
-                while widget.viewer.value is None:
+                while plugin.viewer.value is None:
                     time.sleep(0.01)
-                self.viewer = widget.viewer.value
+                self.viewer = plugin.viewer.value
 
                 @self.viewer.layers.events.removed.connect
                 def _layer_removed(event):
                     layers_remaining = event.source
                     if len(layers_remaining) == 0:
-                        widget.image.tooltip = ''
-                        widget.axes.value = ''
-                        widget.n_tiles.value = 'None'
+                        plugin.image.tooltip = ''
+                        plugin.axes.value = ''
+                        plugin.n_tiles.value = 'None'
 
 
             def _model(valid):
-                widgets_valid(widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=valid)
+                widgets_valid(plugin.model2d, plugin.model3d, plugin.model_folder.line_edit, valid=valid)
                 if valid:
                     config = self.args.model
                     axes = config.get('axes', 'ZYXC'[-len(config['net_input_shape']):])
-                    widget.model_axes.value = axes.replace("C", f"C[{config['n_channel_in']}]")
-                    widget.model_folder.line_edit.tooltip = ''
+                    plugin.model_axes.value = axes.replace("C", f"C[{config['n_channel_in']}]")
+                    plugin.model_folder.line_edit.tooltip = ''
                     return axes, config
                 else:
-                    widget.model_axes.value = ''
-                    widget.model_folder.line_edit.tooltip = 'Invalid model directory'
+                    plugin.model_axes.value = ''
+                    plugin.model_folder.line_edit.tooltip = 'Invalid model directory'
 
             def _image_axes(valid):
                 axes, image, err = getattr(self.args, 'image_axes', (None,None,None))
-                widgets_valid(widget.axes, valid=(valid or (image is None and (axes is None or len(axes) == 0))))
+                widgets_valid(plugin.axes, valid=(valid or (image is None and (axes is None or len(axes) == 0))))
                 if valid:
-                    widget.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,get_data(image).shape)])
+                    plugin.axes.tooltip = '\n'.join([f'{a} = {s}' for a,s in zip(axes,get_data(image).shape)])
                     return axes, image
                 else:
                     if err is not None:
                         err = str(err)
                         err = err[:-1] if err.endswith('.') else err
-                        widget.axes.tooltip = err
+                        plugin.axes.tooltip = err
                     else:
-                        widget.axes.tooltip = ''
+                        plugin.axes.tooltip = ''
 
             def _n_tiles(valid):
                 n_tiles, image, err = getattr(self.args, 'n_tiles', (None,None,None))
-                widgets_valid(widget.n_tiles, valid=(valid or image is None))
+                widgets_valid(plugin.n_tiles, valid=(valid or image is None))
                 if valid:
-                    widget.n_tiles.tooltip = 'no tiling' if n_tiles is None else '\n'.join([f'{t}: {s}' for t,s in zip(n_tiles,get_data(image).shape)])
+                    plugin.n_tiles.tooltip = 'no tiling' if n_tiles is None else '\n'.join([f'{t}: {s}' for t,s in zip(n_tiles,get_data(image).shape)])
                     return n_tiles
                 else:
                     msg = str(err) if err is not None else ''
-                    widget.n_tiles.tooltip = msg
+                    plugin.n_tiles.tooltip = msg
 
             def _valid_tiles_for_channel(axes_image, n_tiles):
                 if n_tiles is not None and 'C' in axes_image:
@@ -344,7 +344,7 @@ def widget_wrapper():
                 return True
 
             def _restore():
-                widgets_valid(widget.image, valid=widget.image.value is not None)
+                widgets_valid(plugin.image, valid=plugin.image.value is not None)
 
 
             all_valid = False
@@ -356,9 +356,9 @@ def widget_wrapper():
                 n_tiles = _n_tiles(True)
                 if not _valid_tiles_for_channel(axes_image, n_tiles):
                     # check if image axes and n_tiles are compatible
-                    widgets_valid(widget.n_tiles, valid=False)
+                    widgets_valid(plugin.n_tiles, valid=False)
                     err = 'number of tiles must be 1 for C axis'
-                    widget.n_tiles.tooltip = err
+                    plugin.n_tiles.tooltip = err
                     _restore()
                 else:
                     # check if image and model are compatible
@@ -366,7 +366,7 @@ def widget_wrapper():
                     ch_image = get_data(image).shape[axes_dict(axes_image)['C']] if 'C' in axes_image else 1
                     all_valid = set(axes_model.replace('C','')) == set(axes_image.replace('C','')) and ch_model == ch_image
 
-                    widgets_valid(widget.image, widget.model2d, widget.model3d, widget.model_folder.line_edit, valid=all_valid)
+                    widgets_valid(plugin.image, plugin.model2d, plugin.model3d, plugin.model_folder.line_edit, valid=all_valid)
                     if all_valid:
                         help_msg = ''
                     else:
@@ -378,8 +378,8 @@ def widget_wrapper():
                 _restore()
 
             self.help(help_msg)
-            widget.call_button.enabled = all_valid
-            # widgets_valid(widget.call_button, valid=all_valid)
+            plugin.call_button.enabled = all_valid
+            # widgets_valid(plugin.call_button, valid=all_valid)
             if self.debug:
                 print(f"valid ({all_valid}):", ', '.join([f'{k}={v}' for k,v in vars(self.valid).items()]))
 
@@ -396,26 +396,26 @@ def widget_wrapper():
     # -------------------------------------------------------------------------
 
     # hide percentile selection if normalization turned off
-    @change_handler(widget.norm_image)
+    @change_handler(plugin.norm_image)
     def _norm_image_change(event):
-        widgets_inactive(widget.perc_low, widget.perc_high, active=event.value)
+        widgets_inactive(plugin.perc_low, plugin.perc_high, active=event.value)
 
     # ensure that percentile low < percentile high
-    @change_handler(widget.perc_low)
+    @change_handler(plugin.perc_low)
     def _perc_low_change(event):
-        widget.perc_high.value = max(widget.perc_low.value+0.01, widget.perc_high.value)
-    @change_handler(widget.perc_high)
+        plugin.perc_high.value = max(plugin.perc_low.value+0.01, plugin.perc_high.value)
+    @change_handler(plugin.perc_high)
     def _perc_high_change(event):
-        widget.perc_low.value  = min(widget.perc_low.value, widget.perc_high.value-0.01)
+        plugin.perc_low.value  = min(plugin.perc_low.value, plugin.perc_high.value-0.01)
 
     # -------------------------------------------------------------------------
 
     # RadioButtons widget triggers a change event initially (either when 'value' is set in constructor, or via 'persist')
     # TODO: seems to be triggered too when a layer is added or removed (why?)
-    @change_handler(widget.model_type, init=False)
+    @change_handler(plugin.model_type, init=False)
     def _model_type_change(event):
         selected = widget_for_modeltype[event.value]
-        for w in set((widget.model2d, widget.model3d, widget.model_folder)) - {selected}:
+        for w in set((plugin.model2d, plugin.model3d, plugin.model_folder)) - {selected}:
             w.hide()
         selected.show()
         # trigger _model_change
@@ -425,9 +425,9 @@ def widget_wrapper():
     # show/hide model folder picker
     # load config/thresholds for selected pretrained model
     # -> triggered by _model_type_change
-    @change_handler(widget.model2d, widget.model3d, init=False)
+    @change_handler(plugin.model2d, plugin.model3d, init=False)
     def _model_change(event):
-        model_class = StarDist2D if event.source == widget.model2d else StarDist3D
+        model_class = StarDist2D if event.source == plugin.model2d else StarDist3D
         model_name  = event.value
         key = model_class, model_name
 
@@ -446,7 +446,7 @@ def widget_wrapper():
                         pass
                 finally:
                     select_model(key)
-                    widget.progress_bar.hide()
+                    plugin.progress_bar.hide()
 
             worker = _get_model_folder()
             worker.returned.connect(_process_model_folder)
@@ -455,9 +455,9 @@ def widget_wrapper():
             # delay showing progress bar -> won't show up if model already downloaded
             # TODO: hacky -> better way to do this?
             time.sleep(0.1)
-            widget.call_button.enabled = False
-            widget.progress_bar.label = 'Downloading model...'
-            widget.progress_bar.show()
+            plugin.call_button.enabled = False
+            plugin.progress_bar.label = 'Downloading model...'
+            plugin.progress_bar.show()
 
         else:
             select_model(key)
@@ -465,10 +465,10 @@ def widget_wrapper():
 
     # load config/thresholds from custom model path
     # -> triggered by _model_type_change
-    @change_handler(widget.model_folder, init=False)
+    @change_handler(plugin.model_folder, init=False)
     def _model_folder_change(event):
         # path = event.value # bug, does (sometimes?) return the FileEdit widget instead of its value
-        path = Path(widget.model_folder.value)
+        path = Path(plugin.model_folder.value)
         # note: will be triggered at every keystroke (when typing the path)
         key = CUSTOM_MODEL, path
         try:
@@ -483,11 +483,11 @@ def widget_wrapper():
     # -------------------------------------------------------------------------
 
     # -> triggered by napari (if there are any open images on plugin launch)
-    @change_handler(widget.image, init=False)
+    @change_handler(plugin.image, init=False)
     def _image_change(event):
         image = event.value
         ndim = get_data(image).ndim
-        widget.image.tooltip = f"Shape: {get_data(image).shape}"
+        plugin.image.tooltip = f"Shape: {get_data(image).shape}"
 
         # TODO: guess images axes better...
         axes = None
@@ -498,22 +498,22 @@ def widget_wrapper():
         else:
             raise NotImplementedError()
 
-        if (axes == widget.axes.value):
+        if (axes == plugin.axes.value):
             # make sure to trigger a changed event, even if value didn't actually change
-            widget.axes.changed(value=axes)
+            plugin.axes.changed(value=axes)
         else:
-            widget.axes.value = axes
-        widget.n_tiles.changed(value=widget.n_tiles.value)
+            plugin.axes.value = axes
+        plugin.n_tiles.changed(value=plugin.n_tiles.value)
 
 
     # -> triggered by _image_change
-    @change_handler(widget.axes, init=False)
+    @change_handler(plugin.axes, init=False)
     def _axes_change(event):
         value = str(event.value)
         if value != value.upper():
-            with widget.axes.changed.blocker():
-                widget.axes.value = value.upper()
-        image = widget.image.value
+            with plugin.axes.changed.blocker():
+                plugin.axes.value = value.upper()
+        image = plugin.image.value
         try:
             image is not None or _raise(ValueError("no image selected"))
             axes = axes_check_and_normalize(value, length=get_data(image).ndim, disallowed='S')
@@ -523,12 +523,12 @@ def widget_wrapper():
 
 
     # -> triggered by _image_change
-    @change_handler(widget.n_tiles, init=False)
+    @change_handler(plugin.n_tiles, init=False)
     def _n_tiles_change(event):
-        image = widget.image.value
+        image = plugin.image.value
         try:
             image is not None or _raise(ValueError("no image selected"))
-            value = widget.n_tiles.get_value()
+            value = plugin.n_tiles.get_value()
             if value is None:
                 update('n_tiles', True, (None, image, None))
                 return
@@ -548,45 +548,45 @@ def widget_wrapper():
     # -------------------------------------------------------------------------
 
     # set thresholds to optimized values for chosen model
-    @change_handler(widget.set_thresholds, init=False)
+    @change_handler(plugin.set_thresholds, init=False)
     def _set_thresholds(event):
-        model_type = widget.model_type.value
+        model_type = plugin.model_type.value
         key = (model_type, widget_for_modeltype[model_type].value)
         assert model_selected == key
         if key in model_threshs:
             thresholds = model_threshs[key]
-            widget.nms_thresh.value = thresholds['nms']
-            widget.prob_thresh.value = thresholds['prob']
+            plugin.nms_thresh.value = thresholds['nms']
+            plugin.prob_thresh.value = thresholds['prob']
 
 
     # restore defaults
-    @change_handler(widget.defaults_button, init=False)
+    @change_handler(plugin.defaults_button, init=False)
     def restore_defaults(event=None):
         for k,v in DEFAULTS.items():
-            getattr(widget,k).value = v
+            getattr(plugin,k).value = v
 
     # -------------------------------------------------------------------------
 
     # allow some widgets to shrink because their size depends on user input
-    widget.image.native.setMinimumWidth(240)
-    widget.model2d.native.setMinimumWidth(240)
-    widget.model3d.native.setMinimumWidth(240)
+    plugin.image.native.setMinimumWidth(240)
+    plugin.model2d.native.setMinimumWidth(240)
+    plugin.model3d.native.setMinimumWidth(240)
 
-    widget.label_head.native.setOpenExternalLinks(True)
+    plugin.label_head.native.setOpenExternalLinks(True)
     # make reset button smaller
-    # widget.defaults_button.native.setMaximumWidth(150)
+    # plugin.defaults_button.native.setMaximumWidth(150)
 
-    # widget.model_axes.native.setReadOnly(True)
-    widget.model_axes.enabled = False
+    # plugin.model_axes.native.setReadOnly(True)
+    plugin.model_axes.enabled = False
 
     # push 'call_button' to bottom
-    layout = widget.native.layout()
+    layout = plugin.native.layout()
     layout.insertStretch(layout.count()-2)
 
 
-    return widget
+    return plugin
 
 
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
-    return widget_wrapper, {'name': 'StarDist'}
+    return plugin_wrapper, {'name': 'StarDist'}
