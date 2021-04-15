@@ -1,13 +1,12 @@
 """
 TODO:
 - apply only to field of view to apply to huge images? (cf https://forum.image.sc/t/how-could-i-get-the-viewed-coordinates/49709)
-- option to use CPU or GPU, limit GPU memory ('allow_growth'?)
-- execute in different thread, ability to cancel?
-- support timelapse or channel-wise processing?
+- option to use CPU or GPU, limit tensorflow GPU memory ('allow_growth'?)
+- stop/cancel running stardist computation
+- support timelapse or channel-wise processing? (incl. progress display)
 - normalize per channel or jointly
 - show info messages in tooltip? or use a label to show info messages?
 - how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
-- show progress for tiled prediction and/or timelapse processing?
 o errors when running the plugin multiple times (without deleting output layers first)
 - separate 'stardist-napari' package?
 """
@@ -16,6 +15,7 @@ from napari_plugin_engine import napari_hook_implementation
 from magicgui import magicgui
 from magicgui import widgets as mw
 from magicgui.events import Event
+from magicgui.application import use_app
 
 import functools
 import time
@@ -60,19 +60,18 @@ def plugin_wrapper():
     from .models import StarDist2D, StarDist3D
     from .utils import abspath
 
+    DEBUG = True
+
     def get_data(image):
         return image.data[0] if image.multiscale else image.data
 
-    def change_handler(*widgets, init=True, debug=True):
+    def change_handler(*widgets, init=True, debug=DEBUG):
         def decorator_change_handler(handler):
             @functools.wraps(handler)
             def wrapper(event):
                 if debug:
                     if isinstance(event, Event):
-                        print(f"{event.type}{' (blocked)' if event.blocked else ''}: {event.source.name} = {event.value}")
-                        # for a in ['blocked','handled','native','source','sources','type','value']:
-                        #     try: print(f'- event.{a} = {getattr(event,a)}')
-                        #     except: pass
+                        print(f"{event.type}: {event.source.name} = {event.value}")
                     else:
                         print(f"{handler.__name__}({str(event)})")
                 return handler(event)
@@ -191,41 +190,43 @@ def plugin_wrapper():
         progress_bar: mw.ProgressBar,
     ) -> List[napari.types.LayerDataTuple]:
 
-        key = {StarDist2D:   (StarDist2D,   model2d),
-               StarDist3D:   (StarDist3D,   model3d),
-               CUSTOM_MODEL: (CUSTOM_MODEL, model_folder)}[model_type]
-        assert key == model_selected
         model = get_model(*model_selected)
         lkwargs = {}
         x = get_data(image)
         axes = axes_check_and_normalize(axes, length=x.ndim)
         if norm_image:
-            # TODO: address joint vs. separate normalization
+            # TODO: address joint vs. channel-separate normalization properly
             if image.rgb == True:
                 x = normalize(x, perc_low,perc_high, axis=(0,1,2))
             else:
                 x = normalize(x, perc_low,perc_high)
 
-        if n_tiles is not None:
+        if n_tiles is not None and np.prod(n_tiles) > 1:
             n_tiles = tuple(n_tiles)
+            app = use_app()
             def progress(it, **kwargs):
-                progress_bar.min = 0
-                progress_bar.max = kwargs.get('total',0)
+                progress_bar.label = 'Neural Network Prediction'
+                progress_bar.range = (0, kwargs.get('total',0))
                 progress_bar.value = 0
-                # TODO: label doesn't show up sometimes (?)
-                progress_bar.label = 'Predicting...'
                 progress_bar.show()
+                app.process_events()
                 for item in it:
                     yield item
                     progress_bar.increment()
-                progress_bar.hide()
+                    app.process_events()
+                #
+                progress_bar.label = 'NMS Postprocessing'
+                progress_bar.range = (0, 0)
+                app.process_events()
+                # TODO: progress bar doesn't update during NMS since events not processed?
         else:
             progress = False
 
-        # TODO: possible to run this in a @thread_worker? (and update the progress bar from it?)
-        #       example online calls viewer.add_image on return, but here want to return 'List[napari.types.LayerDataTuple]'
+        # TODO: possible to run this in a way that it can be canceled?
         (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
                                                               n_tiles=n_tiles, show_tile_progress=progress, return_predict=True)
+        progress_bar.hide()
+
         layers = []
         if cnn_output:
             scale = tuple(model.config.grid)
@@ -252,9 +253,16 @@ def plugin_wrapper():
 
     # -------------------------------------------------------------------------
 
-    # don't want to load persisted values for these inputs
+    # don't want to load persisted values for these widgets
     plugin.axes.value = ''
     plugin.n_tiles.value = DEFAULTS['n_tiles']
+    plugin.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite" style="color:gray;">cite us</a>.</small><br><br><tt><a href="https://stardist.net" style="color:gray;">https://stardist.net</a></tt>'
+
+    # make labels prettier (https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum)
+    for w in (plugin.label_head, plugin.label_nn, plugin.label_nms, plugin.label_adv):
+        w.native.setSizePolicy(1|2, 0)
+
+    # -------------------------------------------------------------------------
 
     widget_for_modeltype = {
         StarDist2D:   plugin.model2d,
@@ -271,14 +279,9 @@ def plugin_wrapper():
         for widget in widgets:
             widget.native.setStyleSheet("" if valid else "background-color: lightcoral")
 
-    # https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum
-    for w in (plugin.label_head, plugin.label_nn, plugin.label_nms, plugin.label_adv):
-        w.native.setSizePolicy(1|2, 0)
-    plugin.label_head.value = '<small>Star-convex object detection for 2D and 3D images.<br>If you are using this in your research please <a href="https://github.com/stardist/stardist#how-to-cite" style="color:gray;">cite us</a>.</small><br><br><tt><a href="https://stardist.net" style="color:gray;">https://stardist.net</a></tt>'
-
 
     class Updater:
-        def __init__(self, debug=True):
+        def __init__(self, debug=DEBUG):
             from types import SimpleNamespace
             self.debug = debug
             self.valid = SimpleNamespace(**{k:False for k in ('image_axes', 'model', 'n_tiles')})
@@ -297,7 +300,7 @@ def plugin_wrapper():
         def _update(self):
 
             if self.viewer is None:
-                # when is this not safe to do and will hang forever?
+                # TODO: when is this not safe to do and will hang forever?
                 while plugin.viewer.value is None:
                     time.sleep(0.01)
                 self.viewer = plugin.viewer.value
@@ -464,7 +467,7 @@ def plugin_wrapper():
             # TODO: hacky -> better way to do this?
             time.sleep(0.1)
             plugin.call_button.enabled = False
-            plugin.progress_bar.label = 'Downloading model...'
+            plugin.progress_bar.label = 'Downloading model'
             plugin.progress_bar.show()
 
         else:
@@ -473,11 +476,10 @@ def plugin_wrapper():
 
     # load config/thresholds from custom model path
     # -> triggered by _model_type_change
+    # note: will be triggered at every keystroke (when typing the path)
     @change_handler(plugin.model_folder, init=False)
     def _model_folder_change(event):
-        # path = event.value # bug, does (sometimes?) return the FileEdit widget instead of its value
-        path = Path(plugin.model_folder.value)
-        # note: will be triggered at every keystroke (when typing the path)
+        path = Path(event.value)
         key = CUSTOM_MODEL, path
         try:
             if not path.is_dir(): return
@@ -559,10 +561,8 @@ def plugin_wrapper():
     @change_handler(plugin.set_thresholds, init=False)
     def _set_thresholds(event):
         model_type = plugin.model_type.value
-        key = (model_type, widget_for_modeltype[model_type].value)
-        assert model_selected == key
-        if key in model_threshs:
-            thresholds = model_threshs[key]
+        if model_selected in model_threshs:
+            thresholds = model_threshs[model_selected]
             plugin.nms_thresh.value = thresholds['nms']
             plugin.prob_thresh.value = thresholds['prob']
 
@@ -587,10 +587,9 @@ def plugin_wrapper():
     # plugin.model_axes.native.setReadOnly(True)
     plugin.model_axes.enabled = False
 
-    # push 'call_button' to bottom
+    # push 'call_button' and 'progress_bar' to bottom
     layout = plugin.native.layout()
     layout.insertStretch(layout.count()-2)
-
 
     return plugin
 

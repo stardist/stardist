@@ -344,7 +344,7 @@ class StarDistBase(BaseModel):
                 progress = tqdm
 
             for tile, s_src, s_dst in progress(tile_iterator(x, n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
-                                           disable=(not show_tile_progress), total=num_tiles_used):
+                                               disable=(not show_tile_progress), total=num_tiles_used):
                 prob_tile, dist_tile = predict_direct(tile)
                 # account for grid
                 s_src = [slice(s.start//grid_dict.get(a,1),s.stop//grid_dict.get(a,1)) for s,a in zip(s_src,axes_net)]
