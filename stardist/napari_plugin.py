@@ -1,14 +1,14 @@
 """
 TODO:
-- apply only to field of view to apply to huge images? (cf https://forum.image.sc/t/how-could-i-get-the-viewed-coordinates/49709)
+- error when running the plugin multiple times with shape/surface output (https://github.com/napari/napari/issues/2354)
+- support timelapse or channel-wise processing (incl. progress display)
+- ability to cancel running stardist computation
+- run only on field of view
+  - https://forum.image.sc/t/how-could-i-get-the-viewed-coordinates/49709
+  - https://napari.zulipchat.com/#narrow/stream/212875-general/topic/corner.20pixels.20and.20dims.20displayed
+- normalize image separately per channel or jointly
+- add general tooltip help/info messages
 - option to use CPU or GPU, limit tensorflow GPU memory ('allow_growth'?)
-- stop/cancel running stardist computation
-- support timelapse or channel-wise processing? (incl. progress display)
-- normalize per channel or jointly
-- show info messages in tooltip? or use a label to show info messages?
-- how to deal with errors? catch and show to user? cf. napari issues #2205 and #2290
-o errors when running the plugin multiple times (without deleting output layers first)
-- separate 'stardist-napari' package?
 """
 
 from napari_plugin_engine import napari_hook_implementation
@@ -22,6 +22,7 @@ import time
 import numpy as np
 
 from pathlib import Path
+from warnings import warn
 
 import napari
 from napari.qt.threading import thread_worker, create_worker
@@ -43,7 +44,6 @@ def surface_from_polys(polys):
 
     vertices, faces, values = [], [], []
     for i, xs in enumerate(coord, start=1):
-        # values.extend(np.random.uniform(0.3,1)+np.random.uniform(-.1,.1,len(xs)))
         values.extend(i+np.zeros(len(xs)))
         vertices.extend(xs)
         faces.extend(rays_faces.copy())
@@ -54,6 +54,8 @@ def surface_from_polys(polys):
 
 
 def plugin_wrapper():
+    # delay imports until plugin is requested by user
+    # -> especially those importing tensorflow (csbdeep.models.*, stardist.models.*)
     from csbdeep.utils import _raise, normalize, axes_check_and_normalize, axes_dict
     from csbdeep.models.pretrained import get_registered_models, get_model_folder
     from csbdeep.utils import load_json
@@ -195,11 +197,14 @@ def plugin_wrapper():
         x = get_data(image)
         axes = axes_check_and_normalize(axes, length=x.ndim)
         if norm_image:
-            # TODO: address joint vs. channel-separate normalization properly
-            if image.rgb == True:
-                x = normalize(x, perc_low,perc_high, axis=(0,1,2))
+            # TODO: address joint vs. channel-separate normalization properly (let user choose)
+            if 'C' not in axes or image.rgb == True:
+                 # normalize channels jointly
+                _axis = None
             else:
-                x = normalize(x, perc_low,perc_high)
+                # normalize channels independently
+                _axis = tuple(i for i in range(x.ndim) if i != axes_dict(axes)['C']) if 'C' in axes else None
+            x = normalize(x, perc_low,perc_high, axis=_axis)
 
         if n_tiles is not None and np.prod(n_tiles) > 1:
             n_tiles = tuple(n_tiles)
@@ -337,6 +342,7 @@ def plugin_wrapper():
                         err = str(err)
                         err = err[:-1] if err.endswith('.') else err
                         plugin.axes.tooltip = err
+                        # warn(err) # alternative to tooltip (gui doesn't show up in ipython)
                     else:
                         plugin.axes.tooltip = ''
 
