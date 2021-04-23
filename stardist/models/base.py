@@ -272,7 +272,7 @@ class StarDistBase(BaseModel):
             ``None`` denotes that no tiling should be used.
         show_tile_progress: bool or callable
             If boolean, indicates whether to show progress (via tqdm) during tiled prediction.
-            if callable, must be a drop-in replacement for tqdm.
+            If callable, must be a drop-in replacement for tqdm.
         predict_kwargs: dict
             Keyword arguments for ``predict`` function of Keras model.
 

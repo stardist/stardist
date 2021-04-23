@@ -9,6 +9,8 @@ TODO:
 - normalize image separately per channel or jointly
 - add general tooltip help/info messages
 - option to use CPU or GPU, limit tensorflow GPU memory ('allow_growth'?)
+- move to stardist/stardist-napari repo
+- sample data hook
 """
 
 from napari_plugin_engine import napari_hook_implementation
@@ -226,6 +228,10 @@ def plugin_wrapper():
                 # TODO: progress bar doesn't update during NMS since events not processed?
         else:
             progress = False
+            progress_bar.label = 'Neural Network Prediction'
+            progress_bar.range = (0, 0)
+            progress_bar.show()
+            use_app().process_events()
 
         # TODO: possible to run this in a way that it can be canceled?
         (labels,polys), (prob,dist) = model.predict_instances(x, axes=axes, prob_thresh=prob_thresh, nms_thresh=nms_thresh,
