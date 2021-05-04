@@ -14,3 +14,5 @@ assignees: ''
 Please first take a look at the StarDist [documentation](https://github.com/stardist/stardist/blob/master/README.md) and [frequently asked questions (FAQ)](https://stardist.net/docs/faq.html). 
 
 If that doesn't solve your issue, you can browse the existing [`stardist`-tagged forum posts](https://forum.image.sc/tag/stardist) or search the [image.sc forum](https://forum.image.sc/). If you can't find what you're looking for, please create a new topic at [the forum](https://forum.image.sc/) (and use the tag `stardist`).
+
+If you open a new topic, please provide a clear and concise description to understand and ideally reproduce the issue you're having (e.g. including a code snippet, Python script, or Jupyter notebook).
