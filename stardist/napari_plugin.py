@@ -64,7 +64,7 @@ def plugin_wrapper():
     from .models import StarDist2D, StarDist3D
     from .utils import abspath
 
-    DEBUG = True
+    DEBUG = False
 
     def get_data(image):
         return image.data[0] if image.multiscale else image.data
@@ -259,7 +259,7 @@ def plugin_wrapper():
                 # TODO: coordinates correct or need offset (0.5 or so)?
                 shapes = np.moveaxis(polys['coord'], 2,1)
                 layers.append((shapes, dict(name='StarDist polygons', shape_type='polygon',
-                                            edge_width=0.5, edge_color='coral', face_color=[0,0,0,0], **lkwargs), 'shapes'))
+                                            edge_width=0.5, edge_color='yellow', face_color=[0,0,0,0], **lkwargs), 'shapes'))
         return layers
 
     # -------------------------------------------------------------------------
