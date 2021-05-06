@@ -371,7 +371,8 @@ class StarDistBase(BaseModel):
         axes     = self._normalize_axes(img, axes)
         axes_net = self.config.axes
 
-        _permute_axes = self._make_permute_axes(axes, axes_net)
+        axes_out = axes.replace('C','')+'C' if 'C' in axes else axes # move channel to the end on 'undo'
+        _permute_axes = self._make_permute_axes(axes, axes_net, axes_net, axes_out)
         x = _permute_axes(img) # x has axes_net semantics
 
         channel = axes_dict(axes_net)['C']
@@ -489,18 +490,9 @@ class StarDistBase(BaseModel):
 
         result = [resizer.after(part, axes_net) for part in result]
 
-        # result = (prob, dist) for legacy or (prob, dist, prob_class) for multiclass
-
-        # prob
-        result[0] = np.take(result[0],0,axis=channel)
-        # dist
+        # permute axes back and always move channel axis to the end
+        result = [_permute_axes(part, undo=True) for part in result]
         result[1] = np.maximum(1e-3, result[1]) # avoid small dist values to prevent problems with Qhull
-        result[1] = np.moveaxis(result[1],channel,-1)
-
-        if self._is_multiclass():
-            # prob_class
-            result[2] = np.moveaxis(result[2],channel,-1)
-
         return tuple(result)
 
 
@@ -648,11 +640,8 @@ class StarDistBase(BaseModel):
         nms_kwargs.setdefault("verbose", verbose)
 
         _axes         = self._normalize_axes(img, axes)
-        _axes_net     = self.config.axes
-        _permute_axes = self._make_permute_axes(_axes, _axes_net)
-        _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
+        _shape_inst   = tuple(s for s,a in zip(img.shape, _axes) if a != 'C')
 
-                
         if sparse:
             res = self.predict_sparse(img, prob_thresh = prob_thresh,
                                     axes=axes, normalizer=normalizer,

@@ -515,7 +515,8 @@ class StarDist2D(StarDistBase):
 
         # dense prediction 
         else:
-            points, probi, disti = non_maximum_suppression(dist, prob, 
+            # TODO: grid is axes_net order, but must be in axes order because dist and prob are in axes order (?)
+            points, probi, disti = non_maximum_suppression(dist, prob,
                                                            grid=self.config.grid,
                                                            prob_thresh=prob_thresh,
                                                            nms_thresh=nms_thresh,
