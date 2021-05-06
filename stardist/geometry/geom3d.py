@@ -68,7 +68,8 @@ def _ocl_star_dist3D(lbl, rays, grid=(1,1,1)):
     # if not all(g==1 for g in grid):
     #     raise NotImplementedError("grid not yet implemented for OpenCL version of star_dist3D()...")
 
-    res_shape = tuple(s//g for s, g in zip(lbl.shape, grid))
+    # slicing with grid is done with tuple(slice(0, None, g) for g in grid)
+    res_shape = tuple((s-1)//g+1 for s, g in zip(lbl.shape, grid))
 
     lbl_g = OCLImage.from_array(lbl.astype(np.uint16, copy=False))
     dist_g = OCLArray.empty(res_shape + (len(rays),), dtype=np.float32)

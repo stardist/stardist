@@ -326,7 +326,5 @@ def test_load_and_export_TF(model3d):
 if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
-
-
-    res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1, epochs=2)
-
+    # res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1, epochs=2)
+    test_stardistdata((1,4,4))
