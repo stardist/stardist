@@ -302,7 +302,11 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     return model, img, res1, res2, res3
 
     
-@pytest.mark.parametrize('n_classes, classes, n_channel, epochs', [(None, "auto", 1, 1), (1, "area", 3, 1), (3, (1,2,3), 3, 1)])
+@pytest.mark.parametrize('n_classes, classes, n_channel, epochs',
+                         [ (None, "auto", 1, 1),
+                           (1, "auto", 3, 1),
+                           (3, (1,2,3), 3, 1)]
+                         )
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs)
