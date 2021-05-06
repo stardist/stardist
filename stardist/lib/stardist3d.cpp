@@ -262,9 +262,9 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
   npy_intp *dims = PyArray_DIMS(src);
 
   npy_intp dims_dst[4];
-  dims_dst[0] = (dims[0]-1)/grid_z+1;
-  dims_dst[1] = (dims[1]-1)/grid_y+1;
-  dims_dst[2] = (dims[2]-1)/grid_x+1;
+  dims_dst[0] = dims[0]/grid_z;
+  dims_dst[1] = dims[1]/grid_y;
+  dims_dst[2] = dims[2]/grid_x;
   dims_dst[3] = n_rays;
 
   dst = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_FLOAT32);

@@ -40,9 +40,11 @@ def test_types_gpu(img, n_rays, grid):
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 @pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
 def test_cpu_gpu(img, n_rays, grid):
+    print(tuple(s//g for s, g in zip(img.shape, grid)))
     rays = Rays_GoldenSpiral(n_rays)
     s_cpp = star_dist3D(img, rays=rays, grid=grid, mode="cpp")
     s_ocl = star_dist3D(img, rays=rays, grid=grid, mode="opencl")
+    print(s_cpp.shape, s_ocl.shape)
     check_similar(s_cpp, s_ocl)
 
 
@@ -103,6 +105,7 @@ def test_grid(grid,shape):
 
     
 if __name__ == '__main__':
-    # lbl1, lbl2 = test_relabel_consistency(128,eps = (.5,1,1.2), plot = True)
-    
-    lbl, d1,d2 = test_grid(grid=(1,2,2),shape=(62,63,66))
+    # lbl1, lbl2 = test_relabel_consistency(128,eps = (.5,1,1.2), plot = True)    
+    # lbl, d1,d2 = test_grid(grid=(1,2,2),shape=(62,63,66))
+    test_cpu_gpu(random_image((32,33,34)), 32, (1,2,4))
+
