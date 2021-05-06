@@ -42,7 +42,9 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package requires Python 3.6 (or newer). (If you only want to use the StarDist plugin for Fiji or QuPath, please read [this](#plugins-for-other-software).)
+This package requires Python 3.6 - 3.8 (as tensorflow currently does not support newer Python versions).
+
+If you only want to use the StarDist plugin for Fiji or QuPath, please read [this](#plugins-for-other-software).
 
 1. Please first [install TensorFlow](https://www.tensorflow.org/install)
 (either TensorFlow 1 or 2) by following the official instructions.
