@@ -27,7 +27,6 @@ from ..sample_patches import get_valid_inds
 from ..nms import _ind_prob_thresh
 from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
 
-# TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
 def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, reg_penalty=K.abs):
@@ -71,28 +70,26 @@ def kld(y_true, y_pred):
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
 
-def masked_iou_loss(mask, reg_weight=0, norm_by_mask=True):
+def masked_loss_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_loss(y_true, y_pred):
-        axis = -1 if backend_channels_last() else 1 
-
-        inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis = axis)
-        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
-
+        axis = -1 if backend_channels_last() else 1
+        # y_pred can be negative (since not constrained) -> 'inter' can be very large for y_pred << 0
+        # - clipping y_pred values at 0 can lead to vanishing gradients
+        # - 'K.sign(y_pred)' term fixes issue by enforcing that y_pred values >= 0 always lead to larger 'inter' (lower loss)
+        inter = K.mean(K.sign(y_pred)*K.square(K.minimum(y_true,y_pred)), axis=axis)
+        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis=axis)
         iou = inter/(union+K.epsilon())
         iou = K.expand_dims(iou,axis)
-        
         loss = 1. - iou # + 0.005*K.abs(y_true-y_pred)
-               
         return loss
-    
     return generic_masked_loss(mask, iou_loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
-def masked_iou_metric(mask, reg_weight=0, norm_by_mask=True):
+def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_metric(y_true, y_pred):
         axis = -1 if backend_channels_last() else 1
         y_pred = K.maximum(0., y_pred)
-        inter = K.mean(K.square(K.minimum(y_true,y_pred)), axis = axis)
-        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis = axis)
+        inter = K.mean(K.square(K.minimum(y_true,y_pred)), axis=axis)
+        union = K.mean(K.square(K.maximum(y_true,y_pred)), axis=axis)
         iou = inter/(union+K.epsilon())
         loss = K.expand_dims(iou,axis)
         return loss
@@ -106,23 +103,23 @@ def weighted_categorical_crossentropy(weights, ndim):
     shape = [1]*(ndim+2)
     shape[axis] = len(weights)
     weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)    
+    weights = K.constant(weights)
 
     def weighted_cce(y_true, y_pred):
-        # ignore pixels that have y_true (prob_class) < 0 
+        # ignore pixels that have y_true (prob_class) < 0
         mask = K.cast(y_true>=0, K.floatx())
         y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
         loss = - K.sum(weights*mask*y_true*K.log(y_pred), axis = axis)
         return loss
-    
+
     return weighted_cce
 
 
 class StarDistDataBase(RollingSequence):
-    
+
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
-                 n_classes = None, classes = None, 
+                 n_classes=None, classes=None,
                  use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
         super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
@@ -131,19 +128,18 @@ class StarDistDataBase(RollingSequence):
             X = [x.astype(np.float32, copy=False) for x in X]
 
         # sanity checks
-        len(X)==len(Y) and len(X)>0 or _raise(ValueError("X and Y should have same length!"))
+        len(X)==len(Y) and len(X)>0 or _raise(ValueError("X and Y can't be empty and must have same length"))
 
-        
         if classes is None:
-            # set classes to None for all imgs (i.e. defaults to every labels assigned  same class)
+            # set classes to None for all images (i.e. defaults to every object instance assigned the same class)
             classes = (None,)*len(X)
         else:
-            n_classes is not None or warnings.warn("Ignoring given classes as n_classes is set to None")
+            n_classes is not None or warnings.warn("Ignoring classes since n_classes is None")
 
-        len(classes)==len(X) or _raise(ValueError("X and classes should have same length!"))
-            
-        self.n_classes, self.classes =  n_classes, classes
-        
+        len(classes)==len(X) or _raise(ValueError("X and classes must have same length"))
+
+        self.n_classes, self.classes = n_classes, classes
+
         nD = len(patch_size)
         assert nD in (2,3)
         x_ndim = X[0].ndim
@@ -160,7 +156,7 @@ class StarDistDataBase(RollingSequence):
             self.n_channel = X[0].shape[-1]
             if isinstance(X, (np.ndarray, tuple, list)):
                 assert all(x.shape[-1]==self.n_channel for x in X)
-                
+
         assert 0 <= foreground_prob <= 1
 
         self.X, self.Y = X, Y
@@ -255,25 +251,25 @@ class StarDistBase(BaseModel):
     def _parse_classes_arg(self, classes, length):
         """ creates a proper classes tuple from different possible "classes" arguments in model.train()
 
-        classes can be 
+        classes can be
           "auto" -> all objects will be assigned to the first foreground class (unless n_classes is None)
-          single integer -> all objects will be assigned that class 
+          single integer -> all objects will be assigned that class
           tuple, list, ndarray -> do nothing (needs to be of given length)
-            
-        returns a tuple of given length 
+
+        returns a tuple of given length
         """
         if isinstance(classes, str):
             classes == "auto" or _raise(ValueError(f"classes = '{classes}': only 'auto' supported as string argument for classes"))
             if self.config.n_classes is None:
                 classes = None
             elif self.config.n_classes == 1:
-                classes = (1,)*length                            
+                classes = (1,)*length
             else:
                 raise ValueError("using classes = 'auto' for n_classes > 1 not supported")
         elif isinstance(classes, (tuple, list, np.ndarray)):
-            len(classes) == length or _raise(ValueError(f"parse_classes: len(classes) should be {length}!"))
+            len(classes) == length or _raise(ValueError(f"len(classes) should be {length}!"))
         else:
-            raise ValueError("classes should be either 'auto' or a list of scalars/label dicts")
+            raise ValueError("classes should either be 'auto' or a list of scalars/label dicts")
         return classes
 
     @thresholds.setter
@@ -302,7 +298,7 @@ class StarDistBase(BaseModel):
 
         masked_dist_loss = {'mse': masked_loss_mse,
                             'mae': masked_loss_mae,
-                            'iou': masked_iou_loss,
+                            'iou': masked_loss_iou,
                             }[self.config.train_dist_loss]
         prob_loss = 'binary_crossentropy'
 
@@ -313,13 +309,10 @@ class StarDistBase(BaseModel):
         def dist_loss(dist_true_mask, dist_pred):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
             return masked_dist_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
-        def dist_iou_loss(dist_true_mask, dist_pred):
-            dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
-            return masked_iou_loss(dist_mask, reg_weight=self.config.train_background_reg)(dist_true, dist_pred)
 
         def dist_iou_metric(dist_true_mask, dist_pred):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
-            return masked_iou_metric(dist_mask, reg_weight=0)(dist_true, dist_pred)
+            return masked_metric_iou(dist_mask, reg_weight=0)(dist_true, dist_pred)
 
         def relevant_mae(dist_true_mask, dist_pred):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
@@ -331,17 +324,15 @@ class StarDistBase(BaseModel):
 
 
         if self._is_multiclass():
-            prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights,
-                                                                   ndim = self.config.n_dim)
-            loss=[prob_loss, dist_loss, prob_class_loss]            
+            prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
+            loss = [prob_loss, dist_loss, prob_class_loss]
         else:
-            loss=[prob_loss, dist_loss]
-                     
-        self.keras_model.compile(optimizer, loss=loss,
+            loss = [prob_loss, dist_loss]
+
+        self.keras_model.compile(optimizer, loss         = loss,
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics={'prob': kld,
-                                                     'dist': [relevant_mae, relevant_mse,
-                                                              dist_iou_metric]})
+                                            metrics      = {'prob': kld,
+                                                            'dist': [relevant_mae, relevant_mse, dist_iou_metric]})
 
         self.callbacks = []
         if self.basedir is not None:
@@ -389,9 +380,9 @@ class StarDistBase(BaseModel):
 
         Returns
         -------
-        (:class:`numpy.ndarray`,:class:`numpy.ndarray`)
-            Returns the tuple (`prob`, `dist`, [`prob_class`])  of per-pixel object probabilities and star-convex polygon/polyhedra distances. 
-            In multiclass prediction mode returns (`prob`, `dist`, `prob_class`) with `prob_class` being the probability map for each of the n_classes+1 classes (background being the first)
+        (:class:`numpy.ndarray`, :class:`numpy.ndarray`, [:class:`numpy.ndarray`])
+            Returns the tuple (`prob`, `dist`, [`prob_class`]) of per-pixel object probabilities and star-convex polygon/polyhedra distances.
+            In multiclass prediction mode, `prob_class` is the probability map for each of the 1+'n_classes' classes (first class is background)
 
         """
         if n_tiles is None:
@@ -403,7 +394,6 @@ class StarDistBase(BaseModel):
             raise ValueError("n_tiles must be an iterable of length %d" % img.ndim)
         all(np.isscalar(t) and 1<=t and int(t)==t for t in n_tiles) or _raise(
             ValueError("all values of n_tiles must be integer values >= 1"))
-        
 
         n_tiles = tuple(map(int,n_tiles))
 
@@ -429,7 +419,7 @@ class StarDistBase(BaseModel):
 
         if not _is_floatarray(x):
             warnings.warn("Predicting on non-float input... ( forgot to normalize? )")
-        
+
         def predict_direct(tile):
             xs = self.keras_model.predict(tile[np.newaxis], **predict_kwargs)
             return tuple(x[0] for x in xs)
@@ -444,19 +434,19 @@ class StarDistBase(BaseModel):
                 _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
 
             sh = [s//grid_dict.get(a,1) for a,s in zip(axes_net,x.shape)]
+
             sh[channel] = 1;
             prob = np.empty(sh,np.float32)
-            
+
             sh[channel] = self.config.n_rays;
             dist = np.empty(sh,np.float32)
 
             if self._is_multiclass():
                 sh[channel] = self.config.n_classes+1;
-                prob_class = np.empty(sh,np.float32)                
+                prob_class = np.empty(sh,np.float32)
                 result = (prob, dist, prob_class)
             else:
                 result = (prob, dist)
-            
 
             n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
                                 in zip(axes_net_tile_overlaps, axes_net_div_by)]
@@ -476,15 +466,14 @@ class StarDistBase(BaseModel):
                 s_dst[channel] = slice(None)
                 s_src, s_dst = tuple(s_src), tuple(s_dst)
                 # print(s_src,s_dst)
-                
                 for part, part_tile in zip(result, result_tile):
                     part[s_dst] = part_tile[s_src]
 
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
             result = predict_direct(x)
-            
-        result = list(resizer.after(part, axes_net) for part in result)
+
+        result = [resizer.after(part, axes_net) for part in result]
 
         # result = (prob, dist) for legacy or (prob, dist, prob_class) for multiclass
 
@@ -493,11 +482,11 @@ class StarDistBase(BaseModel):
         # dist
         result[1] = np.maximum(1e-3, result[1]) # avoid small dist values to prevent problems with Qhull
         result[1] = np.moveaxis(result[1],channel,-1)
-        
+
         if self._is_multiclass():
-            # prob_class            
+            # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
-            
+
         return tuple(result)
 
 
