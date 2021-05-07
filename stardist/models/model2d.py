@@ -447,30 +447,30 @@ class StarDist2D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
-        from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
-        from stardist.nms import _non_maximum_suppression_old
+    # def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
+    #     from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
+    #     from stardist.nms import _non_maximum_suppression_old
 
-        if prob_thresh is None: prob_thresh = self.thresholds.prob
-        if nms_thresh  is None: nms_thresh  = self.thresholds.nms
-        if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
+    #     if prob_thresh is None: prob_thresh = self.thresholds.prob
+    #     if nms_thresh  is None: nms_thresh  = self.thresholds.nms
+    #     if overlap_label is not None: raise NotImplementedError("overlap_label not supported for 2D yet!")
 
-        coord = _dist_to_coord_old(dist, grid=self.config.grid)
-        inds = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
-                                       prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
-        labels = _polygons_to_label_old(coord, prob, inds, shape=img_shape)
-        # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
-        inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
-        # adjust for grid
-        points = inds*np.array(self.config.grid)
+    #     coord = _dist_to_coord_old(dist, grid=self.config.grid)
+    #     inds = _non_maximum_suppression_old(coord, prob, grid=self.config.grid,
+    #                                    prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+    #     labels = _polygons_to_label_old(coord, prob, inds, shape=img_shape)
+    #     # sort 'inds' such that ids in 'labels' map to entries in polygon dictionary entries
+    #     inds = inds[np.argsort(prob[inds[:,0],inds[:,1]])]
+    #     # adjust for grid
+    #     points = inds*np.array(self.config.grid)
 
-        res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
+    #     res_dict = dict(coord=coord[inds[:,0],inds[:,1]], points=points, prob=prob[inds[:,0],inds[:,1]])
 
-        if prob_class is not None:
-            prob_class = np.asarray(prob_class)
-            res_dict.update(dict(class_prob = prob_class))
+    #     if prob_class is not None:
+    #         prob_class = np.asarray(prob_class)
+    #         res_dict.update(dict(class_prob = prob_class))
 
-        return labels, res_dict
+    #     return labels, res_dict
 
 
     def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
