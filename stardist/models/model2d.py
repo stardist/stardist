@@ -286,7 +286,7 @@ class StarDist2D(StarDistBase):
         self.config.backbone == 'unet' or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
-        input_img  = Input(self.config.net_input_shape, name='input')
+        input_img = Input(self.config.net_input_shape, name='input')
 
         # maxpool input image to grid size
         pooled = np.array([1,1])
@@ -307,8 +307,8 @@ class StarDist2D(StarDistBase):
         else:
             unet = unet_base
 
-        output_prob  = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(unet)
-        output_dist  = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
+        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(unet)
+        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
 
         # attach extra classification head when self.n_classes is given
         if self._is_multiclass():
@@ -471,6 +471,7 @@ class StarDist2D(StarDistBase):
             res_dict.update(dict(class_prob = prob_class))
 
         return labels, res_dict
+
 
     def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
         """
