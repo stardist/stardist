@@ -24,7 +24,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers, use_sequence)
 
     if use_sequence:
         X, Y = NumpySequence(X), NumpySequence(Y)
-    
+
     conf = Config3D(
         backbone=backbone,
         rays=n_rays,
@@ -59,10 +59,10 @@ def test_foreground_warning():
         train_foreground_only = 1,
         train_steps_per_epoch = 1,
         train_epochs=1,
-        train_batch_size=2,        
+        train_batch_size=2,
     )
     X, Y = np.ones((2,32,48,16), np.float32), np.ones((2,32,48,16),np.uint16)
-    
+
     with pytest.warns(UserWarning):
         StarDist3D(conf, None, None).train(
             X, Y, validation_data=(X[-1:], Y[-1:]))
@@ -105,7 +105,7 @@ def test_predict_dense_sparse():
     labels2, res2 = model.predict_instances(x, n_tiles=(1, 2, 2), sparse = True)
     assert np.allclose(labels1, labels2)
     assert all(np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) )
-    return labels2, labels2 
+    return labels2, labels2
 
 
 def test_load_and_export_TF():
@@ -205,13 +205,13 @@ def print_receptive_fields():
         fov   = model._compute_receptive_field()
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
-        
 
 
-    
+
+
 def test_classes():
     from stardist.utils import mask_to_categorical
-    
+
     def _parse(n_classes, classes):
         model = StarDist3D(Config3D(n_classes = n_classes), None, None)
         classes =  model._parse_classes_arg(classes, length = 1)
@@ -219,7 +219,7 @@ def test_classes():
 
     def _check_single_val(n_classes, classes=1):
         img, y_gt = real_image3d()
-        
+
         labels_gt = set(np.unique(y_gt[y_gt>0]))
         p, cls_dict = mask_to_categorical(y_gt,
                                           n_classes=n_classes,
@@ -228,21 +228,21 @@ def test_classes():
         assert tuple(cls_dict.keys()) == (classes,) and  set(cls_dict[classes]) == labels_gt
         assert set(np.where(np.count_nonzero(p, axis = (0,1,2)))[0]) == set({0,classes})
         return p, cls_dict
-        
+
     assert _parse(None,"auto") is None
     assert _parse(1,   "auto") == (1,)
 
     p, cls_dict = _check_single_val(1,1)
     p, cls_dict = _check_single_val(2,1)
     p, cls_dict = _check_single_val(7,6)
-    
+
     return p
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None, epochs=20):
     from skimage.measure import regionprops
-    
+
     img, mask = real_image3d()
-    img = normalize(img,1,99.8) 
+    img = normalize(img,1,99.8)
 
     if n_channel is not None:
         img = np.repeat(img[..., np.newaxis], n_channel, axis=-1)
@@ -265,7 +265,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     )
 
     # efine some classes according to the areas
-    if n_classes is not None and n_classes>1 and classes=="area":
+    if n_classes is not None and n_classes>1 and classes=="auto":
         regs = regionprops(mask)
         areas = tuple(r.area for r in regs)
         inds = np.argsort(areas)
@@ -276,12 +276,12 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
                 classes[regs[j].label] = i+1
         classes = (classes,)*len(X)
 
-        
+
     model = StarDist3D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
 
     val_classes = {k:1 for k in set(mask[mask>0])}
-    
-    s = model.train(X, Y, classes = classes, epochs = epochs, 
+
+    s = model.train(X, Y, classes = classes, epochs = epochs,
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
@@ -298,10 +298,10 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     assert np.allclose(labels1, labels2)
     assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
-    
+
     return model, img, res1, res2, res3
 
-    
+
 @pytest.mark.parametrize('n_classes, classes, n_channel, epochs',
                          [ (None, "auto", 1, 1),
                            (1, "auto", 3, 1),
@@ -322,7 +322,7 @@ def test_load_and_export_TF(model3d):
     model.export_TF(single_output=True, upsample_grid=True)
 
 
-    
+
 if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())

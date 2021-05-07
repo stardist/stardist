@@ -9,7 +9,7 @@ from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d, NumpySequence
-    
+
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 4, False), (4, (8, 2), 2, 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
@@ -27,7 +27,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
 
     if use_sequence:
         X, Y = NumpySequence(X), NumpySequence(Y)
-        
+
     conf = Config2D(
         n_rays=n_rays,
         grid=grid,
@@ -49,7 +49,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
 
     # deactivate as order of labels might not be the same
     # assert all(np.allclose(u,v) for u,v in zip(ref,res))
-    
+
     return model
 
 
@@ -62,7 +62,7 @@ def test_foreground_warning():
         train_foreground_only = 1,
         train_steps_per_epoch = 1,
         train_epochs=1,
-        train_batch_size=2,        
+        train_batch_size=2,
     )
     X,Y = np.ones((2,100,100), np.float32), np.ones((2,100,100),np.uint16)
 
@@ -119,7 +119,7 @@ def test_stardistdata(n_classes = None, classes = 1):
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
                        grid = (2,2),
-                       n_classes = n_classes, classes = (classes,classes), 
+                       n_classes = n_classes, classes = (classes,classes),
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
     a, b = s[0]
     return a,b, s
@@ -210,7 +210,7 @@ def test_stardistdata_multithreaded(workers=5):
         return x,y
 
     n_samples = 4
-    
+
     _ , mask = real_image2d()
     Y = np.stack([mask+i for i in range(n_samples)])
     s = StarDistData2D(Y.astype(np.float32), Y,
@@ -225,7 +225,7 @@ def test_stardistdata_multithreaded(workers=5):
 
     assert all([np.allclose(_r1[0], _r2[0]) for _r1,_r2 in zip(a1, a2)])
     assert all([np.allclose(_r1[0], _r2[0]) for _r1,_r2 in zip(b1, b2)])
-    assert all([np.allclose(_r1[1], _r2[1]) for _r1,_r2 in zip(b1, b2)])    
+    assert all([np.allclose(_r1[1], _r2[1]) for _r1,_r2 in zip(b1, b2)])
     return a2, b2, s
 
 
@@ -239,9 +239,9 @@ def test_imagej_rois_export(tmpdir, model2d):
 
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
-    from skimage.measure import regionprops    
+    from skimage.measure import regionprops
     img, mask = real_image2d()
-    img = normalize(img,1,99.8) 
+    img = normalize(img,1,99.8)
 
     if n_channel is not None:
         img = np.repeat(img[..., np.newaxis], n_channel, axis=-1)
@@ -263,7 +263,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         train_patch_size=(128, 128),
     )
 
-    if n_classes is not None and n_classes>1 and classes=="area":
+    if n_classes is not None and n_classes>1 and classes=="auto":
         regs = regionprops(mask)
         areas = tuple(r.area for r in regs)
         inds = np.argsort(areas)
@@ -273,12 +273,12 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
             for j in inds[s]:
                 classes[regs[j].label] = i+1
         classes = (classes,)*len(X)
-        
+
     model = StarDist2D(conf, name=None if basedir is None else "stardist", basedir=str(basedir))
 
     val_classes = {k:1 for k in set(mask[mask>0])}
-    
-    s = model.train(X, Y, classes = classes, epochs = 30, 
+
+    s = model.train(X, Y, classes = classes, epochs = 30,
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
@@ -292,7 +292,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     assert np.allclose(labels1, labels2)
     assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
-    
+
     return model, img, res1, res2, res3
 
 @pytest.mark.parametrize('n_classes, classes, n_channel',
@@ -307,7 +307,7 @@ def test_model_multiclass(tmpdir, n_classes, classes, n_channel):
 
 def test_classes():
     from stardist.utils import mask_to_categorical
-    
+
     def _parse(n_classes, classes):
         model = StarDist2D(Config2D(n_classes = n_classes), None, None)
         classes =  model._parse_classes_arg(classes, length = 1)
@@ -323,16 +323,16 @@ def test_classes():
         assert tuple(cls_dict.keys()) == (classes,) and  set(cls_dict[classes]) == labels_gt
         assert set(np.where(np.count_nonzero(p, axis = (0,1)))[0]) == set({0,classes})
         return p, cls_dict
-        
+
     assert _parse(None,"auto") is None
     assert _parse(1,   "auto") == (1,)
 
     p, cls_dict = _check_single_val(1,1)
     p, cls_dict = _check_single_val(2,1)
     p, cls_dict = _check_single_val(7,6)
-    
+
     return p
-    
+
 
 def print_receptive_fields():
     for backbone in ("unet",):
@@ -358,15 +358,15 @@ def test_predict_dense_sparse(model2d):
 
 def test_speed(model2d):
     from time import time
-    
+
     model = model2d
     img, mask = real_image2d()
     x = normalize(img, 1, 99.8)
     x = np.tile(x,(6,6))
     print(x.shape)
-    
+
     stats = []
-    
+
     for mode, n_tiles,sparse in product(("normal", "big"),(None,(2,2)),(True, False)):
            t = time()
            if mode=="normal":
@@ -376,14 +376,14 @@ def test_speed(model2d):
                                                          block_size = 1024+256,
                                                          context = 64, min_overlap = 64,
                                                          n_tiles=n_tiles, sparse = sparse)
-               
+
            t = time()-t
            s = f"mode={mode}\ttiles={n_tiles}\tsparse={sparse}\t{t:.2f}s"
            print(s)
            stats.append(s)
-    
+
     for s in stats:
-        print(s) 
+        print(s)
 
 
 def render_label_pred_example2(model2d):
@@ -438,12 +438,12 @@ def test_load_and_export_TF(model2d):
     # model.export_TF(single_output=False, upsample_grid=True)
     model.export_TF(single_output=True, upsample_grid=False)
     model.export_TF(single_output=True, upsample_grid=True)
-    
+
 if __name__ == '__main__':
     from conftest import _model2d
     # test_speed(_model2d())
     # _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None)
     # a,b,s = test_stardistdata_multithreaded()
     # test_model("foo", 32, (1,1), None, 4)
-    
+
     test_foreground_warning()
