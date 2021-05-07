@@ -591,11 +591,11 @@ class StarDistBase(BaseModel):
 
 
     def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse = False,  
+                          sparse=False,
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
-                          verbose = False,
-                          return_labels = True,
+                          verbose=False,
+                          return_labels=True,
                           predict_kwargs=None, nms_kwargs=None, overlap_label=None):
         """Predict instance segmentation from input image.
 
@@ -609,9 +609,9 @@ class StarDistBase(BaseModel):
         normalizer : :class:`csbdeep.data.Normalizer` or None
             (Optional) normalization of input image before prediction.
             Note that the default (``None``) assumes ``img`` to be already normalized.
-        sparse: bool 
-            If true, aggregate probabilities/distances sparsely during tiled 
-            prediction to save memory (recommended). Currently only 3D supported
+        sparse: bool
+            If true, aggregate probabilities/distances sparsely during tiled
+            prediction to save memory (recommended).
         prob_thresh : float or None
             Consider only object candidates from pixels with predicted object probability
             above this threshold (also see `optimize_thresholds`).
@@ -626,6 +626,10 @@ class StarDistBase(BaseModel):
             ``None`` denotes that no tiling should be used.
         show_tile_progress: bool
             Whether to show progress during tiled prediction.
+        verbose: bool
+            Whether to print some info messages.
+        return_labels: bool
+            Whether to create a label image, otherwise return None in its place.
         predict_kwargs: dict
             Keyword arguments for ``predict`` function of Keras model.
         nms_kwargs: dict
@@ -652,19 +656,13 @@ class StarDistBase(BaseModel):
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
-                
+
         if sparse:
-            res = self.predict_sparse(img, prob_thresh = prob_thresh,
-                                    axes=axes, normalizer=normalizer,
-                                    n_tiles=n_tiles,
-                                    show_tile_progress=show_tile_progress,
-                                    **predict_kwargs)
+            res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
+                                      prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs)
         else:
-            res = self.predict(img, axes=axes, normalizer=normalizer,
-                                      n_tiles=n_tiles,
-                                      show_tile_progress=show_tile_progress,
-                                      **predict_kwargs)
-            
+            res = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
+                               show_tile_progress=show_tile_progress, **predict_kwargs)
             res = tuple(res) + (None,)
 
         if self._is_multiclass():
@@ -672,63 +670,63 @@ class StarDistBase(BaseModel):
         else:
             prob, dist, points = res
             prob_class = None
-            
+
         return self._instances_from_prediction(_shape_inst, prob, dist,
-                                               points = points,
-                                               prob_class = prob_class,
+                                               points=points,
+                                               prob_class=prob_class,
                                                prob_thresh=prob_thresh,
                                                nms_thresh=nms_thresh,
-                                               return_labels = return_labels, 
-                                               overlap_label=overlap_label,
-                                               **nms_kwargs)
-
-    
-    def _predict_instances_old(self, img, axes=None, normalizer=None,
-                          sparse = False, 
-                          prob_thresh=None, nms_thresh=None,
-                          n_tiles=None, show_tile_progress=True,
-                          verbose = False,
-                          predict_kwargs=None, nms_kwargs=None, overlap_label=None):
-        """
-        old version, should be removed.... 
-        """
-        if predict_kwargs is None:
-            predict_kwargs = {}
-        if nms_kwargs is None:
-            nms_kwargs = {}
-
-        nms_kwargs.setdefault("verbose", verbose)
-
-        _axes         = self._normalize_axes(img, axes)
-        _axes_net     = self.config.axes
-        _permute_axes = self._make_permute_axes(_axes, _axes_net)
-        _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
-
-                
-        res = self.predict(img, axes=axes, normalizer=normalizer,
-                                      n_tiles=n_tiles,
-                                      show_tile_progress=show_tile_progress,
-                                      **predict_kwargs)
-            
-        res = tuple(res) + (None,)
-
-        if self._is_multiclass():
-            prob, dist, prob_class, points = res
-        else:
-            prob, dist, points = res
-            prob_class = None
-            
-        
-        return self._instances_from_prediction_old(_shape_inst, prob, dist,
-                                               points = points,
-                                               prob_class = prob_class,
-                                               prob_thresh=prob_thresh,
-                                               nms_thresh=nms_thresh,
+                                               return_labels=return_labels,
                                                overlap_label=overlap_label,
                                                **nms_kwargs)
 
 
-    def predict_instances_big(self, img, axes, block_size, min_overlap, context=None, 
+    # def _predict_instances_old(self, img, axes=None, normalizer=None,
+    #                       sparse = False,
+    #                       prob_thresh=None, nms_thresh=None,
+    #                       n_tiles=None, show_tile_progress=True,
+    #                       verbose = False,
+    #                       predict_kwargs=None, nms_kwargs=None, overlap_label=None):
+    #     """
+    #     old version, should be removed....
+    #     """
+    #     if predict_kwargs is None:
+    #         predict_kwargs = {}
+    #     if nms_kwargs is None:
+    #         nms_kwargs = {}
+
+    #     nms_kwargs.setdefault("verbose", verbose)
+
+    #     _axes         = self._normalize_axes(img, axes)
+    #     _axes_net     = self.config.axes
+    #     _permute_axes = self._make_permute_axes(_axes, _axes_net)
+    #     _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
+
+
+    #     res = self.predict(img, axes=axes, normalizer=normalizer,
+    #                                   n_tiles=n_tiles,
+    #                                   show_tile_progress=show_tile_progress,
+    #                                   **predict_kwargs)
+
+    #     res = tuple(res) + (None,)
+
+    #     if self._is_multiclass():
+    #         prob, dist, prob_class, points = res
+    #     else:
+    #         prob, dist, points = res
+    #         prob_class = None
+
+
+    #     return self._instances_from_prediction_old(_shape_inst, prob, dist,
+    #                                            points = points,
+    #                                            prob_class = prob_class,
+    #                                            prob_thresh=prob_thresh,
+    #                                            nms_thresh=nms_thresh,
+    #                                            overlap_label=overlap_label,
+    #                                            **nms_kwargs)
+
+
+    def predict_instances_big(self, img, axes, block_size, min_overlap, context=None,
                               labels_out=None, labels_out_dtype=np.int32, show_progress=True, **kwargs):
         """Predict instance segmentation from very large input images.
 
@@ -834,7 +832,7 @@ class StarDistBase(BaseModel):
         # problem_ids = []
         label_offset = 1
 
-        kwargs_override = dict(axes=axes, overlap_label=None)
+        kwargs_override = dict(axes=axes, overlap_label=None, return_labels=True)
         if show_progress:
             kwargs_override['show_tile_progress'] = False # disable progress for predict_instances
         for k,v in kwargs_override.items():
@@ -861,9 +859,9 @@ class StarDistBase(BaseModel):
 
             for k,v in polys.items():
                 polys_all.setdefault(k,[]).append(v)
-                
+
             label_offset += len(polys['prob'])
-            del labels 
+            del labels
 
         polys_all = {k: (np.concatenate(v) if k in OBJECT_KEYS else v[0]) for k,v in polys_all.items()}
 
