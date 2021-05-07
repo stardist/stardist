@@ -78,7 +78,7 @@ def test_acc(img, grid):
 @pytest.mark.parametrize('grid', ((1,1),(16,16)))
 @pytest.mark.parametrize('n_rays', (11,32))
 @pytest.mark.parametrize('shape', ((356, 299),(114, 217)))
-def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
+def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.3):
     np.random.seed(42)
     from stardist.geometry.geom2d import _polygons_to_label_old, _dist_to_coord_old
     from stardist.nms import _non_maximum_suppression_old
@@ -103,11 +103,10 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.4):
     img1 = _polygons_to_label_old(coord, prob, inds1, shape=shape)
     img2 = polygons_to_label(disti2, points2, shape=shape)
 
-
     assert len(points1) == len(points2)
     assert np.allclose(points1, points2)
     assert np.allclose(img1>0, img2>0)
-
+    
     return points1, img1, points2, img2
 
 
@@ -191,5 +190,5 @@ def bench():
     return a1, a2
 
 if __name__ == '__main__':
-    points1, img1, points2, img2 = test_old_new((62,82),32,(2,2), nms_thresh = .1)
+    points1, img1, points2, img2 = test_old_new((356, 299),32,(1,1), nms_thresh = .3)
 

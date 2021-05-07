@@ -37,6 +37,7 @@ def test_types_gpu(img, n_rays):
 def test_cpu_gpu(img, n_rays):
     s_cpp = star_dist(img, n_rays=n_rays, mode="cpp")
     s_ocl = star_dist(img, n_rays=n_rays, mode="opencl")
+    print(img.shape, s_cpp.shape)
     check_similar(s_cpp, s_ocl)
 
 

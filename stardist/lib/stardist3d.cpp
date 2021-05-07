@@ -262,6 +262,7 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
   npy_intp *dims = PyArray_DIMS(src);
 
   npy_intp dims_dst[4];
+  // the resulting shape with tuple(slice(0, None, g) for g in grid)
   dims_dst[0] = (dims[0]-1)/grid_z+1;
   dims_dst[1] = (dims[1]-1)/grid_y+1;
   dims_dst[2] = (dims[2]-1)/grid_x+1;
