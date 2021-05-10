@@ -70,11 +70,11 @@ class StarDistData3D(StarDistDataBase):
         if X.ndim == 4: # input image has no channel axis
             X = np.expand_dims(X,-1)
 
-        tmp = np.stack([edt_prob(lbl, anisotropy=self.anisotropy) for lbl in Y])
+        tmp = [edt_prob(lbl, anisotropy=self.anisotropy)[self.ss_grid[1:]] for lbl in Y]
         if len(Y) == 1:
-            prob = tmp[0][np.newaxis][self.ss_grid]
+            prob = tmp[0][np.newaxis]
         else:
-            prob = np.stack(tmp[self.ss_grid], out=self.out_edt_prob[:len(Y)])
+            prob = np.stack(tmp, out=self.out_edt_prob[:len(Y)])
 
         tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode, grid=self.grid) for lbl in Y]
         if len(Y) == 1:
