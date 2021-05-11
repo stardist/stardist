@@ -81,8 +81,6 @@ setup(
         ),
     ],
 
-    entry_points={'napari.plugin': 'StarDist = stardist.napari_plugin'},
-
     package_data={'stardist': [ 'kernels/*.cl', 'data/images/*', 'resources/*' ] },
 
     classifiers=[
@@ -94,8 +92,6 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-
-        'Framework :: napari',
     ],
 
     install_requires=[
