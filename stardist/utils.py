@@ -362,3 +362,13 @@ def mask_to_categorical(y, n_classes, classes, return_cls_dict=False):
 
 def _is_floatarray(x):
     return isinstance(x.dtype.type(0),np.floating)
+
+
+def abspath(root, relpath):
+    from pathlib import Path
+    root = Path(root)
+    if root.is_dir():
+        path = root/relpath
+    else:
+        path = root.parent/relpath
+    return str(path.absolute())

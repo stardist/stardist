@@ -411,13 +411,18 @@ class StarDistBase(BaseModel):
                 sh[channel] = n_channel
                 return np.empty(sh,dtype)
 
+            if callable(show_tile_progress):
+                progress, _show_tile_progress = show_tile_progress, True
+            else:
+                progress, _show_tile_progress = tqdm, show_tile_progress
+
             n_block_overlaps = [int(np.ceil(overlap/blocksize)) for overlap, blocksize
                                 in zip(axes_net_tile_overlaps, axes_net_div_by)]
 
             num_tiles_used = total_n_tiles(x, _n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps)
 
-            tile_generator = tqdm(tile_iterator(x, _n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
-                                                disable=(not show_tile_progress), total=num_tiles_used)
+            tile_generator = progress(tile_iterator(x, _n_tiles, block_sizes=axes_net_div_by, n_block_overlaps=n_block_overlaps),
+                                                    disable=(not _show_tile_progress), total=num_tiles_used)
 
             return tile_generator, tuple(sh), create_empty_output
 
@@ -443,6 +448,9 @@ class StarDistBase(BaseModel):
             that are processed independently and re-assembled.
             This parameter denotes a tuple of the number of tiles for every image axis (see ``axes``).
             ``None`` denotes that no tiling should be used.
+        show_tile_progress: bool or callable
+            If boolean, indicates whether to show progress (via tqdm) during tiled prediction.
+            If callable, must be a drop-in replacement for tqdm.
         show_tile_progress: bool
             Whether to show progress during tiled prediction.
         predict_kwargs: dict
@@ -596,7 +604,8 @@ class StarDistBase(BaseModel):
                           n_tiles=None, show_tile_progress=True,
                           verbose=False,
                           return_labels=True,
-                          predict_kwargs=None, nms_kwargs=None, overlap_label=None):
+                          predict_kwargs=None, nms_kwargs=None,
+                          overlap_label=None, return_predict=False):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -636,10 +645,13 @@ class StarDistBase(BaseModel):
             Keyword arguments for non-maximum suppression.
         overlap_label: scalar or None
             if not None, label the regions where polygons overlap with that value
+        return_predict: bool
+            Also return the outputs of :func:`predict` (in a separate tuple)
+            If True, implies sparse = False
 
         Returns
         -------
-        (:class:`numpy.ndarray`, dict)
+        (:class:`numpy.ndarray`, dict), (optional: return tuple of :func:`predict`)
             Returns a tuple of the label instances image and also
             a dictionary with the details (coordinates, etc.) of all remaining polygons/polyhedra.
 
@@ -649,13 +661,16 @@ class StarDistBase(BaseModel):
         if nms_kwargs is None:
             nms_kwargs = {}
 
+        if return_predict and sparse:
+            sparse = False
+            warnings.warn("Setting sparse to False because return_predict is True")
+
         nms_kwargs.setdefault("verbose", verbose)
 
         _axes         = self._normalize_axes(img, axes)
         _axes_net     = self.config.axes
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
-
 
         if sparse:
             res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
@@ -671,14 +686,19 @@ class StarDistBase(BaseModel):
             prob, dist, points = res
             prob_class = None
 
-        return self._instances_from_prediction(_shape_inst, prob, dist,
-                                               points=points,
-                                               prob_class=prob_class,
-                                               prob_thresh=prob_thresh,
-                                               nms_thresh=nms_thresh,
-                                               return_labels=return_labels,
-                                               overlap_label=overlap_label,
-                                               **nms_kwargs)
+        res_instances = self._instances_from_prediction(_shape_inst, prob, dist,
+                                                        points=points,
+                                                        prob_class=prob_class,
+                                                        prob_thresh=prob_thresh,
+                                                        nms_thresh=nms_thresh,
+                                                        return_labels=return_labels,
+                                                        overlap_label=overlap_label,
+                                                        **nms_kwargs)
+
+        if return_predict:
+            return res_instances, tuple(res[:-1])
+        else:
+            return res_instances
 
 
     # def _predict_instances_old(self, img, axes=None, normalizer=None,
@@ -832,7 +852,7 @@ class StarDistBase(BaseModel):
         # problem_ids = []
         label_offset = 1
 
-        kwargs_override = dict(axes=axes, overlap_label=None, return_labels=True)
+        kwargs_override = dict(axes=axes, overlap_label=None, return_labels=True, return_predict=False)
         if show_progress:
             kwargs_override['show_tile_progress'] = False # disable progress for predict_instances
         for k,v in kwargs_override.items():
