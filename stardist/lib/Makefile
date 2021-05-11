@@ -17,11 +17,11 @@ BUILDDIR=build
 all: lib
 
 qhull_cpp:
-	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && $(CXX) -c $(CFLAGSQHULL) -fpermissive -I../qhull_src/src/ ../qhull_src/src/libqhullcpp/*.cpp 
+	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && $(CXX) -c $(CFLAGSQHULL) -fpermissive -I../external/qhull_src/src/ ../external/qhull_src/src/libqhullcpp/*.cpp 
 
 qhull_c:
-	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && $(CC) -c $(CFLAGSQHULL) -I../qhull_src/src/ ../qhull_src/src/libqhull_r/*.c
+	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && $(CC) -c $(CFLAGSQHULL) -I../external/qhull_src/src/ ../external/qhull_src/src/libqhull_r/*.c
 
 lib: qhull_c qhull_cpp stardist3d_impl.cpp stardist3d_lib.c stardist3d_lib.h utils.cpp 
-	$(CXX) $(CFLAGSLIB) $(CFLAGS) -o $(LIB) stardist3d_impl.cpp stardist3d_lib.c stardist3d_lib.h utils.cpp -I./qhull_src/src/ $(BUILDDIR)/*.o 
+	$(CXX) $(CFLAGSLIB) $(CFLAGS) -o $(LIB) stardist3d_impl.cpp stardist3d_lib.c stardist3d_lib.h utils.cpp -I./external/qhull_src/src/ -I./external/nanoflann $(BUILDDIR)/*.o 
 

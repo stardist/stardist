@@ -43,11 +43,19 @@ def test_label():
     return polyhedron_to_label(dist, points, rays, shape=(33, 44, 55))
 
 
-def test_nms_and_label(nms_thresh=0.1, shape=(33, 44, 55), noise=.1, n_rays=32):
-    points, probi, disti, rays = create_random_suppressed(
-        nms_thresh, shape=shape, noise=noise, n_rays=n_rays)
-    lbl = polyhedron_to_label(disti, points, rays, shape=shape)
-    return lbl
+def test_nms_kdtree(nms_thresh=0.1, shape=(33, 44, 55), noise=.1, n_rays=32):
+    prob, dist, rays = create_random_data(shape, noise, n_rays)
+    points1, probi1, disti1 = non_maximum_suppression_3d(dist, prob, rays,
+                                                         prob_thresh=0.9,nms_thresh=nms_thresh,
+                                                         use_kdtree=False, verbose=True)
+    points2, probi2, disti2 = non_maximum_suppression_3d(dist, prob, rays,
+                                                         prob_thresh=0.9,nms_thresh=nms_thresh,
+                                                         use_kdtree=True, verbose=True)
+    assert np.allclose(points1, points2)
+    assert np.allclose(probi1 , probi2)
+    assert np.allclose(disti1 , disti2)
+    return (points1, probi1, disti1),(points2, probi2, disti2)
+
 
 @pytest.mark.parametrize('noise',(0,.2,.6,.9))
 @pytest.mark.parametrize('n_rays',(32,65,100))
@@ -62,14 +70,15 @@ def test_nms_accuracy(noise, n_rays):
     iou = np.count_nonzero(mask1*mask2)/min(np.count_nonzero(mask1), np.count_nonzero(mask2)+1e-10)
     prob= [1,.5]
     print("iou =", iou)
-    sup1, _,_  = non_maximum_suppression_3d_sparse(dist,prob,points,
+    sup1  = non_maximum_suppression_3d_sparse(dist,prob,points,
                                                    rays = rays,
                                                    nms_thresh = 0.95*iou,
-                                                   verbose = True)
-    sup2, _,_  = non_maximum_suppression_3d_sparse(dist,prob,points,
+                                                   verbose = True)[0]
+    
+    sup2  = non_maximum_suppression_3d_sparse(dist,prob,points,
                                                    rays = rays,
                                                    nms_thresh = 1.05*iou,
-                                                   verbose = True)
+                                                   verbose = True)[0]
     assert len(sup1)==1 and len(sup2)==2
     return mask1, mask2
 
@@ -113,6 +122,4 @@ def test_rays_volume_area(n_rays = 187):
     return lbl
 
 if __name__ == '__main__':
-    # np.random.seed(42)
-    # lbl = test_nms_and_label(.2, shape=(44, 55, 66), noise=.2)
     lbl = test_rays_volume_area()

@@ -11,40 +11,45 @@ from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from distutils.version import LooseVersion
-
+from scipy.ndimage import zoom
+from skimage.measure  import regionprops
 keras = keras_import()
 K = keras_import('backend')
 Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate = keras_import('layers', 'Input', 'Conv3D', 'MaxPooling3D', 'UpSampling3D', 'Add', 'Concatenate')
 Model = keras_import('models', 'Model')
 
-from .base import StarDistBase, StarDistDataBase
+from .base import StarDistBase, StarDistDataBase, _tf_version_at_least
 from ..sample_patches import sample_patches
-from ..utils import edt_prob, _normalize_grid
+from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
-from ..nms import non_maximum_suppression_3d
-
+from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
 
 
 class StarDistData3D(StarDistDataBase):
 
-    def __init__(self, X, Y, batch_size, rays, length, patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
+    def __init__(self, X, Y, batch_size, rays, length,
+                 n_classes=None, classes=None,
+                 patch_size=(128,128,128), grid=(1,1,1), anisotropy=None, augmenter=None, foreground_prob=0, **kwargs):
         # TODO: support shape completion as in 2D?
 
         super().__init__(X=X, Y=Y, n_rays=len(rays), grid=grid,
+                         classes=classes, n_classes=n_classes,
                          batch_size=batch_size, patch_size=patch_size, length=length,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.rays = rays
         self.anisotropy = anisotropy
         self.sd_mode = 'opencl' if self.use_gpu else 'cpp'
-
         # re-use arrays
         if self.batch_size > 1:
             self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size)+(() if self.n_channel is None else (self.n_channel,)), dtype=np.float32)
-            self.out_edt_prob = np.empty((self.batch_size,)+tuple(self.patch_size), dtype=np.float32)
-            self.out_star_dist3D = np.empty((self.batch_size,)+tuple(self.patch_size)+(len(self.rays),), dtype=np.float32)
+            patch_size_grid = tuple((p-1)//g+1 for p,g in zip(self.patch_size,self.grid))
+            self.out_edt_prob = np.empty((self.batch_size,)+patch_size_grid, dtype=np.float32)
+            self.out_star_dist3D = np.empty((self.batch_size,)+patch_size_grid+(len(self.rays),), dtype=np.float32)
+            if self.n_classes is not None:
+                self.out_prob_class = np.empty((self.batch_size,)+tuple(self.patch_size)+(self.n_classes+1,), dtype=np.float32)
 
 
     def __getitem__(self, i):
@@ -67,13 +72,13 @@ class StarDistData3D(StarDistDataBase):
         if X.ndim == 4: # input image has no channel axis
             X = np.expand_dims(X,-1)
 
-        tmp = [edt_prob(lbl, anisotropy=self.anisotropy) for lbl in Y]
+        tmp = [edt_prob(lbl, anisotropy=self.anisotropy)[self.ss_grid[1:]] for lbl in Y]
         if len(Y) == 1:
             prob = tmp[0][np.newaxis]
         else:
             prob = np.stack(tmp, out=self.out_edt_prob[:len(Y)])
 
-        tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode) for lbl in Y]
+        tmp = [star_dist3D(lbl, self.rays, mode=self.sd_mode, grid=self.grid) for lbl in Y]
         if len(Y) == 1:
             dist = tmp[0][np.newaxis]
         else:
@@ -81,15 +86,25 @@ class StarDistData3D(StarDistDataBase):
 
         prob = dist_mask = np.expand_dims(prob, -1)
 
-        # subsample wth given grid
-        dist_mask = dist_mask[self.ss_grid]
-        prob      = prob[self.ss_grid]
-        dist      = dist[self.ss_grid]
-
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
 
-        return [X], [prob,dist]
+        if self.n_classes is None:
+            return [X], [prob,dist]
+        else:
+            tmp = [mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx)]
+            # TODO: downsample here before stacking?
+            if len(Y) == 1:
+                prob_class = tmp[0][np.newaxis]
+            else:
+                prob_class = np.stack(tmp, out=self.out_prob_class[:len(Y)])
+
+            # TODO: investigate downsampling via simple indexing vs. using 'zoom'
+            # prob_class = prob_class[self.ss_grid]
+            # 'zoom' might lead to better registered maps (especially if upscaled later)
+            prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
+
+            return [X], [prob,dist, prob_class]
 
 
 
@@ -108,6 +123,8 @@ class Config3D(BaseConfig):
     grid : (int,int,int)
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
+    n_classes : None or int
+        Number of object classes to use for multi-class predection (use None to disable)
     anisotropy : (float,float,float)
         Anisotropy of objects along each of the axes.
         Use ``None`` to disable only for (nearly) isotropic objects shapes.
@@ -173,10 +190,10 @@ class Config3D(BaseConfig):
     use_gpu : bool
         Indicate that the data generator should use OpenCL to do computations on the GPU.
 
-        .. _ReduceLROnPlateau: https://keras.io/callbacks/#reducelronplateau
+        .. _ReduceLROnPlateau: https://keras.io/api/callbacks/reduce_lr_on_plateau/
     """
 
-    def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), anisotropy=None, backbone='resnet', **kwargs):
+    def __init__(self, axes='ZYX', rays=None, n_channel_in=1, grid=(1,1,1), n_classes=None, anisotropy=None, backbone='unet', **kwargs):
 
         if rays is None:
             if 'rays_json' in kwargs:
@@ -196,6 +213,7 @@ class Config3D(BaseConfig):
         self.anisotropy                = anisotropy if anisotropy is None else tuple(anisotropy)
         self.backbone                  = str(backbone).lower()
         self.rays_json                 = rays.to_json()
+        self.n_classes                 = None if n_classes is None else int(n_classes)
 
         if 'anisotropy' in self.rays_json['kwargs']:
             if self.rays_json['kwargs']['anisotropy'] is None and self.anisotropy is not None:
@@ -245,7 +263,8 @@ class Config3D(BaseConfig):
         self.train_sample_cache        = True
 
         self.train_dist_loss           = 'mae'
-        self.train_loss_weights        = 1,0.2
+        self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,1)
+        self.train_class_weights       = (1,1) if self.n_classes is None else (1,)*(self.n_classes+1)
         self.train_epochs              = 400
         self.train_steps_per_epoch     = 100
         self.train_learning_rate       = 0.0003
@@ -265,6 +284,12 @@ class Config3D(BaseConfig):
 
         self.update_parameters(False, **kwargs)
 
+        # FIXME: put into is_valid()
+        if not len(self.train_loss_weights) == (2 if self.n_classes is None else 3):
+            raise ValueError(f"train_loss_weights {self.train_loss_weights} not compatible with n_classes ({self.n_classes}): must be 3 weights if n_classes is not None, otherwise 2")
+
+        if not len(self.train_class_weights) == (2 if self.n_classes is None else self.n_classes+1):
+            raise ValueError(f"train_class_weights {self.train_class_weights} not compatible with n_classes ({self.n_classes}): must be 'n_classes + 1' weights if n_classes is not None, otherwise 2")
 
 
 class StarDist3D(StarDistBase):
@@ -327,17 +352,32 @@ class StarDist3D(StarDistBase):
             pooled *= pool
             for _ in range(self.config.unet_n_conv_per_depth):
                 pooled_img = Conv3D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
-                                    padding="same", activation=self.config.unet_activation)(pooled_img)
+                                    padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling3D(pool)(pooled_img)
 
-        unet     = unet_block(**unet_kwargs)(pooled_img)
+        unet_base = unet_block(**unet_kwargs)(pooled_img)
+
         if self.config.net_conv_after_unet > 0:
             unet = Conv3D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                          name='features', padding='same', activation=self.config.unet_activation)(unet)
+                          name='features', padding='same', activation=self.config.unet_activation)(unet_base)
+        else:
+            unet = unet_base
 
-        output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(unet)
+        output_prob = Conv3D(                 1, (1,1,1), name='prob', padding='same', activation='sigmoid')(unet)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(unet)
-        return Model([input_img], [output_prob,output_dist])
+
+        # attach extra classification head when self.n_classes is given
+        if self._is_multiclass():
+            if self.config.net_conv_after_unet > 0:
+                unet_class  = Conv3D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                                     name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+            else:
+                unet_class  = unet_base
+
+            output_prob_class  = Conv3D(self.config.n_classes+1, (1,1,1), name='prob_class', padding='same', activation='softmax')(unet_class)
+            return Model([input_img], [output_prob,output_dist,output_prob_class])
+        else:
+            return Model([input_img], [output_prob,output_dist])
 
 
     def _build_resnet(self):
@@ -365,16 +405,30 @@ class StarDist3D(StarDistBase):
                 n_filter *= 2
             layer = resnet_block(n_filter, pool=tuple(pool), **resnet_kwargs)(layer)
 
+        layer_base = layer
+
         if self.config.net_conv_after_resnet > 0:
             layer = Conv3D(self.config.net_conv_after_resnet, self.config.resnet_kernel_size,
-                           name='features', padding='same', activation=self.config.resnet_activation)(layer)
+                           name='features', padding='same', activation=self.config.resnet_activation)(layer_base)
 
-        output_prob = Conv3D(1,                  (1,1,1), name='prob', padding='same', activation='sigmoid')(layer)
+        output_prob = Conv3D(                 1, (1,1,1), name='prob', padding='same', activation='sigmoid')(layer)
         output_dist = Conv3D(self.config.n_rays, (1,1,1), name='dist', padding='same', activation='linear')(layer)
-        return Model([input_img], [output_prob,output_dist])
+
+        # attach extra classification head when self.n_classes is given
+        if self._is_multiclass():
+            if self.config.net_conv_after_resnet > 0:
+                layer_class  = Conv3D(self.config.net_conv_after_resnet, self.config.resnet_kernel_size,
+                                      name='features_class', padding='same', activation=self.config.resnet_activation)(layer_base)
+            else:
+                layer_class  = layer_base
+
+            output_prob_class  = Conv3D(self.config.n_classes+1, (1,1,1), name='prob_class', padding='same', activation='softmax')(layer_class)
+            return Model([input_img], [output_prob,output_dist,output_prob_class])
+        else:
+            return Model([input_img], [output_prob,output_dist])
 
 
-    def train(self, X,Y, validation_data, augmenter=None, seed=None, epochs=None, steps_per_epoch=None):
+    def train(self, X, Y, validation_data, classes='auto', augmenter=None, seed=None, epochs=None, steps_per_epoch=None, workers=1):
         """Train the neural network with the given data.
 
         Parameters
@@ -383,8 +437,13 @@ class StarDist3D(StarDistBase):
             Input images
         Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
             Label masks
-        validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`)
-            Tuple of X,Y validation arrays.
+        classes (optional): 'auto' or iterable of same length as X
+             label id -> class id mapping for each label mask of Y if multiclass prediction is activated (n_classes > 0)
+             list of dicts with label id -> class id (1,...,n_classes)
+             'auto' -> all objects will be assigned to the first non-background class,
+                       or will be ignored if config.n_classes is None
+        validation_data : tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`) or triple (if multiclass)
+            Tuple (triple if multiclass) of X,Y,[classes] validation data.
         augmenter : None or callable
             Function with expected signature ``xt, yt = augmenter(x, y)``
             that takes in a single pair of input/label image (x,y) and returns
@@ -415,9 +474,16 @@ class StarDist3D(StarDistBase):
         if steps_per_epoch is None:
             steps_per_epoch = self.config.train_steps_per_epoch
 
-        validation_data is not None or _raise(ValueError())
-        ((isinstance(validation_data,(list,tuple)) and len(validation_data)==2)
-            or _raise(ValueError('validation_data must be a pair of numpy arrays')))
+        classes = self._parse_classes_arg(classes, len(X))
+
+        if not self._is_multiclass() and classes is not None:
+            warnings.warn("Ignoring given classes as n_classes is set to None")
+
+        isinstance(validation_data,(list,tuple)) or _raise(ValueError())
+        if self._is_multiclass() and len(validation_data) == 2:
+            validation_data = tuple(validation_data) + ('auto',)
+        ((len(validation_data) == (3 if self._is_multiclass() else 2))
+            or _raise(ValueError(f'len(validation_data) = {len(validation_data)}, but should be {3 if self._is_multiclass() else 2}')))
 
         patch_size = self.config.train_patch_size
         axes = self.config.axes.replace('C','')
@@ -430,23 +496,26 @@ class StarDist3D(StarDistBase):
             self.prepare_for_training()
 
         data_kwargs = dict (
-            rays            = rays_from_json(self.config.rays_json),
-            grid            = self.config.grid,
-            patch_size      = self.config.train_patch_size,
-            anisotropy      = self.config.anisotropy,
-            use_gpu         = self.config.use_gpu,
-            foreground_prob = self.config.train_foreground_only,
+            rays             = rays_from_json(self.config.rays_json),
+            grid             = self.config.grid,
+            patch_size       = self.config.train_patch_size,
+            anisotropy       = self.config.anisotropy,
+            use_gpu          = self.config.use_gpu,
+            foreground_prob  = self.config.train_foreground_only,
+            n_classes        = self.config.n_classes,
             sample_ind_cache = self.config.train_sample_cache,
         )
 
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
+        classes_val = self._parse_classes_arg(validation_data[2], n_data_val) if self._is_multiclass() else None
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        _data_val = StarDistData3D(*validation_data, batch_size=n_take, length=1, **data_kwargs)
+        _data_val = StarDistData3D(validation_data[0],validation_data[1], classes=classes_val, batch_size=n_take, length=1, **data_kwargs)
         data_val = _data_val[0]
 
-        # expose data generator as member for general diagnostics 
-        self.data_train = StarDistData3D(X, Y, batch_size=self.config.train_batch_size, augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
+        # expose data generator as member for general diagnostics
+        self.data_train = StarDistData3D(X, Y, classes=classes, batch_size=self.config.train_batch_size,
+                                         augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
 
         if self.config.train_tensorboard:
             # only show middle slice of 3D inputs/outputs
@@ -460,14 +529,19 @@ class StarDist3D(StarDistBase):
             output_slices[1][1+i] = _n_out
             # show dist for three rays
             _n = min(3, self.config.n_rays)
-            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n,self.config.n_rays//_n)
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n, self.config.n_rays//_n)
+            if self._is_multiclass():
+                _n = min(3, self.config.n_classes)
+                output_slices += [[slice(None)]*5]
+                output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n, self.config.n_classes//_n)
+
             if IS_TF_1:
                 for cb in self.callbacks:
                     if isinstance(cb,CARETensorBoard):
                         cb.input_slices = input_slices
                         cb.output_slices = output_slices
                         # target image for dist includes dist_mask and thus has more channels than dist output
-                        cb.output_target_shapes = [None,[None]*5]
+                        cb.output_target_shapes = [None,[None]*5,None]
                         cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
             elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
@@ -476,37 +550,87 @@ class StarDist3D(StarDistBase):
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      callbacks=self.callbacks, verbose=1)
+                      workers=workers, use_multiprocessing=workers>1,
+                      callbacks=self.callbacks, verbose=1,
+                      # set validation batchsize to training batchsize (only works in tf 2.x)
+                      **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
         self._training_finished()
 
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, prob_thresh=None, nms_thresh=None, overlap_label=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
+        """
+        if points is None     -> dense prediction
+        if points is not None -> sparse prediction
+
+        if prob_class is None     -> single class prediction
+        if prob_class is not None -> multi  class prediction
+        """
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
 
         rays = rays_from_json(self.config.rays_json)
-        points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, grid=self.config.grid,
-                                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+
+        # sparse prediction
+        if points is not None:
+            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, **nms_kwargs)
+            if prob_class is not None:
+                prob_class = prob_class[indsi]
+
+        # dense prediction
+        else:
+            points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, grid=self.config.grid,
+                                                              prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+            if prob_class is not None:
+                inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
+                prob_class = prob_class[inds]
+
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
-        labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
 
-        # map the overlap_label to something positive and back
-        # (as relabel_sequential doesn't like negative values)
-        if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
-            overlap_mask = (labels == overlap_label)
-            overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
-            labels[overlap_mask] = overlap_label2
-            labels, fwd, bwd = relabel_sequential(labels)
-            labels[labels == fwd[overlap_label2]] = overlap_label
+        if return_labels:
+            labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
+
+            # map the overlap_label to something positive and back
+            # (as relabel_sequential doesn't like negative values)
+            if overlap_label is not None and overlap_label<0 and (overlap_label in labels):
+                overlap_mask = (labels == overlap_label)
+                overlap_label2 = max(set(np.unique(labels))-{overlap_label})+1
+                labels[overlap_mask] = overlap_label2
+                labels, fwd, bwd = relabel_sequential(labels)
+                labels[labels == fwd[overlap_label2]] = overlap_label
+            else:
+                # TODO relabel_sequential necessary?
+                labels, _,_ = relabel_sequential(labels)
         else:
-            labels, _,_ = relabel_sequential(labels)
+            labels = None
 
-        # TODO: convert to polyhedra faces?
-        return labels, dict(dist=disti, points=points, prob=probi, rays=rays,
-                            rays_vertices = rays.vertices,rays_faces=rays.faces)
+        res_dict = dict(dist=disti, points=points, prob=probi, rays=rays, rays_vertices=rays.vertices, rays_faces=rays.faces)
+
+        if prob_class is not None:
+            # build the list of class ids per label via majority vote
+            # zoom prob_class to img_shape
+            # prob_class_up = zoom(prob_class,
+            #                      tuple(s2/s1 for s1, s2 in zip(prob_class.shape[:3], img_shape))+(1,),
+            #                      order=0)
+            # class_id, label_ids = [], []
+            # for reg in regionprops(labels):
+            #     m = labels[reg.slice]==reg.label
+            #     cls_id = np.argmax(np.mean(prob_class_up[reg.slice][m], axis = 0))
+            #     class_id.append(cls_id)
+            #     label_ids.append(reg.label)
+            # # just a sanity check whether labels where in sorted order
+            # assert all(x <= y for x,y in zip(label_ids, label_ids[1:]))
+            # res_dict.update(dict(classes = class_id))
+            # res_dict.update(dict(labels = label_ids))
+            # self.p = prob_class_up
+
+            prob_class = np.asarray(prob_class)
+            class_id = np.argmax(prob_class, axis=-1)
+            res_dict.update(dict(class_prob=prob_class, class_id=class_id))
+
+        return labels, res_dict
 
 
     def _axes_div_by(self, query_axes):

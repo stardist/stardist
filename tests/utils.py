@@ -25,11 +25,14 @@ def random_image(shape=(128, 128)):
     return img
 
 
-def circle_image(shape=(128, 128), radius = None, center=None, eps = (1,1)):
+def circle_image(shape=(128, 128), radius = None, center=None, eps = None):
     if center is None:
         center = (0,)*len(shape)
     if radius is None:
         radius = min(shape)//4
+    if eps is None:
+        eps = (1,)*len(shape)
+    assert len(shape)==len(eps)
     xs = tuple(np.arange(s)-s//2 for s in shape)
     Xs = np.meshgrid(*xs, indexing="ij")
     R = np.sqrt(np.sum([(X - c) ** 2/_eps**2 for X, c,_eps in zip(Xs, center,eps)], axis=0))

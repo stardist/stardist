@@ -37,6 +37,7 @@ def test_types_gpu(img, n_rays):
 def test_cpu_gpu(img, n_rays):
     s_cpp = star_dist(img, n_rays=n_rays, mode="cpp")
     s_ocl = star_dist(img, n_rays=n_rays, mode="opencl")
+    print(img.shape, s_cpp.shape)
     check_similar(s_cpp, s_ocl)
 
 
@@ -45,10 +46,7 @@ def test_cpu_gpu(img, n_rays):
 def test_relabel_consistency(n_rays, eps, plot = False):
     """ test whether an already star-convex label image gets perfectly relabeld"""
 
-    # img = random_image((128, 123))
     lbl1 = circle_image(shape=(32,32), radius=8, eps = eps)
-
-    lbl1 = relabel_image_stardist(lbl1, n_rays)
 
     lbl2 = relabel_image_stardist(lbl1, n_rays)
 

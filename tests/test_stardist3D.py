@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from stardist import star_dist3D, Rays_GoldenSpiral, relabel_image_stardist3D
 from utils import random_image, real_image3d, check_similar, circle_image
-
+from time import time
 
 @pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
@@ -40,6 +40,7 @@ def test_types_gpu(img, n_rays, grid):
 @pytest.mark.parametrize('n_rays', (4, 16, 32))
 @pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
 def test_cpu_gpu(img, n_rays, grid):
+    print(tuple(s//g for s, g in zip(img.shape, grid)))
     rays = Rays_GoldenSpiral(n_rays)
     s_cpp = star_dist3D(img, rays=rays, grid=grid, mode="cpp")
     s_ocl = star_dist3D(img, rays=rays, grid=grid, mode="opencl")
@@ -77,15 +78,33 @@ def test_relabel_consistency(n_rays, eps, plot = False):
         
     return lbl1, lbl2
     
-
-if __name__ == '__main__':
-    lbl1, lbl2 = test_relabel_consistency(128,eps = (.5,1,1.2), plot = True)
+@pytest.mark.parametrize('grid', ((1,4,1),(2,1,2)))
+@pytest.mark.parametrize('shape', ((62,64,66),(32,67,93)))
+def test_grid(grid,shape):
+    ss_grid = tuple(slice(0, None, g) for g in grid)
     
-    # from utils import circle_image
+    lbl = circle_image(shape=shape, radius=min(shape)//3)
 
-    # rays = Rays_GoldenSpiral(4)
-    # lbl = circle_image((64,) * 3)
+    rays = Rays_GoldenSpiral(32)
+    
+    t1 = time()
+    d1 = star_dist3D(lbl, rays = rays)
+    d1 = d1[ss_grid]
+    t1 = time()-t1
+    
+    t2 = time()
+    d2 = star_dist3D(lbl, rays = rays, grid = grid)
+    t2 = time()-t2
 
-    # a = star_dist3D(lbl, rays=rays, grid=(1, 2, 2), mode="cpp")
-    # b = star_dist3D(lbl, rays=rays, grid=(1, 2, 2), mode="opencl")
-    # print(np.amax(np.abs(a - b)))
+    print(f"time 1: {1000*t1:.2f}ms")
+    print(f"time 2: {1000*t2:.2f}ms")
+    assert np.allclose(d1,d2)
+    return lbl, d1, d2
+
+
+    
+if __name__ == '__main__':
+    # lbl1, lbl2 = test_relabel_consistency(128,eps = (.5,1,1.2), plot = True)    
+    # lbl, d1,d2 = test_grid(grid=(1,2,2),shape=(62,63,66))
+    test_cpu_gpu(random_image((32,33,34)), 32, (1,2,4))
+    # test_grid((2,1,2), (32,67,93))

@@ -5,6 +5,7 @@ import warnings
 import os
 import datetime
 from tqdm import tqdm
+from collections import defaultdict
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
@@ -13,7 +14,7 @@ from skimage.measure import regionprops
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
 
-from .matching import matching_dataset
+from .matching import matching_dataset, _check_label_array
 
 
 def gputools_available():
@@ -286,9 +287,82 @@ def optimize_threshold(Y, Yhat, model, nms_thresh, measure='accuracy', iou_thres
     return opt.x, -opt.fun
 
 
+def _invert_dict(d):
+    """ return  v-> [k_1,k_2,k_3....] for k,v in d"""
+    res = defaultdict(list)
+    for k,v in d.items():
+        res[v].append(k)
+    return res
+
+
+def mask_to_categorical(y, n_classes, classes, return_cls_dict=False):
+    """generates a multi-channel categorical class map
+
+    Parameters
+    ----------
+    y : n-dimensional ndarray
+        integer label array
+    n_classes : int
+        Number of different classes (without background)
+    classes: dict, integer, or None
+        the label to class assignment
+        can be
+        - dict {label -> class_id}
+           the value of class_id can be
+                             0   -> background class
+                  1...n_classes  -> the respective object class (1 ... n_classes)
+                           None  -> ignore object (prob is set to -1 for the pixels of the object, except for background class)
+        - single integer value or None -> broadcast value to all labels
+
+    Returns
+    -------
+    probability map of shape y.shape+(n_classes+1,) (first channel is background)
+
+    """
+
+    _check_label_array(y, 'y')
+    if not (np.issubdtype(type(n_classes), np.integer) and n_classes>=1):
+        raise ValueError(f"n_classes is '{n_classes}' but should be a positive integer")
+
+    y_labels = np.unique(y[y>0]).tolist()
+
+    # build dict class_id -> labels (inverse of classes)
+    if np.issubdtype(type(classes), np.integer) or classes is None:
+        classes = dict((k,classes) for k in y_labels)
+    elif isinstance(classes, dict):
+        pass
+    else:
+        raise ValueError("classes should be dict, single scalar, or None!")
+
+    if not set(y_labels).issubset(set(classes.keys())):
+        raise ValueError(f"all gt labels should be present in class dict provided \ngt_labels found\n{set(y_labels)}\nclass dict labels provided\n{set(classes.keys())}")
+
+    cls_dict = _invert_dict(classes)
+
+    # prob map
+    y_mask = np.zeros(y.shape+(n_classes+1,), np.float32)
+
+    for cls, labels in cls_dict.items():
+        if cls is None:
+            # prob == -1 will be used in the loss to ignore object
+            y_mask[np.isin(y, labels)] = -1
+        elif np.issubdtype(type(cls), np.integer) and 0 <= cls <= n_classes:
+            y_mask[...,cls] = np.isin(y, labels)
+        else:
+            raise ValueError(f"Wrong class id '{cls}' (for n_classes={n_classes})")
+
+    # set 0/1 background prob (unaffected by None values for class ids)
+    y_mask[...,0] = (y==0)
+
+    if return_cls_dict:
+        return y_mask, cls_dict
+    else:
+        return y_mask
+
+
 def _is_floatarray(x):
     return isinstance(x.dtype.type(0),np.floating)
-    
+
 
 def abspath(root, relpath):
     from pathlib import Path
