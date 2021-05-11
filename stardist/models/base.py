@@ -1012,6 +1012,9 @@ class StarDistBase(BaseModel):
         if self.basedir is None and fname is None:
             raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
 
+        if self._is_multiclass():
+            warnings.warn("multi-class mode not supported yet, removing classification output from exported model")
+
         grid = self.config.grid
         prob = self.keras_model.outputs[0]
         dist = self.keras_model.outputs[1]
