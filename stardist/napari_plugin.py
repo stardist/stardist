@@ -601,7 +601,9 @@ def plugin_wrapper():
 
     # push 'call_button' and 'progress_bar' to bottom
     layout = plugin.native.layout()
-    layout.insertStretch(layout.count()-2)
+    # TODO: temporary workaround for 'add_vertical_stretch' issue: insert fixed space instead of stretch
+    # layout.insertStretch(layout.count()-2)
+    layout.insertSpacing(22, 50)
 
     return plugin
 
@@ -610,6 +612,7 @@ def plugin_wrapper():
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
     return plugin_wrapper, {'name': 'StarDist'}
+    # return plugin_wrapper, dict(name='StarDist', add_vertical_stretch=False)
 
 
 
