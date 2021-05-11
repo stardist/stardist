@@ -81,7 +81,7 @@ setup(
         ),
     ],
 
-    package_data={'stardist': [ 'kernels/*.cl', 'data/images/*', 'resources/*' ] },
+    package_data={'stardist': [ 'kernels/*.cl', 'data/images/*' ]},
 
     classifiers=[
         'Development Status :: 4 - Beta',
