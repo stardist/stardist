@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import pytest
 
@@ -7,7 +6,13 @@ from stardist.matching import matching, relabel_sequential
 from stardist import calculate_extents, polyhedron_to_label
 from utils import real_image2d, real_image3d
 
-from stardist.big import BlockND, render_polygons, Polygon, Polyhedron
+from stardist.geometry import polygons_to_label_coord
+from stardist.big import BlockND, Polygon, Polyhedron
+
+
+
+def render_polygons(polys, shape):
+    return polygons_to_label_coord(polys['coord'], shape=shape)
 
 
 
@@ -218,5 +223,7 @@ def test_polyhedron_order_3D(model3d):
 
 
 if __name__ == '__main__':
-    from conftest import model2d
-    a, b = test_predict2D(model2d(), False)
+    from conftest import _model2d
+    # test_polygon_order_2D(_model2d())
+
+    a,b = test_predict2D(_model2d(), use_channel=False)

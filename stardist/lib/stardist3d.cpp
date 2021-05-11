@@ -17,15 +17,16 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
   float threshold = 0;
   int use_bbox;
+  int use_kdtree;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iif",
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiif",
                         &PyArray_Type, &arr_dist,
                         &PyArray_Type, &arr_points,
                         &PyArray_Type, &arr_verts,
                         &PyArray_Type, &arr_faces,
                         &PyArray_Type, &arr_scores,
-                        &use_bbox,
+                        &use_bbox, &use_kdtree,
                         &verbose,
                         &threshold))
     return NULL;
@@ -51,10 +52,10 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
 
   _COMMON_non_maximum_suppression_sparse(scores,dist, points,
-                                 n_polys, n_rays, n_faces, 
-                                 verts, faces,
-                                 threshold, use_bbox, verbose, 
-                                 result);
+                                         n_polys, n_rays, n_faces, 
+                                         verts, faces,
+                                         threshold, use_bbox, use_kdtree, verbose, 
+                                         result);
   
 
   return PyArray_Return(arr_result);
@@ -261,14 +262,21 @@ static PyObject* c_star_dist3d(PyObject *self, PyObject *args) {
   npy_intp *dims = PyArray_DIMS(src);
 
   npy_intp dims_dst[4];
-  dims_dst[0] = dims[0]/grid_z;
-  dims_dst[1] = dims[1]/grid_y;
-  dims_dst[2] = dims[2]/grid_x;
+  // the resulting shape with tuple(slice(0, None, g) for g in grid)
+  dims_dst[0] = (dims[0]-1)/grid_z+1;
+  dims_dst[1] = (dims[1]-1)/grid_y+1;
+  dims_dst[2] = (dims[2]-1)/grid_x+1;
   dims_dst[3] = n_rays;
 
   dst = (PyArrayObject*)PyArray_SimpleNew(4,dims_dst,NPY_FLOAT32);
 
-# pragma omp parallel for schedule(dynamic)
+  // # pragma omp parallel for schedule(dynamic)
+  // strangely, using schedule(dynamic) leads to segfault on OSX when importing skimage first 
+#ifdef __APPLE__    
+#pragma omp parallel for
+#else
+#pragma omp parallel for schedule(dynamic) 
+#endif
   for (int i=0; i<dims_dst[0]; i++) {
     for (int j=0; j<dims_dst[1]; j++) {
       for (int k=0; k<dims_dst[2]; k++) {

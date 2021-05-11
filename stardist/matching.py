@@ -24,6 +24,8 @@ def _check_label_array(y, name=None, check_sequential=False):
         integers = ('sequential ' if check_sequential else '') + 'non-negative integers',
     ))
     is_array_of_integers(y) or _raise(err)
+    if len(y) == 0:
+        return True
     if check_sequential:
         label_are_sequential(y) or _raise(err)
     else:

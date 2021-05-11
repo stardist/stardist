@@ -13,7 +13,6 @@ def test_image_nuclei_2d(return_mask=False):
     else:
         return img
 
-
 def test_image_nuclei_3d(return_mask=False):
     from tifffile import imread
     img = imread(abspath("images/img3d.tif"))

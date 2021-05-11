@@ -42,7 +42,7 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package requires Python 3.6 (or newer). (If you only want to use the StarDist plugin for Fiji or QuPath, please read [this](#plugins-for-other-software).)
+This package requires Python 3.6 (or newer). (If you only want to use a StarDist plugin for a GUI-based software, please read [this](#plugins-for-other-software).)
 
 1. Please first [install TensorFlow](https://www.tensorflow.org/install)
 (either TensorFlow 1 or 2) by following the official instructions.
@@ -144,9 +144,9 @@ Additional tips:
 1. Install [QuPath](https://qupath.github.io/)
 2. Create a new project (`File -> Project...-> Create project`) and add your raw images 
 3. Annotate nuclei/objects
-4. Run [this script](https://raw.githubusercontent.com/mpicbg-csbd/stardist/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
+4. Run [this script](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
 
-To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/mpicbg-csbd/stardist/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
+To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL). 
 
 ![](https://github.com/stardist/stardist/raw/master/images/qupath.png)
 
@@ -188,6 +188,14 @@ We currently provide a ImageJ/Fiji plugin that can be used to run pretrained Sta
 ### QuPath
 
 Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/advanced/stardist.html) for documentation and installation instructions.
+
+### Icy
+
+Based on the Fiji plugin, [Deborah Schmidt](https://github.com/frauzufall) made a StarDist 2D plugin for [Icy](https://github.com/stardist/stardist-icy) to use pretrained models. Please see the [code repository](https://github.com/stardist/stardist-icy) for further details.
+
+### KNIME
+
+[Stefan Helfrich](https://github.com/stelfrich) has modified the Fiji plugin to be compatible with [KNIME](https://www.knime.com). Please see [this page](https://hub.knime.com/stelfrich/spaces/Public/latest/StarDist/StarDist%202D) for further details.
 
 ## How to cite 
 ```bibtex
