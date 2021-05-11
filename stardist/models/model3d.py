@@ -48,6 +48,8 @@ class StarDistData3D(StarDistDataBase):
             patch_size_grid = tuple((p-1)//g+1 for p,g in zip(self.patch_size,self.grid))
             self.out_edt_prob = np.empty((self.batch_size,)+patch_size_grid, dtype=np.float32)
             self.out_star_dist3D = np.empty((self.batch_size,)+patch_size_grid+(len(self.rays),), dtype=np.float32)
+            if self.n_classes is not None:
+                self.out_prob_class = np.empty((self.batch_size,)+tuple(self.patch_size)+(self.n_classes+1,), dtype=np.float32)
 
 
     def __getitem__(self, i):
@@ -90,10 +92,16 @@ class StarDistData3D(StarDistDataBase):
         if self.n_classes is None:
             return [X], [prob,dist]
         else:
-            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
+            tmp = [mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx)]
+            # TODO: downsample here before stacking?
+            if len(Y) == 1:
+                prob_class = tmp[0][np.newaxis]
+            else:
+                prob_class = np.stack(tmp, out=self.out_prob_class[:len(Y)])
 
-            # as prob_class will be upscaled later, using 'zoom' here leads to better registered maps
+            # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
+            # 'zoom' might lead to better registered maps (especially if upscaled later)
             prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
             return [X], [prob,dist, prob_class]
@@ -590,6 +598,7 @@ class StarDist3D(StarDistBase):
                 labels, fwd, bwd = relabel_sequential(labels)
                 labels[labels == fwd[overlap_label2]] = overlap_label
             else:
+                # TODO relabel_sequential necessary?
                 labels, _,_ = relabel_sequential(labels)
         else:
             labels = None

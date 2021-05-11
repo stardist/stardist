@@ -88,8 +88,9 @@ class StarDistData2D(StarDistDataBase):
         else:
             prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
-            # as prob_class will be upscaled later, using 'zoom' here leads to better registered maps
+            # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
+            # 'zoom' might lead to better registered maps (especially if upscaled later)
             prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
             return [X], [prob,dist, prob_class]

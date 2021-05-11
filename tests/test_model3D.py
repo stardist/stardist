@@ -238,7 +238,7 @@ def test_classes():
 
     return p
 
-def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None, epochs=20):
+def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None, epochs=20, batch_size=1):
     from skimage.measure import regionprops
 
     img, mask = real_image3d()
@@ -259,7 +259,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         use_gpu=False,
         train_epochs=1,
         train_steps_per_epoch=10,
-        train_batch_size=1,
+        train_batch_size=batch_size,
         train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
         train_patch_size=(24,32,32),
     )
@@ -302,14 +302,15 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
     return model, img, res1, res2, res3
 
 
-@pytest.mark.parametrize('n_classes, classes, n_channel, epochs',
-                         [ (None, "auto", 1, 1),
-                           (1, "auto", 3, 1),
-                           (3, (1,2,3), 3, 1)]
+@pytest.mark.parametrize('n_classes, classes, n_channel, epochs, batch_size',
+                         [ (None, "auto", 1, 1, 1),
+                           (1, "auto", 3, 1, 1),
+                           (3, (1,2,3), 3, 1, 1),
+                           (3, (1,2,3), 3, 1, 2)]
                          )
-def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs):
+def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_size):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
-                                  n_channel=n_channel, basedir = tmpdir, epochs=epochs)
+                                  n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
 
 
 # this test has to be at the end of the model
