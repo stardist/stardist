@@ -8,7 +8,7 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d, NumpySequence
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 4, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
+@pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 1, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers, use_sequence):
     img = circle_image(shape=(64, 80, 96))
     imgs = np.repeat(img[np.newaxis], 8, axis=0)
