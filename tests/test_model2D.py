@@ -14,7 +14,7 @@ from utils import circle_image, real_image2d, path_model2d, NumpySequence
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 1, False), (4, (8, 2), 2, 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
     img = circle_image(shape=(160, 160))
-    imgs = np.repeat(img[np.newaxis], 8, axis=0)
+    imgs = np.repeat(img[np.newaxis], 3, axis=0)
 
     if n_channel is not None:
         imgs = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
