@@ -11,10 +11,10 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image2d, path_model2d, NumpySequence
 
 
-@pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 4, False), (4, (8, 2), 2, 1, True)])
-def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
+@pytest.mark.parametrize('n_rays, grid, n_channel, use_sequence, workers', [(17, (1, 1), None, False, 1), (32, (2, 4), 1, False, 1), (4, (8, 2), 2, True, 1)])
+def test_model(tmpdir, n_rays, grid, n_channel, use_sequence, workers):
     img = circle_image(shape=(160, 160))
-    imgs = np.repeat(img[np.newaxis], 3, axis=0)
+    imgs = np.repeat(img[np.newaxis], 8, axis=0)
 
     if n_channel is not None:
         imgs = np.repeat(imgs[..., np.newaxis], n_channel, axis=-1)
@@ -33,8 +33,8 @@ def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
         grid=grid,
         n_channel_in=n_channel,
         use_gpu=False,
-        train_epochs=1,
-        train_steps_per_epoch=1,
+        train_epochs=2,
+        train_steps_per_epoch=2,
         train_batch_size=2,
         train_loss_weights=(4, 1),
         train_patch_size=(128, 128),
@@ -42,7 +42,7 @@ def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
     )
 
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers)
+    model.train(X, Y, validation_data=(X[:4], Y[:4]), workers=workers)
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
@@ -446,4 +446,8 @@ if __name__ == '__main__':
     # a,b,s = test_stardistdata_multithreaded()
     # test_model("foo", 32, (1,1), None, 4)
 
-    test_foreground_warning()
+    # test_foreground_warning()
+
+    model = test_model("tmpdir", 32, (1, 1), 1, False, 1)
+
+    

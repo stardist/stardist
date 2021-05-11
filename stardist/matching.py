@@ -49,6 +49,15 @@ def _label_overlap(x, y):
         overlap[x[i],y[i]] += 1
     return overlap
 
+def _safe_divide(x,y, eps=1e-10):
+    """computes a safe divide which returns 0 if y is zero"""
+    if np.isscalar(x) and np.isscalar(y):
+        return x/y if np.abs(y)>eps else 0.0
+    else:
+        out = np.zeros(np.broadcast(x,y).shape, np.float32)
+        np.divide(x,y, out=out, where=np.abs(y)>eps)
+        return out
+
 
 def intersection_over_union(overlap):
     _check_label_array(overlap,'overlap')
@@ -56,7 +65,7 @@ def intersection_over_union(overlap):
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
     n_pixels_true = np.sum(overlap, axis=1, keepdims=True)
-    return overlap / (n_pixels_pred + n_pixels_true - overlap)
+    return _safe_divide(overlap, (n_pixels_pred + n_pixels_true - overlap))
 
 matching_criteria['iou'] = intersection_over_union
 
@@ -66,7 +75,7 @@ def intersection_over_true(overlap):
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_true = np.sum(overlap, axis=1, keepdims=True)
-    return overlap / n_pixels_true
+    return _safe_divide(overlap, n_pixels_true)
 
 matching_criteria['iot'] = intersection_over_true
 
@@ -76,7 +85,7 @@ def intersection_over_pred(overlap):
     if np.sum(overlap) == 0:
         return overlap
     n_pixels_pred = np.sum(overlap, axis=0, keepdims=True)
-    return overlap / n_pixels_pred
+    return _safe_divide(overlap, n_pixels_pred)
 
 matching_criteria['iop'] = intersection_over_pred
 
@@ -93,9 +102,6 @@ def f1(tp,fp,fn):
     # also known as "dice coefficient"
     return (2*tp)/(2*tp+fp+fn) if tp > 0 else 0
 
-
-def _safe_divide(x,y):
-    return x/y if y>0 else 0.0
 
 def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     """Calculate detection/instance segmentation metrics between ground truth and predicted label images.

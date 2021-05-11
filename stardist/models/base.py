@@ -1079,3 +1079,7 @@ class StarDistPadAndCropResizer(Resizer):
         )
         # print(crop)
         return x[crop]
+
+def _tf_version_at_least(version_string="1.0.0"):
+    from packaging import version
+    return version.parse(tf.__version__) >= version.parse(version_string)

@@ -7,6 +7,8 @@ LambdaCallback = keras_import('callbacks','LambdaCallback')
 import argparse
 import resource
 import sys
+import time
+from functools import lru_cache
 
 
 def print_memory():
@@ -21,12 +23,10 @@ class LargeSequence(Sequence):
         self.n = n
         self.data = np.zeros((size,size,size), np.uint16)
         self.data[1:-1,1:-1,1:-1] = 1
-        self.last = None
-        
-    def __getitem__(self,n):
-        if self.last is None or self.last[0] !=n:
-            self.last = (n,self.data.copy())        
-        return self.last[1]
+
+    # @lru_cache(maxsize=4)
+    def __getitem__(self,n):    
+        return self.data.copy()
     
     def __len__(self):
         return self.n
@@ -38,20 +38,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument("-n", type=int, default=10)
     parser.add_argument("-s","--size", type=int, default=256)
+    parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--nocache", action='store_true')
     
     args = parser.parse_args()
     
 
-    X, Y = LargeSequence(100, size=args.size),LargeSequence(100, size=args.size)
+    X, Y = LargeSequence(20, size=args.size),LargeSequence(20, size=args.size)
         
     conf = Config3D(
-        n_rays=8,
+        n_rays=32,
         backbone="unet",
         unet_n_depth=1,
         train_epochs=args.n,
-        train_steps_per_epoch=20,
-        train_batch_size=2,
+        train_steps_per_epoch=args.steps,
+        train_batch_size=1,
         train_patch_size=(min(96,args.size),)*3,
         train_sample_cache = not args.nocache
     )

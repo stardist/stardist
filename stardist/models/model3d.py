@@ -18,7 +18,7 @@ K = keras_import('backend')
 Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate = keras_import('layers', 'Input', 'Conv3D', 'MaxPooling3D', 'UpSampling3D', 'Add', 'Concatenate')
 Model = keras_import('models', 'Model')
 
-from .base import StarDistBase, StarDistDataBase
+from .base import StarDistBase, StarDistDataBase, _tf_version_at_least
 from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..matching import relabel_sequential
@@ -550,7 +550,10 @@ class StarDist3D(StarDistBase):
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, callbacks=self.callbacks, verbose=1)
+                      workers=workers, use_multiprocessing=workers>1,
+                      callbacks=self.callbacks, verbose=1,
+                      # set validation batchsize to training batchsize (only works in tf 2.x)
+                      **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
         self._training_finished()
 
         return history

@@ -27,9 +27,6 @@ def _single_color_integer_cmap(color = (.3,.4,.5)):
                        
 
 
-def plot_linearmap(cdict):
-    newcmp = LinearSegmentedColormap('testCmap', segmentdata=cdict, N=256)
-
 
 def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, alpha_boundary = None, normalize_img = True):
     """Renders a label image and optionally overlays it with another image. Used for generating simple output images to asses the label quality
@@ -51,8 +48,13 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
     normalize_img: bool
         If True, normalizes the img (if given)
 
+    Returns
+    -------
+    img: np.ndarray
+        the (m,n,4) RGBA image of the rendered label 
+
     Example
-    ======= 
+    -------
 
     from scipy.ndimage import label, zoom      
     img = zoom(np.random.uniform(0,1,(16,16)),(8,8),order=3)            
@@ -176,17 +178,47 @@ def render_label_pred(y_true, y_pred,
                       img = None, cmap_img = "gray", normalize_img = True, 
                       tp_alpha = .6, fp_alpha = .6, fn_alpha = .6,
                       matching_kwargs = dict(thresh=0.5)):
-    """Relabel arbitrary labels to {`offset`, ... `offset` + number_of_labels}.
-    This function also returns the forward map (mapping the original labels to
-    the reduced labels) and the inverse map (mapping the reduced labels back
-    to the original ones).
+    """Renders an image that shows segmentation errors between y_true and y_pred 
+
+    Correctly matched objects (TP) are colored green (with transparency tp_alpha)
+    Erronously detected objects (FP) are colored red (with transparency fp_alpha)
+    MIssing GT objects (FN) are colored blue (with transparency fn_alpha)
+
     Parameters
     ----------
-    label_field : numpy array of int, arbitrary shape
-        An array of labels, which must be non-negative integers.
-    offset : int, optional
-        The return labels will start at `offset`, which should be
-        strictly positive.
+    y_true: np.ndarray of dtype np.uint16
+        The 2D GT label image 
+    y_pred: np.ndarray of dtype np.uint16
+        The 2D prediction label image 
+    img: np.ndarray 
+        The array to overlay the label image with (optional)
+    cmap_img: string or callable
+        The colormap of img (optional)
+    tp_alpha: float 
+        The alpha value of the TP 
+    fp_alpha: float 
+        The alpha value of the FP 
+    fn_alpha: float 
+        The alpha value of the FN 
+    matching_kwargs: dict
+        The parameters of stardist.matching.matching that are used to compute the TP/FP/FN
+    normalize_img: bool
+        If True, normalizes the img (if given)
+
+    Returns
+    -------
+    img: np.ndarray
+        the (m,n,4) RGBA image of the rendered image
+
+    Example
+    ------- 
+
+    from scipy.ndimage import label, zoom      
+    img = zoom(np.random.uniform(0,1,(16,16)),(8,8),order=3)
+    y_true = label(img>.9)[0]
+    y_pred = label(img>.02)[0]
+    plt.imshow(render_label_pred(y_true, y_pred, img=img))
+
     """
     
     from matplotlib import cm
