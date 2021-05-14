@@ -48,33 +48,39 @@ def _normalize_grid(grid,n):
         raise ValueError("grid = {grid} must be a list/tuple of length {n} with values that are power of 2".format(grid=grid, n=n))
 
 
-def _edt_dist_func(anisotropy):
+def edt_prob(lbl_img, anisotropy=None):
     try:
-        from edt import edt as edt_func
-        # raise ImportError()
-        dist_func = lambda img: edt_func(np.ascontiguousarray(img>0), anisotropy=anisotropy)
+        return _edt_prob_edt(lbl_img, anisotropy=None)
     except ImportError:
-        dist_func = lambda img: distance_transform_edt(img, sampling=anisotropy)
-    return dist_func
+        warnings.warn("Could not find package edt (https://github.com/mkazhdan/EDT) \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
+        return _edt_prob_scipy(lbl_img, anisotropy=None)
 
-
-def _edt_prob(lbl_img, anisotropy=None):
+def _edt_prob_edt(lbl_img, anisotropy=None):
+    """Perform EDT on each labeled object and normalize.
+    uses https://github.com/mkazhdan/EDT that can handle multiple labels and is ~5x faster 
+    """
+    from edt import edt
+    def grow(sl,interior):
+        return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
+    def shrink(interior):
+        return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
     if constant_img:
         lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
-    dist_func = _edt_dist_func(anisotropy)
-    prob = np.zeros(lbl_img.shape,np.float32)
-    for l in (set(np.unique(lbl_img)) - set([0])):
-        mask = lbl_img==l
-        edt = dist_func(mask)[mask]
-        prob[mask] = edt/(np.max(edt)+1e-10)
+    objects = find_objects(lbl_img)
+    prob = edt(np.ascontiguousarray(lbl_img), anisotropy=anisotropy)
+    for i,sl in enumerate(objects,1):
+        # i: object label id, sl: slices of object in lbl_img
+        if sl is None: continue
+        m = lbl_img[sl]==i
+        prob[sl][m] /= np.max(prob[sl][m]+1e-10)
     if constant_img:
         prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
     return prob
 
 
-def edt_prob(lbl_img, anisotropy=None):
+def _edt_prob_scipy(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize."""
     def grow(sl,interior):
         return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
@@ -84,7 +90,6 @@ def edt_prob(lbl_img, anisotropy=None):
     if constant_img:
         lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
-    dist_func = _edt_dist_func(anisotropy)
     objects = find_objects(lbl_img)
     prob = np.zeros(lbl_img.shape,np.float32)
     for i,sl in enumerate(objects,1):
@@ -98,7 +103,7 @@ def edt_prob(lbl_img, anisotropy=None):
         shrink_slice = shrink(interior)
         grown_mask = lbl_img[grow(sl,interior)]==i
         mask = grown_mask[shrink_slice]
-        edt = dist_func(grown_mask)[shrink_slice][mask]
+        edt = distance_transform_edt(grown_mask, sampling=anisotropy)[shrink_slice][mask]
         prob[sl][mask] = edt/(np.max(edt)+1e-10)
     if constant_img:
         prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
