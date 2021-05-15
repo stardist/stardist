@@ -62,6 +62,8 @@ def _edt_prob_edt(lbl_img, anisotropy=None):
     from edt import edt
     lbl_img = np.ascontiguousarray(lbl_img)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
+    if constant_img:
+        warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
     # we just need to compute the edt once but then normalize it for each object 
     prob = edt(lbl_img, anisotropy=anisotropy,
                black_border=constant_img, parallel=4)
