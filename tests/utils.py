@@ -24,9 +24,11 @@ class Timer(object):
         self.fmt = fmt
     def __enter__(self):
         self.start = default_timer()
+        return self
     def __exit__(self, *args):
         t = default_timer() - self.start
         print(eval(f'f"{self.message}: {self.fmt}"'))
+        self.t = t
 
 
 

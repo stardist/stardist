@@ -147,7 +147,40 @@ def test_stardistdata(grid):
     s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
                        patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
     (img,), (prob, dist) = s[0]
+        
     return (img,), (prob, dist), s
+
+
+def _edt_available():
+    try:
+        import edt
+    except:
+        return False
+    return True        
+
+
+@pytest.mark.skipif(not _edt_available(), reason="needs edt" )
+def test_edt_prob():
+    try:
+        import edt
+        from stardist.utils import _edt_prob_edt, _edt_prob_scipy
+
+        masks = (np.tile(real_image3d()[1],(2,2,2)),
+                 np.zeros((70,81,92)),
+                 np.ones((70,51,112)))
+        dtypes = (np.uint16, np.int32)
+        slices = (slice(None),)*3, (slice(1,-1),)*3
+        for mask, dtype, sl in product(masks, dtypes, slices):
+            mask = mask.astype(dtype)[sl]
+            print(f"\nEDT {dtype.__name__} {mask.shape} slice {sl} ")
+            with Timer("scipy "):
+                ed1 = _edt_prob_scipy(mask)                
+            with Timer("edt:  "):
+                ed2 = _edt_prob_edt(mask)
+            assert np.allclose(ed1, ed2)
+            
+    except ImportError:
+        print("Install edt to run test")
 
 
 def test_stardistdata_sequence():
@@ -300,6 +333,8 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     return model, img, res1, res2, res3
 
+    
+    
 
 @pytest.mark.parametrize('n_classes, classes, n_channel, epochs, batch_size',
                          [ (None, "auto", 1, 1, 1),
@@ -327,4 +362,4 @@ if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
     # res = _test_model_multiclass(n_classes = 2, classes="area", n_channel=1, epochs=2)
-    test_stardistdata((1,4,4))
+    test_stardistdata((2,2,2), True)
