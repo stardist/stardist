@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from stardist import star_dist3D, Rays_GoldenSpiral, relabel_image_stardist3D
-from utils import random_image, real_image3d, check_similar, circle_image
+from utils import random_image, real_image3d, check_similar, circle_image, Timer
 from time import time
 
 @pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
@@ -36,15 +36,18 @@ def test_types_gpu(img, n_rays, grid):
 
 
 @pytest.mark.gpu
-@pytest.mark.parametrize('img', (real_image3d()[1], random_image((33, 44, 55))))
-@pytest.mark.parametrize('n_rays', (4, 16, 32))
-@pytest.mark.parametrize('grid', ((1, 1, 1), (1, 2, 4)))
+@pytest.mark.parametrize('img', (real_image3d()[1], random_image((77, 101, 55))))
+@pytest.mark.parametrize('n_rays', (16, 32, 96))
+@pytest.mark.parametrize('grid', ((1, 1, 1), (2, 2, 2)))
 def test_cpu_gpu(img, n_rays, grid):
     print(tuple(s//g for s, g in zip(img.shape, grid)))
     rays = Rays_GoldenSpiral(n_rays)
-    s_cpp = star_dist3D(img, rays=rays, grid=grid, mode="cpp")
-    s_ocl = star_dist3D(img, rays=rays, grid=grid, mode="opencl")
+    with Timer(f"stardist {img.shape} {n_rays} rays - CPU"):
+        s_cpp = star_dist3D(img, rays=rays, grid=grid, mode="cpp")
+    with Timer(f"stardist {img.shape} {n_rays} rays - GPU"):
+        s_ocl = star_dist3D(img, rays=rays, grid=grid, mode="opencl")
     check_similar(s_cpp, s_ocl)
+    return s_cpp, s_ocl
 
 
 @pytest.mark.parametrize('n_rays', (64,128))
@@ -106,5 +109,5 @@ def test_grid(grid,shape):
 if __name__ == '__main__':
     # lbl1, lbl2 = test_relabel_consistency(128,eps = (.5,1,1.2), plot = True)    
     # lbl, d1,d2 = test_grid(grid=(1,2,2),shape=(62,63,66))
-    test_cpu_gpu(random_image((32,33,34)), 32, (1,2,4))
+    d1, d2 = test_cpu_gpu(random_image((99,92,101)), 96, (1,2,4))
     # test_grid((2,1,2), (32,67,93))

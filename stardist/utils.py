@@ -60,23 +60,18 @@ def _edt_prob_edt(lbl_img, anisotropy=None):
     uses https://github.com/mkazhdan/EDT that can handle multiple labels and is ~5x faster 
     """
     from edt import edt
-    def grow(sl,interior):
-        return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
-    def shrink(interior):
-        return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
+    lbl_img = np.ascontiguousarray(lbl_img)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
-    if constant_img:
-        lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
-        warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
+    # we just need to compute the edt once but then normalize it for each object 
+    prob = edt(lbl_img, anisotropy=anisotropy,
+               black_border=constant_img, parallel=4)
     objects = find_objects(lbl_img)
-    prob = edt(np.ascontiguousarray(lbl_img), anisotropy=anisotropy)
     for i,sl in enumerate(objects,1):
         # i: object label id, sl: slices of object in lbl_img
         if sl is None: continue
-        m = lbl_img[sl]==i
-        prob[sl][m] /= np.max(prob[sl][m]+1e-10)
-    if constant_img:
-        prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
+        _mask = lbl_img[sl]==i
+        # normalize it
+        prob[sl][_mask] /= np.max(prob[sl][_mask]+1e-10)
     return prob
 
 

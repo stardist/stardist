@@ -1,11 +1,13 @@
 import sys
 import numpy as np
 import pytest
+from itertools import product
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
-from utils import circle_image, real_image3d, path_model3d, NumpySequence
+from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer
+
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 1, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
@@ -205,9 +207,6 @@ def print_receptive_fields():
         print(f"backbone: {backbone} \t grid {grid} -> fov: {fov}")
 
 
-
-
-
 def test_classes():
     from stardist.utils import mask_to_categorical
 
@@ -236,6 +235,7 @@ def test_classes():
     p, cls_dict = _check_single_val(7,6)
 
     return p
+
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None, epochs=20, batch_size=1):
     from skimage.measure import regionprops
