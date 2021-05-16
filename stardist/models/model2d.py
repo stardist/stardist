@@ -66,7 +66,7 @@ class StarDistData2D(StarDistDataBase):
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
-            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
+            _dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist      = dist[self.ss_grid]
             dist_mask = np.stack([edt_prob(lbl[self.b][self.ss_grid[1:3]]) for lbl in Y_cleared])
         else:
@@ -85,13 +85,15 @@ class StarDistData2D(StarDistDataBase):
         # prob      = prob[self.ss_grid]
 
         # append dist_mask to dist as additional channel
-        # dist = np.concatenate([dist,dist_mask],axis=-1)
-        dist0 = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
-        dist0[...,:-1] = dist
-        dist0[...,-1:] = dist_mask
+        # dist_and_mask = np.concatenate([dist,dist_mask],axis=-1)
+        # faster than concatenate
+        dist_and_mask = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
+        dist_and_mask[...,:-1] = dist
+        dist_and_mask[...,-1:] = dist_mask
+
 
         if self.n_classes is None:
-            return [X], [prob,dist]
+            return [X], [prob,dist_and_mask]
         else:
             prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
@@ -100,7 +102,7 @@ class StarDistData2D(StarDistDataBase):
             # 'zoom' might lead to better registered maps (especially if upscaled later)
             prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
-            return [X], [prob,dist, prob_class]
+            return [X], [prob,dist_and_mask, prob_class]
 
 
 
