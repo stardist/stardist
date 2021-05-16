@@ -22,7 +22,7 @@ def _ocl_star_dist(lbl, n_rays=32, grid=(1,1)):
     src = OCLImage.from_array(lbl.astype(np.uint16,copy=False))
     dst = OCLArray.empty(res_shape+(n_rays,), dtype=np.float32)
     program = OCLProgram(path_absolute("kernels/stardist2d.cl"), build_options=['-D', 'N_RAYS=%d' % n_rays])
-    program.run_kernel('star_dist', src.shape, None, dst.data, src, np.int32(grid[0]),np.int32(grid[1]))
+    program.run_kernel('star_dist', res_shape[::-1], None, dst.data, src, np.int32(grid[0]),np.int32(grid[1]))
     return dst.get()
 
 
