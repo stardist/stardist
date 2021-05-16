@@ -65,6 +65,22 @@ def test_relabel_consistency(n_rays, eps, plot = False):
 
     return lbl1, lbl2
 
+@pytest.mark.parametrize('grid', ((1,1),(2,4)))
+@pytest.mark.parametrize('shape', ((64,66),(67,93)))
+def test_grid(grid,shape):
+    ss_grid = tuple(slice(0, None, g) for g in grid)
+    lbl = circle_image(shape=shape, radius=min(shape)//3)
+
+    n_rays = 32
+    d1 = star_dist(lbl, n_rays=n_rays)
+    d1 = d1[ss_grid]
+    d2 = star_dist(lbl, n_rays=n_rays, grid=grid)
+
+    assert np.allclose(d1,d2)
+    return lbl, d1, d2
+
+
 
 if __name__ == '__main__':
-    lbl1, lbl2 = test_relabel_consistency(32,eps = (.7,1), plot = True)
+    # lbl1, lbl2 = test_relabel_consistency(32,eps = (.7,1), plot = True)
+    lbl, d1, d2 = test_grid((2,1),(33,34))

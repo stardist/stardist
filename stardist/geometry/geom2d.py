@@ -12,24 +12,30 @@ from ..lib.stardist2d import c_star_dist
 
 
 
-def _ocl_star_dist(a, n_rays=32):
+def _ocl_star_dist(lbl, n_rays=32, grid=(1,1)):
     from gputools import OCLProgram, OCLArray, OCLImage
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
     n_rays = int(n_rays)
-    src = OCLImage.from_array(a.astype(np.uint16,copy=False))
-    dst = OCLArray.empty(a.shape+(n_rays,), dtype=np.float32)
+    # slicing with grid is done with tuple(slice(0, None, g) for g in grid)
+    res_shape = tuple((s-1)//g+1 for s, g in zip(lbl.shape, grid))
+    
+    src = OCLImage.from_array(lbl.astype(np.uint16,copy=False))
+    dst = OCLArray.empty(res_shape+(n_rays,), dtype=np.float32)
     program = OCLProgram(path_absolute("kernels/stardist2d.cl"), build_options=['-D', 'N_RAYS=%d' % n_rays])
-    program.run_kernel('star_dist', src.shape, None, dst.data, src)
+    program.run_kernel('star_dist', src.shape, None, dst.data, src, np.int32(grid[0]),np.int32(grid[1]))
     return dst.get()
 
 
-def _cpp_star_dist(a, n_rays=32):
+def _cpp_star_dist(lbl, n_rays=32, grid=(1,1)):
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
-    return c_star_dist(a.astype(np.uint16,copy=False), int(n_rays))
+    return c_star_dist(lbl.astype(np.uint16,copy=False), np.int32(n_rays), np.int32(grid[0]),np.int32(grid[1]))
 
 
-def _py_star_dist(a, n_rays=32):
+def _py_star_dist(a, n_rays=32, grid=(1,1)):
     (np.isscalar(n_rays) and 0 < int(n_rays)) or _raise(ValueError())
+    if grid != (1,1):
+        raise NotImplementedError(grid)
+    
     n_rays = int(n_rays)
     a = a.astype(np.uint16,copy=False)
     dst = np.empty(a.shape+(n_rays,),np.float32)
@@ -64,17 +70,17 @@ def _py_star_dist(a, n_rays=32):
     return dst
 
 
-def star_dist(a, n_rays=32, mode='cpp'):
+def star_dist(a, n_rays=32, grid=(1,1), mode='cpp'):
     """'a' assumbed to be a label image with integer values that encode object ids. id 0 denotes background."""
 
     n_rays >= 3 or _raise(ValueError("need 'n_rays' >= 3"))
 
     if mode == 'python':
-        return _py_star_dist(a, n_rays)
+        return _py_star_dist(a, n_rays, grid=grid)
     elif mode == 'cpp':
-        return _cpp_star_dist(a, n_rays)
+        return _cpp_star_dist(a, n_rays, grid=grid)
     elif mode == 'opencl':
-        return _ocl_star_dist(a, n_rays)
+        return _ocl_star_dist(a, n_rays, grid=grid)
     else:
         _raise(ValueError("Unknown mode %s" % mode))
 

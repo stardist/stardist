@@ -64,9 +64,11 @@ class StarDistData2D(StarDistDataBase):
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
+            dist      = dist[self.ss_grid]
             dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
         else:
-            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode) for lbl in Y])
+            # directly subsample with grid 
+            dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode, grid=self.grid) for lbl in Y])
             dist_mask = prob
 
         X = np.stack(X)
@@ -78,7 +80,7 @@ class StarDistData2D(StarDistDataBase):
         # subsample wth given grid
         dist_mask = dist_mask[self.ss_grid]
         prob      = prob[self.ss_grid]
-        dist      = dist[self.ss_grid]
+
 
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
