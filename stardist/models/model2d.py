@@ -59,13 +59,16 @@ class StarDistData2D(StarDistDataBase):
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
-        prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
+        
+        prob = np.stack([edt_prob(lbl[self.b][self.ss_grid[1:3]]) for lbl in Y])
+        # prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
+        # prob = prob[self.ss_grid]
 
         if self.shape_completion:
             Y_cleared = [clear_border(lbl) for lbl in Y]
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode)[self.b+(slice(None),)] for lbl in Y_cleared])
             dist      = dist[self.ss_grid]
-            dist_mask = np.stack([edt_prob(lbl[self.b]) for lbl in Y_cleared])
+            dist_mask = np.stack([edt_prob(lbl[self.b][self.ss_grid[1:3]]) for lbl in Y_cleared])
         else:
             # directly subsample with grid 
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode, grid=self.grid) for lbl in Y])
@@ -78,12 +81,14 @@ class StarDistData2D(StarDistDataBase):
         dist_mask = np.expand_dims(dist_mask,-1)
 
         # subsample wth given grid
-        dist_mask = dist_mask[self.ss_grid]
-        prob      = prob[self.ss_grid]
-
+        # dist_mask = dist_mask[self.ss_grid]
+        # prob      = prob[self.ss_grid]
 
         # append dist_mask to dist as additional channel
-        dist = np.concatenate([dist,dist_mask],axis=-1)
+        # dist = np.concatenate([dist,dist_mask],axis=-1)
+        dist0 = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
+        dist0[...,:-1] = dist
+        dist0[...,-1:] = dist_mask
 
         if self.n_classes is None:
             return [X], [prob,dist]
