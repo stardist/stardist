@@ -52,7 +52,7 @@ def edt_prob(lbl_img, anisotropy=None):
     try:
         return _edt_prob_edt(lbl_img, anisotropy=None)
     except ImportError:
-        warnings.warn("Could not find package edt (https://github.com/mkazhdan/EDT) \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
+        warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
         return _edt_prob_scipy(lbl_img, anisotropy=None)
 
 def _edt_prob_edt(lbl_img, anisotropy=None):
