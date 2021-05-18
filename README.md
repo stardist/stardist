@@ -50,7 +50,7 @@ If you only want to use a StarDist plugin for a GUI-based software, please read 
 (either TensorFlow 1 or 2) by following the official instructions.
 For [GPU support](https://www.tensorflow.org/install/gpu), it is very
 important to install the specific versions of CUDA and cuDNN that are
-compatible with the respective version of TensorFlow.
+compatible with the respective version of TensorFlow. (If you need help and can use `conda`, take a look at [this](https://github.com/CSBDeep/CSBDeep/tree/master/extras#conda-environment).)
 
 2. *StarDist* can then be installed with `pip`:
 
@@ -104,16 +104,15 @@ img = test_image_nuclei_2d()
 
 labels, _ = model.predict_instances(normalize(img))
 
-plt.subplot(1,2,1);
-plt.imshow(img, cmap = "gray");
+plt.subplot(1,2,1)
+plt.imshow(img, cmap="gray")
 plt.axis("off")
 plt.title("input image")
 
-plt.subplot(1,2,2);
-plt.imshow(render_label(labels, img = img));
+plt.subplot(1,2,2)
+plt.imshow(render_label(labels, img=img))
 plt.axis("off")
-plt.title("prediction + input overlay ")
-
+plt.title("prediction + input overlay")
 ```
 
 ![](images/pretrained_example.png)
@@ -183,9 +182,13 @@ Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio
 
 ## Plugins for other software
 
-### ImageJ/Fiji Plugin
+### ImageJ/Fiji
 
 We currently provide a ImageJ/Fiji plugin that can be used to run pretrained StarDist models on 2D or 2D+time images. Installation and usage instructions can be found at the [plugin page](https://imagej.net/StarDist).
+
+### Napari
+
+We made a plugin for the Python-based multi-dimensional image viewer [napari](https://napari.org). It directly uses the StarDist Python package and works for 2D and 3D images. Please see the [code repository](https://github.com/stardist/stardist-napari) for further details.
 
 ### QuPath
 
