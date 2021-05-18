@@ -57,7 +57,8 @@ def edt_prob(lbl_img, anisotropy=None):
 
 def _edt_prob_edt(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize.
-    uses https://github.com/mkazhdan/EDT that can handle multiple labels and is ~5x faster 
+    Internally uses https://github.com/seung-lab/euclidean-distance-transform-3d
+    that can handle multiple labels at once
     """
     from edt import edt
     lbl_img = np.ascontiguousarray(lbl_img)
