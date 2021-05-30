@@ -29,6 +29,10 @@ jobs:
       - run: pip install "${{ matrix.tensorflow }}"
       - uses: actions/checkout@v2
 
+      - name: Install edt
+        if: matrix.python-version == 3.7
+        run: pip install edt
+
       - name: Install package (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
