@@ -147,20 +147,21 @@ def test_stardistdata(grid):
     s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
                        patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
     (img,), (prob, dist) = s[0]
-        
+
     return (img,), (prob, dist), s
 
 
 def _edt_available():
     try:
-        import edt
-    except:
+        from edt import edt
+    except ImportError:
         return False
-    return True        
+    return True
 
 
-@pytest.mark.skipif(not _edt_available(), reason="needs edt" )
-def test_edt_prob():
+@pytest.mark.skipif(not _edt_available(), reason="needs edt")
+@pytest.mark.parametrize('anisotropy',(None,(8,1.2,0.75)))
+def test_edt_prob(anisotropy):
     try:
         import edt
         from stardist.utils import _edt_prob_edt, _edt_prob_scipy
@@ -174,11 +175,11 @@ def test_edt_prob():
             mask = mask.astype(dtype)[sl]
             print(f"\nEDT {dtype.__name__} {mask.shape} slice {sl} ")
             with Timer("scipy "):
-                ed1 = _edt_prob_scipy(mask)                
+                ed1 = _edt_prob_scipy(mask, anisotropy=anisotropy)
             with Timer("edt:  "):
-                ed2 = _edt_prob_edt(mask)
-            assert np.allclose(ed1, ed2)
-            
+                ed2 = _edt_prob_edt(mask, anisotropy=anisotropy)
+            assert np.percentile(np.abs(ed1-ed2), 99.9) < 1e-3
+
     except ImportError:
         print("Install edt to run test")
 
@@ -333,8 +334,8 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     return model, img, res1, res2, res3
 
-    
-    
+
+
 
 @pytest.mark.parametrize('n_classes, classes, n_channel, epochs, batch_size',
                          [ (None, "auto", 1, 1, 1),

@@ -17,6 +17,25 @@ from csbdeep.utils.six import Path
 from .matching import matching_dataset, _check_label_array
 
 
+try:
+    from edt import edt
+    _edt_available = True
+    try:    _edt_parallel_max = len(os.sched_getaffinity(0))
+    except: _edt_parallel_max = 128
+    _edt_parallel_default = 4
+    _edt_parallel = os.environ.get('STARDIST_EDT_NUM_THREADS', _edt_parallel_default)
+    try:
+        _edt_parallel = min(_edt_parallel_max, int(_edt_parallel))
+    except ValueError as e:
+        warnings.warn(f"Invalid value ({_edt_parallel}) for STARDIST_EDT_NUM_THREADS. Using default value ({_edt_parallel_default}) instead.")
+        _edt_parallel = _edt_parallel_default
+    del _edt_parallel_default, _edt_parallel_max
+except ImportError:
+    _edt_available = False
+    # warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
+    pass
+
+
 def gputools_available():
     try:
         import gputools
@@ -49,25 +68,23 @@ def _normalize_grid(grid,n):
 
 
 def edt_prob(lbl_img, anisotropy=None):
-    try:
-        return _edt_prob_edt(lbl_img, anisotropy=None)
-    except ImportError:
-        warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
-        return _edt_prob_scipy(lbl_img, anisotropy=None)
+    if _edt_available:
+        return _edt_prob_edt(lbl_img, anisotropy=anisotropy)
+    else:
+        # warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
+        return _edt_prob_scipy(lbl_img, anisotropy=anisotropy)
 
 def _edt_prob_edt(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize.
     Internally uses https://github.com/seung-lab/euclidean-distance-transform-3d
     that can handle multiple labels at once
     """
-    from edt import edt
     lbl_img = np.ascontiguousarray(lbl_img)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
     if constant_img:
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
-    # we just need to compute the edt once but then normalize it for each object 
-    prob = edt(lbl_img, anisotropy=anisotropy,
-               black_border=constant_img, parallel=4)
+    # we just need to compute the edt once but then normalize it for each object
+    prob = edt(lbl_img, anisotropy=anisotropy, black_border=constant_img, parallel=_edt_parallel)
     objects = find_objects(lbl_img)
     for i,sl in enumerate(objects,1):
         # i: object label id, sl: slices of object in lbl_img
@@ -76,7 +93,6 @@ def _edt_prob_edt(lbl_img, anisotropy=None):
         # normalize it
         prob[sl][_mask] /= np.max(prob[sl][_mask]+1e-10)
     return prob
-
 
 def _edt_prob_scipy(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize."""
