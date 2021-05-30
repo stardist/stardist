@@ -33,7 +33,7 @@ jobs:
 
       - name: Install edt
         if: matrix.python-version == 3.9
-        run: pip install edt
+        run: pip install edt "numpy>=1.2.0"
 
       - name: Install package from source (macOS)
         if: startsWith(matrix.os, 'macos')

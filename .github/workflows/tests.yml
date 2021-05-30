@@ -30,8 +30,8 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Install edt
-        if: matrix.python-version == 3.9
-        run: pip install edt
+        if: matrix.python-version == 3.9s
+        run: pip install edt "numpy>=1.2.0"
 
       - name: Install package (macOS)
         if: startsWith(matrix.os, 'macos')
