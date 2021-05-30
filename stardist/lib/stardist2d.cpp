@@ -57,15 +57,16 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
   PyArrayObject *src = NULL;
   PyArrayObject *dst = NULL;
   int n_rays;
+  int grid_x, grid_y;
 
-  if (!PyArg_ParseTuple(args, "O!i", &PyArray_Type, &src, &n_rays))
+  if (!PyArg_ParseTuple(args, "O!iii", &PyArray_Type, &src, &n_rays, &grid_y, &grid_x))
     return NULL;
 
   npy_intp *dims = PyArray_DIMS(src);
 
   npy_intp dims_dst[3];
-  dims_dst[0] = dims[0];
-  dims_dst[1] = dims[1];
+  dims_dst[0] = (dims[0]-1)/grid_y+1;
+  dims_dst[1] = (dims[1]-1)/grid_x+1;
   dims_dst[2] = n_rays;
 
   dst = (PyArrayObject*)PyArray_SimpleNew(3,dims_dst,NPY_FLOAT32);
@@ -77,9 +78,9 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
 #else
 #pragma omp parallel for schedule(dynamic) 
 #endif
-  for (int i=0; i<dims[0]; i++) {
-    for (int j=0; j<dims[1]; j++) {
-      const unsigned short value = *(unsigned short *)PyArray_GETPTR2(src,i,j);
+  for (int i=0; i<dims_dst[0]; i++) {
+    for (int j=0; j<dims_dst[1]; j++) {
+      const unsigned short value = *(unsigned short *)PyArray_GETPTR2(src,i*grid_y,j*grid_x);
       // background pixel
       if (value == 0) {
         for (int k = 0; k < n_rays; k++) {
@@ -97,7 +98,7 @@ static PyObject* c_star_dist (PyObject *self, PyObject *args) {
           while (1) {
             x += dx;
             y += dy;
-            const int ii = round_to_int(i+x), jj = round_to_int(j+y);
+            const int ii = round_to_int(i*grid_y+x), jj = round_to_int(j*grid_x+y);
             // stop if out of bounds or reaching a pixel with a different value/id
             if (ii < 0 || ii >= dims[0] ||
                 jj < 0 || jj >= dims[1] ||

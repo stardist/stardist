@@ -8,7 +8,7 @@ from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
-from utils import circle_image, real_image2d, path_model2d, NumpySequence
+from utils import circle_image, real_image2d, path_model2d, NumpySequence, Timer
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 1, False), (4, (8, 2), 2, 1, True)])
@@ -123,6 +123,39 @@ def test_stardistdata(n_classes = None, classes = 1):
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
     a, b = s[0]
     return a,b, s
+
+
+def _edt_available():
+    try:
+        from edt import edt
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _edt_available(), reason="needs edt")
+@pytest.mark.parametrize('anisotropy',(None,(3.2,0.75)))
+def test_edt_prob(anisotropy):
+    try:
+        import edt
+        from stardist.utils import _edt_prob_edt, _edt_prob_scipy
+
+        masks = (np.tile(real_image2d()[1],(2,2)),
+                 np.zeros((117,92)),
+                 np.ones((153,112)))
+        dtypes = (np.uint16, np.int32)
+        slices = (slice(None),)*2, (slice(1,-1),)*2
+        for mask, dtype, sl in product(masks, dtypes, slices):
+            mask = mask.astype(dtype)[sl]
+            print(f"\nEDT {dtype.__name__} {mask.shape} slice {sl} ")
+            with Timer("scipy "):
+                ed1 = _edt_prob_scipy(mask, anisotropy=anisotropy)
+            with Timer("edt:  "):
+                ed2 = _edt_prob_edt(mask, anisotropy=anisotropy)
+            assert np.percentile(np.abs(ed1-ed2), 99.9) < 1e-3
+
+    except ImportError:
+        print("Install edt to run test")
 
 
 def render_label_example(model2d):

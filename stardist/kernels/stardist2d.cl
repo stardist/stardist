@@ -10,12 +10,13 @@ inline float2 pol2cart(const float rho, const float phi) {
     return (float2)(x,y);
 }
 
-__kernel void star_dist(__global float* dst, read_only image2d_t src) {
+__kernel void star_dist(__global float* dst, read_only image2d_t src, const int grid_y, const int grid_x) {
 
     const int i = get_global_id(0), j = get_global_id(1);
     const int Nx = get_global_size(0), Ny = get_global_size(1);
+    const float2 grid = (float2)(grid_x, grid_y);
 
-    const float2 origin = (float2)(i,j);
+    const float2 origin = (float2)(i,j) * grid;
     const int value = read_imageui(src,sampler,origin).x;
 
     if (value == 0) {

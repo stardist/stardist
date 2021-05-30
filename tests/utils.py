@@ -4,7 +4,7 @@ from tifffile import imread
 from skimage.measure import label
 from scipy.ndimage.filters import gaussian_filter
 from pathlib import Path
-
+from timeit import default_timer
 from csbdeep.utils.tf import keras_import
 Sequence = keras_import('utils','Sequence')
 
@@ -16,6 +16,21 @@ class NumpySequence(Sequence):
         return self.data[n]
     def __len__(self):
         return len(self.data)
+
+
+class Timer(object):
+    def __init__(self, message = "elapsed", fmt= " {1000*t:.2f} ms"):
+        self.message = message
+        self.fmt = fmt
+    def __enter__(self):
+        self.start = default_timer()
+        return self
+    def __exit__(self, *args):
+        t = default_timer() - self.start
+        print(eval(f'f"{self.message}: {self.fmt}"'))
+        self.t = t
+
+
 
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
@@ -81,3 +96,5 @@ def path_model2d():
 
 def path_model3d():
     return Path(_root_dir()) / '..' / 'models' / 'examples' / '3D_demo'
+
+
