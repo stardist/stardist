@@ -40,8 +40,7 @@ jobs:
           brew install gcc@9
           python -m cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp3?-*"
-          CIBW_SKIP: "cp35-* cp39-*"
+          CIBW_BUILD: "cp39-*"
           # install fork of 'delocate' to work around bug
           CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
            # TODO: make it work for 10.9 (required libstdc++.dylib and libgomp.dylib from gcc compiled for 10.15)
@@ -59,8 +58,7 @@ jobs:
           python -m cibuildwheel --output-dir dist
         env:
           # only build for platforms where tensorflow is available
-          CIBW_BUILD: "cp3?-*x86_64 cp3?-*win_amd64"
-          CIBW_SKIP: "cp35-* cp39-*"
+          CIBW_BUILD: "cp39-*x86_64 cp39-*win_amd64"
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
