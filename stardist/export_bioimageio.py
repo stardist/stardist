@@ -6,11 +6,31 @@ import hashlib
 import shutil
 import tempfile
 from ruamel.yaml import YAML
-from importlib import metadata
+
 from csbdeep.utils import axes_check_and_normalize, axes_dict, move_image_axes
 
 
+def _get_stardist_metadata():
+    from importlib import metadata
 
+    package_data = metadata.metadata('stardist')
+    
+    data = SimpleNamespace(
+        description=package_data['Summary'],
+        authors = package_data['Author'].split(','),
+        git_repo=package_data['Home-Page'],
+        license=package_data['License'],
+        version=package_data['Version'])
+    return data
+
+def _get_stardist_dependencies():
+    from pkg_resources import get_distribution    
+    pkg_info = get_distribution('stardist')
+    
+    reqs = ('tensorflow', ) + tuple(map(str, pkg_info.requires()))
+    
+    return reqs
+    
 
 
 def _get_weights_name(model, prefer="best"):
@@ -28,20 +48,21 @@ def _get_weights_name(model, prefer="best"):
     return weights_chosen.name
 
     
-
 # TODO: this could be turned into a base class method
 def _default_bioimageio_spec(self, prefer_weights='best'):
     """the model specific spec parameters (e.g. axes stride) etc."""
     
     spec = SimpleNamespace()
 
-    package_data = metadata.metadata('stardist')
+    package_data = _get_stardist_metadata()
+
+    
     # metadata
     spec.format_version = '0.3.1'
     spec.name           = 'StarDist Model'
     spec.timestamp      = datetime.now().isoformat()
-    spec.description    = package_data['Summary']
-    spec.authors        = package_data['Author'].split(',')
+    spec.description    = package_data.description
+    spec.authors        = package_data.authors
     spec.cite           = [
             dict(text='Cell Detection with Star-Convex Polygons',
                  doi='https://doi.org/10.1007/978-3-030-00934-2_30'),
@@ -49,18 +70,17 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
                  doi='https://doi.org/10.1109/WACV45572.2020.9093435')
     ]
 
-    spec.git_repo       = package_data['Home-Page']
+    spec.git_repo       = package_data.git_repo
     spec.tags           = ["stardist", "segmentation", "instance segmentation", "tensorflow"]
-    spec.license        = package_data['License']
+    spec.license        = package_data.license
     spec.documentation  = 'https://github.com/stardist/stardist'
 
     # other stuff
     spec.covers = ["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"] 
 
-    spec.config = dict(stardist_version=package_data['Version'])
+    spec.config = dict(stardist_version=package_data.version)
 
-    spec.dependencies = "python:setup.py"
-
+    spec.dependencies = 'pip:./requirements.txt'
 
     # get weights
     weights_name = _get_weights_name(self, prefer=prefer_weights)
@@ -179,6 +199,10 @@ def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=[
         for f in Path(model.logdir).glob('*.json'):
             shutil.copy(f, outdir/f.name)
 
+        # create requirements
+        with open(outdir/'requirements.txt', 'w', encoding='UTF-8') as f:
+            f.write('\n'.join(_get_stardist_dependencies()))
+        
         # copy test_inputs, outputs
         spec.test_inputs, spec.test_outputs = [], []
         for i, (inp, out) in enumerate(zip(test_inputs, test_outputs)):

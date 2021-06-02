@@ -26,6 +26,7 @@ from csbdeep.data import Resizer
 from ..sample_patches import get_valid_inds
 from ..nms import _ind_prob_thresh
 from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
+from ..version import __version__
 
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
@@ -1060,6 +1061,97 @@ class StarDistBase(BaseModel):
         export_SavedModel(csbdeep_model, str(fname))
         return csbdeep_model
 
+    def get_bioimageio_spec(self, weights='weights_best.h5'):
+
+        spec = SimpleNamespace()
+
+        # metadata
+        spec.format_version = '0.3.1'
+        spec.name           = 'StarDist Model'
+        spec.timestamp      = datetime.now().isoformat()
+        spec.description    = 'StarDist - Object Detection with Star-convex Shapes'
+        spec.authors        = ['Martin Weigert', 'Uwe Schmidt']
+        spec.cite           = [
+                dict(text='Cell Detection with Star-Convex Polygons',
+                     doi='https://doi.org/10.1007/978-3-030-00934-2_30'),
+                dict(text='Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy',
+                     doi='https://doi.org/10.1109/WACV45572.2020.9093435')
+        ]
+
+        spec.git_repo       = 'https://github.com/stardist/stardist'
+        spec.tags           = ["stardist", "segmentation", "instance segmentation", "tensorflow"]
+        spec.license        = 'BSD'
+        spec.documentation  = 'https://github.com/stardist/stardist'
+
+        # other stuff
+        spec.covers = ["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"] 
+
+        spec.config = dict(stardist_version=__version__)
+
+        spec.dependencies = "python:setup.py"
+
+        fname_weights = self.logdir/weights
+
+        with open(fname_weights, "rb") as f:
+            bytes = f.read() # read entire file as bytes
+            _hash = hashlib.sha256(bytes).hexdigest()
+            sha256_weights  = hashlib.sha256(bytes).hexdigest()
+
+        spec.weights = dict(keras_hdf5=dict(
+            authors=["NN"],
+            source=str(fname_weights),
+            sha256=sha256_weights,
+        ))
+
+        
+        axes = self.config.axes.lower()
+        img_axes_in = axes_check_and_normalize(axes,self.config.n_dim+1)
+        net_axes_in = axes
+        net_axes_out = axes_check_and_normalize(self._axes_out).lower()
+        net_axes_lost = set(net_axes_in).difference(set(net_axes_out))
+        img_axes_out = ''.join(a for a in img_axes_in if a not in net_axes_lost)
+
+
+        ndim_tensor = self.config.n_dim + 2
+
+        # input shape including batchsize 
+        div_by = list(self._axes_div_by(net_axes_in))
+        input_shape = dict(min=[1]+div_by,step = [0]+div_by)
+
+        output_names = ("prob", "dist") +  (("class_prob",) if self._is_multiclass() else ())
+        output_n_channels = (1, self.config.n_rays,) + ((1,) if self._is_multiclass() else ())
+
+        # input/output
+        spec.inputs = [dict(name       = 'input',
+                           data_type  = 'float32',
+                           data_range = ['-inf', 'inf'],
+                           axes       = 'b'+net_axes_in.lower(),
+                           shape = input_shape,
+                           # shape = [1,1,1,1], # 
+                           preprocessing = [
+                               dict(name="scale_range",
+                                    kwargs=dict(
+                                        mode="per_sample",
+                                        # TODO: might make it an option to normalize across channels...
+                                        axes=net_axes_in.lower().replace('c', ''), 
+                                        min_percentile=1,
+                                        max_percentile=99.8,
+                                    ))
+                           ])]
+
+        spec.outputs = [dict(name     = name,
+                           data_type  = 'float32',
+                           data_range = ['-inf', 'inf'],
+                           axes       = 'b' + net_axes_out.lower(),
+                           # TODO: doesn't work for probabilistic output
+                           shape = dict(reference_input="input",
+                                        scale=[1]+list(1/g for g in self.config.grid) + [0],
+                                        offset=[1]*(ndim_tensor-1) + [n_channel])
+                             ) for name, n_channel in zip(output_names, output_n_channels)]
+
+        return spec
+
+        
 
 
 class StarDistPadAndCropResizer(Resizer):

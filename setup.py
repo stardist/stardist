@@ -62,7 +62,7 @@ clipper_src = sorted(glob(path.join(clipper_root, '*.cpp*')))[::-1]
 setup(
     name='stardist',
     version=__version__,
-    description='StarDist',
+    description='StarDist - Object Detection with Star-convex Shapes',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/stardist/stardist',
@@ -107,5 +107,6 @@ setup(
         'csbdeep>=0.6.0',
         'scikit-image',
         'numba',
+        'importlib-metadata'
     ],
 )
