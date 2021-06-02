@@ -12,7 +12,7 @@ from csbdeep.utils import axes_check_and_normalize, axes_dict, move_image_axes
 
 def _get_stardist_metadata():
     from importlib import metadata
-
+    
     package_data = metadata.metadata('stardist')
     
     data = SimpleNamespace(
@@ -23,15 +23,14 @@ def _get_stardist_metadata():
         version=package_data['Version'])
     return data
 
+
 def _get_stardist_dependencies():
-    from pkg_resources import get_distribution    
+    from pkg_resources import get_distribution
+    
     pkg_info = get_distribution('stardist')
-    
     reqs = ('tensorflow', ) + tuple(map(str, pkg_info.requires()))
-    
     return reqs
     
-
 
 def _get_weights_name(model, prefer="best"):
     #TODO factor that out (its the same as csbdeep.base_model)
@@ -55,7 +54,6 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
     spec = SimpleNamespace()
 
     package_data = _get_stardist_metadata()
-
     
     # metadata
     spec.format_version = '0.3.1'
@@ -96,7 +94,6 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
         source=str(fname_weights),
         sha256=sha256_weights,
     ))
-
 
     # TODO: this needs more attention, e.g. how axes are treated in a general way
     axes = self.config.axes.lower()
