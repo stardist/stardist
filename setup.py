@@ -107,6 +107,7 @@ setup(
         'csbdeep>=0.6.0',
         'scikit-image',
         'numba',
-        'importlib-metadata'
+        'importlib-metadata',
+        'ruamel.yaml'
     ],
 )
