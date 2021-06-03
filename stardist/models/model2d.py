@@ -13,6 +13,7 @@ from skimage.segmentation import clear_border
 from skimage.measure import regionprops
 from scipy.ndimage import zoom
 from distutils.version import LooseVersion
+import segmentation_models as sm
 
 keras = keras_import()
 K = keras_import('backend')
@@ -24,7 +25,7 @@ from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
-
+from .fpn import fpn_block
 
 class StarDistData2D(StarDistDataBase):
 
@@ -193,7 +194,8 @@ class Config2D(BaseConfig):
         self.n_classes                 = None if n_classes is None else int(n_classes)
 
         # default config (can be overwritten by kwargs below)
-        if self.backbone == 'unet':
+        # if self.backbone in ('unet', 'fpn', 'resnet', 'seresnet'):
+        if True:
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
             self.unet_n_filter_base    = 32
@@ -293,7 +295,7 @@ class StarDist2D(StarDistBase):
 
 
     def _build(self):
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
+        # self.config.backbone == 'unet' or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img = Input(self.config.net_input_shape, name='input')
@@ -309,7 +311,25 @@ class StarDist2D(StarDistBase):
                                     padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
-        unet_base = unet_block(**unet_kwargs)(pooled_img)
+
+        if self.config.backbone=='unet':
+            unet_base = unet_block(**unet_kwargs)(pooled_img)
+        if self.config.backbone=='fpn':
+            unet_base = fpn_block(**unet_kwargs)(pooled_img)
+        elif self.config.backbone=='unet_seresnet':
+            _model = sm.Unet('seresnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
+                            classes=self.config.net_conv_after_unet, activation="relu")
+            unet_base = _model(pooled_img)
+        elif self.config.backbone=='fpn_resnet':
+            _model = sm.FPN('resnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
+                            classes=self.config.net_conv_after_unet, activation="relu")
+            unet_base = _model(pooled_img)
+        elif self.config.backbone=='fpn_seresnet':
+            _model = sm.FPN('seresnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
+                            classes=self.config.net_conv_after_unet, activation="relu")
+            unet_base = _model(pooled_img)
+        else:
+            raise NotImplementedError(self.config.backbone)
 
         if self.config.net_conv_after_unet > 0:
             unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
@@ -530,7 +550,7 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
+        # self.config.backbone == 'unet' or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid)
         div_by = dict(zip(
