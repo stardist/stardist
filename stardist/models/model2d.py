@@ -6,7 +6,7 @@ import math
 from tqdm import tqdm
 
 from csbdeep.models import BaseConfig
-from csbdeep.internals.blocks import unet_block
+from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
@@ -181,7 +181,8 @@ class Config2D(BaseConfig):
 
         .. _ReduceLROnPlateau: https://keras.io/api/callbacks/reduce_lr_on_plateau/
     """
-
+    _BACKBONES = ('unet', 'fpn')
+    
     def __init__(self, axes='YX', n_rays=32, n_channel_in=1, grid=(1,1), n_classes=None, backbone='unet', **kwargs):
         """See class docstring."""
 
@@ -194,8 +195,7 @@ class Config2D(BaseConfig):
         self.n_classes                 = None if n_classes is None else int(n_classes)
 
         # default config (can be overwritten by kwargs below)
-        # if self.backbone in ('unet', 'fpn', 'resnet', 'seresnet'):
-        if True:
+        if self.backbone in self._BACKBONES:
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
             self.unet_n_filter_base    = 32
@@ -209,7 +209,7 @@ class Config2D(BaseConfig):
             self.net_conv_after_unet   = 128
         else:
             # TODO: resnet backbone for 2D model?
-            raise ValueError("backbone '%s' not supported." % self.backbone)
+            raise ValueError("backbone '%s' not supported (supported: %s)" % (self.backbone, self._BACKBONES))
 
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
@@ -300,55 +300,80 @@ class StarDist2D(StarDistBase):
 
         input_img = Input(self.config.net_input_shape, name='input')
 
-        # maxpool input image to grid size
-        pooled = np.array([1,1])
-        pooled_img = input_img
-        while tuple(pooled) != tuple(self.config.grid):
-            pool = 1 + (np.asarray(self.config.grid) > pooled)
-            pooled *= pool
-            for _ in range(self.config.unet_n_conv_per_depth):
-                pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
-                                    padding='same', activation=self.config.unet_activation)(pooled_img)
-            pooled_img = MaxPooling2D(pool)(pooled_img)
 
 
         if self.config.backbone=='unet':
-            unet_base = unet_block(**unet_kwargs)(pooled_img)
-        if self.config.backbone=='fpn':
-            unet_base = fpn_block(**unet_kwargs)(pooled_img)
-        elif self.config.backbone=='unet_seresnet':
-            _model = sm.Unet('seresnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
-                            classes=self.config.net_conv_after_unet, activation="relu")
-            unet_base = _model(pooled_img)
-        elif self.config.backbone=='fpn_resnet':
-            _model = sm.FPN('resnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
-                            classes=self.config.net_conv_after_unet, activation="relu")
-            unet_base = _model(pooled_img)
-        elif self.config.backbone=='fpn_seresnet':
-            _model = sm.FPN('seresnet18', input_shape=(None,None,pooled_img.shape[-1]), encoder_weights=None,
-                            classes=self.config.net_conv_after_unet, activation="relu")
-            unet_base = _model(pooled_img)
+            # maxpool input image to grid size
+            pooled = np.array([1,1])
+            pooled_img = input_img
+            while tuple(pooled) != tuple(self.config.grid):
+                pool = 1 + (np.asarray(self.config.grid) > pooled)
+                pooled *= pool
+                for _ in range(self.config.unet_n_conv_per_depth):
+                    pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
+                                        padding='same', activation=self.config.unet_activation)(pooled_img)
+                pooled_img = MaxPooling2D(pool)(pooled_img)
+
+            features_base = unet_block(**unet_kwargs)(pooled_img)
+            
+        elif self.config.backbone=='fpn':
+            pooled = np.array([1,1])
+            pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
+                                        padding='same', activation=self.config.unet_activation)(input_img)
+            while tuple(pooled) != tuple(self.config.grid):
+                pool = 1 + (np.asarray(self.config.grid) > pooled)
+                pooled *= pool
+                pooled_img = resnet_block(self.config.unet_n_filter_base,
+                                          self.config.unet_kernel_size,
+                                          pool=pool,
+                                          n_conv_per_block=self.config.unet_n_conv_per_depth,
+                                          activation=self.config.unet_activation,
+                                          batch_norm=self.config.unet_batch_norm)(pooled_img)
+            
+            # pooled = np.array([1,1])
+            # pooled_img = input_img
+            # while tuple(pooled) != tuple(self.config.grid):
+            #     pool = 1 + (np.asarray(self.config.grid) > pooled)
+            #     pooled *= pool
+            #     pooled_img = resnet_block(self.config.unet_n_filter_base,
+            #                               self.config.unet_kernel_size,
+            #                               pool=pool,
+            #                               n_conv_per_block=self.config.unet_n_conv_per_depth,
+            #                               activation=self.config.unet_activation,
+            #                               batch_norm=self.config.unet_batch_norm)(pooled_img)
+            # pooled = np.array([1,1])
+            # pooled_img = input_img
+            # while tuple(pooled) != tuple(self.config.grid):
+            #     pool = 1 + (np.asarray(self.config.grid) > pooled)
+            #     pooled *= pool
+            #     for _ in range(self.config.unet_n_conv_per_depth):
+            #         pooled_img = Conv2D(self.config.unet_n_filter_base, self.config.unet_kernel_size,
+            #                             padding='same', activation=self.config.unet_activation)(pooled_img)
+            #     pooled_img = MaxPooling2D(pool)(pooled_img)
+
+            features_base = fpn_block(**unet_kwargs)(pooled_img)
+            
         else:
             raise NotImplementedError(self.config.backbone)
 
         if self.config.net_conv_after_unet > 0:
-            unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                          name='features', padding='same', activation=self.config.unet_activation)(unet_base)
+            features = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                          name='features', padding='same', activation=self.config.unet_activation)(features_base)
         else:
-            unet = unet_base
+            features = features_base
 
-        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(unet)
-        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
+        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(features)
+        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(features)
 
         # attach extra classification head when self.n_classes is given
         if self._is_multiclass():
             if self.config.net_conv_after_unet > 0:
-                unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                                     name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+                features_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
+                                     name='features_class', padding='same', activation=self.config.unet_activation)(features_base)
             else:
-                unet_class  = unet_base
+                features_class  = features_base
 
-            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(unet_class)
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(features_class)
             return Model([input_img], [output_prob,output_dist,output_prob_class])
         else:
             return Model([input_img], [output_prob,output_dist])
