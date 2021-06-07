@@ -158,7 +158,7 @@ StarDist also supports multi-class prediction, i.e. each found object instance c
 
 ![](https://github.com/stardist/stardist/raw/master/images/stardist_multiclass.png)
 
-Please see the [multi-class example notebook](https://github.com/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) if you're interested in this.
+Please see the [multi-class example notebook](https://nbviewer.jupyter.org/github/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) if you're interested in this.
 
 
 ## Troubleshooting & Support
