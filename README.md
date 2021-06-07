@@ -151,6 +151,15 @@ To see how this could be done, have a look at the following [example QuPath proj
 
 ![](https://github.com/stardist/stardist/raw/master/images/qupath.png)
 
+
+#### Multiclass prediction 
+
+StarDist supports multi class prediction, i.e. every annotated object can be assigned a discrete object class (e.g. cell type) during training which then will be additionaly predicted:
+
+![](https://github.com/stardist/stardist/raw/master/images/stardist_multiclass.png)
+
+Please see the [multiclass example notebook](https://github.com/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) for how to use multi class prediction. 
+
 ## Troubleshooting & Support
 
 1. Please first take a look at the [frequently asked questions (FAQ)]( https://stardist.net/docs/faq.html).
