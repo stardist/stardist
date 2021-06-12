@@ -25,13 +25,13 @@ if __name__ == '__main__':
     test_inp   = test_image_nuclei_2d()
     test_out,_ = model.predict_instances(normalize(test_inp))
 
-    spec = export_bioimageio(model, f"modelzoo/fluo.zip",
-                             output_format='zip',
+    spec = export_bioimageio(model, f"modelzoo/stardist_test",
+                             output_format='dir',
                              test_inputs = [test_inp],
                              test_outputs = [test_out],
                              validate=False)
         
-    spec = export_bioimageio(model, f"modelzoo/fluo.zip",
+    spec = export_bioimageio(model, f"modelzoo/stardist_test.zip",
                              output_format='zip',
                              test_inputs = [test_inp],
                              test_outputs = [test_out],

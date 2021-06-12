@@ -68,7 +68,7 @@ setup(
     url='https://github.com/stardist/stardist',
     author='Uwe Schmidt, Martin Weigert',
     author_email='research@uweschmidt.org, martin.weigert@epfl.ch',
-    license='BSD 3-Clause License',
+    license='BSD-3-Clause',
     packages=find_packages(),
     python_requires='>=3.6',
 

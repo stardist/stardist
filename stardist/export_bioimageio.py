@@ -11,16 +11,21 @@ from csbdeep.utils import axes_check_and_normalize, axes_dict, move_image_axes
 
 
 def _get_stardist_metadata():
-    from importlib import metadata
+    # from importlib.metadata import metadata
+    from importlib_metadata import metadata
+    from pkg_resources import get_distribution
     
-    package_data = metadata.metadata('stardist')
+    package_data = metadata('stardist')
+    pkg_info = get_distribution('stardist')
     
     data = SimpleNamespace(
         description=package_data['Summary'],
-        authors = package_data['Author'].split(','),
+        authors = list(dict(name=name.strip()) for name in package_data['Author'].split(',')),
         git_repo=package_data['Home-Page'],
         license=package_data['License'],
-        version=package_data['Version'])
+        version=package_data['Version'],
+        requirements=('tensorflow', ) + tuple(map(str, pkg_info.requires()))
+    )
     return data
 
 
@@ -46,9 +51,28 @@ def _get_weights_name(model, prefer="best"):
     weights_chosen = weights_preferred[0] if len(weights_preferred)>0 else weights_files[0]
     return weights_chosen.name
 
-    
+
+# def export_TF(model, fname=None):
+#     from csbdeep.utils.tf import keras_import, export_SavedModel
+#     K = keras_import('backend')
+#     Model = keras_import('models', 'Model')
+#     Input, Conv2D = keras_import('layers', 'Input', 'Conv2D')
+
+#     x = Input((None,None,1), name = 'input')
+#     y = Conv2D(1, 1, padding="same", name = 'prob')(x)
+#     csbdeep_model = Model(x,y)
+
+#     # if model.basedir is None and fname is None:
+#     #     raise ValueError("Need explicit 'fname', since model directory not available (basedir=None).")
+
+#     # csbdeep_model = Model(model.keras_model.inputs[0], model.keras_model.outputs[0])
+#     fname = (model.logdir / 'TF_SavedModel.zip') if fname is None else Path(fname)
+#     export_SavedModel(csbdeep_model, str(fname))
+#     return csbdeep_model
+
+
 # TODO: this could be turned into a base class method
-def _default_bioimageio_spec(self, prefer_weights='best'):
+def _default_bioimageio_spec(self, mode="tensorflow_saved_model_bundle", prefer_weights='best'):
     """the model specific spec parameters (e.g. axes stride) etc."""
     
     spec = SimpleNamespace()
@@ -56,7 +80,7 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
     package_data = _get_stardist_metadata()
     
     # metadata
-    spec.format_version = '0.3.1'
+    spec.format_version = '0.3.2'
     spec.name           = 'StarDist Model'
     spec.timestamp      = datetime.now().isoformat()
     spec.description    = package_data.description
@@ -71,8 +95,9 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
     spec.git_repo       = package_data.git_repo
     spec.tags           = ["stardist", "segmentation", "instance segmentation", "tensorflow"]
     spec.license        = package_data.license
-    spec.documentation  = 'https://github.com/stardist/stardist'
+    # spec.documentation  = 'https://github.com/stardist/stardist'
 
+    spec.documentation  = 'README.md'
     # other stuff
     spec.covers = ["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"] 
 
@@ -82,18 +107,36 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
 
     # get weights
     weights_name = _get_weights_name(self, prefer=prefer_weights)
-    fname_weights = self.logdir/weights_name
-
-    with open(fname_weights, "rb") as f:
-        bytes = f.read() # read entire file as bytes
-        _hash = hashlib.sha256(bytes).hexdigest()
-        sha256_weights  = hashlib.sha256(bytes).hexdigest()
-
-    spec.weights = dict(keras_hdf5=dict(
+    
+    if mode=='keras_hdf5':
+        fname_weights = self.logdir/weights_name
+        with open(fname_weights, "rb") as f:
+            bytes = f.read() # read entire file as bytes
+            _hash = hashlib.sha256(bytes).hexdigest()
+            sha256_weights  = hashlib.sha256(bytes).hexdigest()
+        
+        spec.weights = dict(keras_hdf5=dict(
         authors=["NN"],
         source=str(fname_weights),
         sha256=sha256_weights,
-    ))
+        ))
+    elif mode=='tensorflow_saved_model_bundle':
+        fname_bundle = self.logdir / 'TF_SavedModel.zip'
+        self.load_weights(weights_name)
+        model_csbdeep = self.export_TF(fname_bundle, single_output=True)
+        # model_csbdeep = export_TF(self, fname_bundle)
+        with open(fname_bundle, "rb") as f:
+            bytes = f.read() # read entire file as bytes
+            _hash = hashlib.sha256(bytes).hexdigest()
+            sha256_bundle  = hashlib.sha256(bytes).hexdigest()
+        
+        spec.weights = dict(tensorflow_saved_model_bundle=dict(
+            source=str(fname_bundle),
+            authors=spec.authors,
+            sha256=sha256_bundle,
+        ))
+    else:
+        raise ValueError(f'unsupported mode {mode}')
 
     # TODO: this needs more attention, e.g. how axes are treated in a general way
     axes = self.config.axes.lower()
@@ -105,15 +148,32 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
 
     ndim_tensor = self.config.n_dim + 2
 
-    # input shape including batchsize 
+    # input shape including batch size 
     div_by = list(self._axes_div_by(net_axes_in))
     input_shape = dict(min=[1]+div_by,step = [0]+div_by)
 
-    output_names = ("prob", "dist") +  (("class_prob",) if self._is_multiclass() else ())
-    output_n_channels = (1, self.config.n_rays,) + ((1,) if self._is_multiclass() else ())
+    if mode=='keras_hdf5':
+        output_names = ("prob", "dist") +  (("class_prob",) if self._is_multiclass() else ())
+        output_n_channels = (1, self.config.n_rays,) + ((1,) if self._is_multiclass() else ())
+        output_scale = [1]+list(1/g for g in self.config.grid) + [0]
+    elif mode=='tensorflow_saved_model_bundle':
+        if self._is_multiclass():
+            raise NotImplementedError('Tensorflow SaveModel not supported for multiclass models yet')
+        # output_names = ("outputall",)
+        # output_n_channels = (1 + self.config.n_rays,)
+        # output_scale = [1]*(ndim_tensor-1) + [0]
+
+        # output_names = ("prob",)
+        # output_n_channels = (1,)
+        # output_scale = [1]*(ndim_tensor-1) + [0]
+
+        output_names = model_csbdeep.output_names
+        output_n_channels = (1 + self.config.n_rays,)
+        output_scale = [1]*(ndim_tensor-1) + [0]
+        print(output_names)
 
     # input/output
-    spec.inputs = [dict(name       = 'input',
+    spec.inputs = [dict(name       = name,
                        data_type  = 'float32',
                        data_range = ['-inf', 'inf'],
                        axes       = 'b'+net_axes_in.lower(),
@@ -126,22 +186,25 @@ def _default_bioimageio_spec(self, prefer_weights='best'):
                                     axes=net_axes_in.lower().replace('c', ''), 
                                     min_percentile=1,
                                     max_percentile=99.8,
-                                ))
-                       ])]
+                                ))]
+                        ) for name in model_csbdeep.input_names]
 
     spec.outputs = [dict(name     = name,
                        data_type  = 'float32',
                        data_range = ['-inf', 'inf'],
                        axes       = 'b' + net_axes_out.lower(),
-                       shape = dict(reference_input="input",
-                                    scale=[1]+list(1/g for g in self.config.grid) + [0],
-                                    offset=[1]*(ndim_tensor-1) + [n_channel])
+                       shape = dict(reference_input=model_csbdeep.inputs[0].name,
+                                    scale=output_scale,
+                                    offset=[1]*(ndim_tensor-1) + [n_channel]
+                                    # scale=[1,1,1,1], 
+                                    # offset=[0,0,0,0]
+                                    )
                          ) for name, n_channel in zip(output_names, output_n_channels)]
 
     return spec
 
 
-def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=['Sigmoid Freud'], output_format="dir", prefer_weights='best', validate=True, overwrite_spec_kwargs={}):
+def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], output_format="dir", mode="tensorflow_saved_model_bundle", prefer_weights='best', validate=True, overwrite_spec_kwargs={}):
     """
     Export stardist model into bioimageio format, https://github.com/bioimage-io/spec-bioimage-io 
     
@@ -159,6 +222,8 @@ def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=[
           the list of model authors 
     output_format : str
           'dir' -> save as directory, 'zip' -> save and compress into zip file 
+    mode : str
+          either 'tensorflow_saved_model_bundle' or 'keras_hdf5'
     prefer_weights : str
           the weights to save (see model._find_and_load_weights)
     validate: bool
@@ -168,16 +233,16 @@ def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=[
           
     """
 
+    # get default spec parameters
+    spec = _default_bioimageio_spec(model, mode=mode, prefer_weights=prefer_weights)
+
+    spec.__dict__.update(overwrite_spec_kwargs)
     # prepare demo input/outputs 
     if not len(test_inputs) == len(test_outputs):
         raise ValueError('test_inputs and test_outputs need to have same size')
     test_inputs  = tuple(map(np.asarray, test_inputs))
     test_outputs = tuple(map(np.asarray, test_outputs))
 
-    # get default spec parameters
-    spec = _default_bioimageio_spec(model, prefer_weights=prefer_weights)
-
-    spec.__dict__.update(overwrite_spec_kwargs)
 
     def export_to_dir(spec, outdir):
         # create a local copy
@@ -187,11 +252,10 @@ def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=[
         if not outdir.is_dir():
             raise ValueError(f'not a directory: {outdir}')
 
-        # copy weights
-        f_weights = Path(spec.weights['keras_hdf5']['source'])
+        # copy weights/bundle
+        f_weights = Path(spec.weights[mode]['source'])
         shutil.copy(f_weights, outdir/f_weights.name)
-        spec.weights['keras_hdf5']['source'] = f'./{f_weights.name}'
-        spec.weights['keras_hdf5']['authors'] = authors
+        spec.weights[mode]['source'] = f'./{f_weights.name}'
         # copy other jsons
         for f in Path(model.logdir).glob('*.json'):
             shutil.copy(f, outdir/f.name)
@@ -234,5 +298,7 @@ def export_bioimageio(model, outpath, test_inputs=[], test_outputs=[], authors=[
         except ImportError as e:
             raise ImportError('Cannot find package `bioimageio` that is needed for validation. \nEither set validate=False or install with\n   pip install git+https://github.com/bioimage-io/python-bioimage-io')
         from bioimageio.spec.__main__ import verify_model_data, ValidationError
-        verify_model_data(vars(spec))
+        from bioimageio.spec import maybe_convert_model
+        spec_data =   maybe_convert_model(vars(spec))
+        verify_model_data(spec_data)
     return spec
