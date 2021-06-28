@@ -11,6 +11,7 @@ from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
 from scipy.ndimage.measurements import find_objects
 from scipy.optimize import minimize_scalar
 from skimage.measure import regionprops
+from skimage.morphology import skeletonize
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
 
@@ -68,6 +69,7 @@ def _normalize_grid(grid,n):
 
 
 def edt_prob(lbl_img, anisotropy=None):
+    return _edt_prob_refinement(lbl_img, anisotropy=anisotropy)
     if _edt_available:
         return _edt_prob_edt(lbl_img, anisotropy=anisotropy)
     else:
@@ -122,6 +124,49 @@ def _edt_prob_scipy(lbl_img, anisotropy=None):
     if constant_img:
         prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
     return prob
+
+
+def _edt_prob_refinement(lbl_img, anisotropy=None):
+    """Perform EDT on each labeled object and normalize."""
+
+    assert anisotropy is None
+    
+    def grow(sl,interior):
+        return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
+    def shrink(interior):
+        return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
+    constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
+    if constant_img:
+        lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
+    prob = np.zeros(lbl_img.shape,np.float32)
+
+    Xs = np.meshgrid(*tuple(np.arange(s) for s in lbl_img.shape), indexing='ij')
+    
+    for reg in regionprops(lbl_img):
+        sl = reg.slice
+        dist_centroid = np.sqrt(np.sum([(X[sl]-c)**2 for X, c in zip(Xs, reg.centroid)] , axis=0))
+        interior = [(s.start>0,s.stop<sz) for s,sz in zip(sl,lbl_img.shape)]
+        shrink_slice = shrink(interior)
+        grown_mask = lbl_img[grow(sl,interior)]==reg.label
+        mask = grown_mask[shrink_slice]
+
+        skel = skeletonize(mask)
+        dist_skel = dist_centroid.copy()
+        dist_skel[np.bitwise_not(skel)] = np.inf
+        center = np.unravel_index(np.argmin(dist_skel), skel.shape)
+        dist_center = np.sqrt(np.sum([(X[sl]-c-_sl.start)**2 for X, c,_sl in zip(Xs, center, sl)] , axis=0))
+        
+        edt = distance_transform_edt(grown_mask, sampling=anisotropy)[shrink_slice]
+        edt2 = np.maximum(0,edt[center]-dist_center)
+        edt = (edt[mask]*edt2[mask])**.5
+        edt = edt/(np.max(edt)+1e-10)
+        prob[sl][mask] = edt/(np.max(edt)+1e-10)
+    if constant_img:
+        prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
+    return prob
+
+
+
 
 
 def _fill_label_holes(lbl_img, **kwargs):
