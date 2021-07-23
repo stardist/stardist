@@ -113,13 +113,16 @@ def test_optimize_thresholds(model2d):
     np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
 
 
-def test_stardistdata(n_classes = None, classes = 1):
+@pytest.mark.parametrize('n_classes, classes', [(None,(1,1)),(2,(1,2))])
+@pytest.mark.parametrize('shape_completion',(False,True))
+def test_stardistdata(shape_completion, n_classes, classes):
     np.random.seed(42)
     from stardist.models import StarDistData2D
     img, mask = real_image2d()
     s = StarDistData2D([img, img], [mask, mask],
                        grid = (2,2),
-                       n_classes = n_classes, classes = (classes,classes),
+                       n_classes = n_classes, classes = classes,
+                       shape_completion = shape_completion, b = 8,
                        batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
     a, b = s[0]
     return a,b, s
