@@ -43,7 +43,7 @@ jobs:
           CIBW_BUILD: "cp3?-*"
           CIBW_SKIP: "cp35-*"
           # install fork of 'delocate' to work around bug
-          CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
+          # CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
            # TODO: make it work for 10.9 (required libstdc++.dylib and libgomp.dylib from gcc compiled for 10.15)
           MACOSX_DEPLOYMENT_TARGET: 10.15
           CIBW_BUILD_VERBOSITY: 1
