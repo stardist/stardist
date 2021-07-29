@@ -99,6 +99,7 @@ And then try it out with a test image:
 from stardist.data import test_image_nuclei_2d
 from stardist.plot import render_label
 from csbdeep.utils import normalize
+import matplotlib.pyplot as plt
 
 img = test_image_nuclei_2d() 
 
