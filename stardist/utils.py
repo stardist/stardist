@@ -13,6 +13,7 @@ from scipy.optimize import minimize_scalar
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
 from csbdeep.utils.six import Path
+from collections.abc import Iterable
 
 from .matching import matching_dataset, _check_label_array
 
@@ -178,7 +179,7 @@ def sample_points(n_samples, mask, prob=None, b=2):
 
 def calculate_extents(lbl, func=np.median):
     """ Aggregate bounding box sizes of objects in label images. """
-    if isinstance(lbl,(tuple,list)) or (isinstance(lbl,np.ndarray) and lbl.ndim==4):
+    if (isinstance(lbl,np.ndarray) and lbl.ndim==4) or (not isinstance(lbl,np.ndarray) and  isinstance(lbl,Iterable)):
         return func(np.stack([calculate_extents(_lbl,func) for _lbl in lbl], axis=0), axis=0)
 
     n = lbl.ndim

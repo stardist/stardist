@@ -1,9 +1,11 @@
 from __future__ import absolute_import, print_function
+
 import warnings
-import pathlib
-def format_Warning(message, category, filename, lineno, line=''):
+def format_warning(message, category, filename, lineno, line=''):
+    import pathlib
     return f"{pathlib.Path(filename).name} ({lineno}): {message}\n"
-warnings.formatwarning = format_Warning
+warnings.formatwarning = format_warning
+del warnings
 
 from .version import __version__
 

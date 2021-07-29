@@ -1,6 +1,13 @@
 name: Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore:
+      - wheels
+  pull_request:
+    branches:
+      - master
+      - dev
 
 jobs:
   test:
