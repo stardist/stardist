@@ -25,3 +25,7 @@ qhull_c:
 lib: qhull_c qhull_cpp stardist3d_impl.cpp stardist3d_lib.c stardist3d_lib.h utils.cpp 
 	$(CXX) $(CFLAGSLIB) $(CFLAGS) -o $(LIB) stardist3d_impl.cpp stardist3d_lib.c stardist3d_lib.h utils.cpp -I./external/qhull_src/src/ -I./external/nanoflann $(BUILDDIR)/*.o 
 
+
+
+test: test_lib3d.cpp
+	$(CXX) test_lib3d.cpp -o test_lib3d -lstardist3d -L.

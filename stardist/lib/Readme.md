@@ -4,13 +4,32 @@
 
 Currently tested only on linux and OSX
 
-1. First install a recent version of gcc/g++, e.g. gcc-8 (not clang)
+* First install a recent version of gcc/g++, e.g. gcc-11 (not clang)
 
-2. Build the library 
+* Build the library 
 
- `CC="gcc-8" CXX="g++-8" make`
 
-3. Copy the library into the lib folder of Fiji 
+ ```
+ cd stardist/stardist/lib
+ CC="gcc-11" CXX="g++-11" make
+ ```
+
+
+## Usage 
+
+### From C++ 
+
+* See `test_lib3d.cpp` for a simple example of how to use non maximum suppression (NMS) from c++
+
+* build example with `make test` 
+
+* run with `./test_lib3d`
+
+
+
+### Fiji (experimental, not supported yet)
+
+* Copy the library into the lib folder of Fiji 
  
  ```
  # osx
@@ -20,4 +39,4 @@ Currently tested only on linux and OSX
  cp libstardist3d.so $PATH_TO_FIJI/lib/linux64
  ```
 
-4. Run the Stardist3D plugin and enjoy
+* Run the Stardist3D plugin and enjoy
