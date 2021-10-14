@@ -484,6 +484,6 @@ if __name__ == '__main__':
 
     # test_foreground_warning()
 
-    model = test_model("tmpdir", 32, (1, 1), 1, False, 1)
+    model = test_model("tmpdir", 32, (2, 2), 1, False, 1)
 
-
+    test_load_and_export_TF(model)
