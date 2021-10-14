@@ -12,23 +12,22 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: [3.6, 3.7, 3.8, 3.9]
-        tensorflow: ["tensorflow", "tensorflow<2"]
+        tensorflow: ["tensorflow", "'tensorflow<2' 'keras<2.4'"]
         exclude:
             # https://www.tensorflow.org/install/pip#system-requirements
           - python-version: 3.8
-            tensorflow: "tensorflow<2"
+            tensorflow: "'tensorflow<2' 'keras<2.4'"
           - python-version: 3.9
-            tensorflow: "tensorflow<2"
+            tensorflow: "'tensorflow<2' 'keras<2.4'"
           - os: windows-latest
-            tensorflow: "tensorflow<2"
+            tensorflow: "'tensorflow<2' 'keras<2.4'"
 
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
-      - run: pip install pytest
-      - run: pip install "${{ matrix.tensorflow }}"
+      - run: pip install ${{ matrix.tensorflow }}
       - uses: actions/checkout@v2
 
       - name: Install edt
@@ -40,14 +39,14 @@ jobs:
         run: |
           brew config
           brew install gcc@9
-          pip install --no-binary stardist stardist
+          pip install --no-binary stardist "stardist[test]"
         env:
           CC: /usr/local/bin/gcc-9
           CXX: /usr/local/bin/g++-9
 
       - name: Install package from source (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
-        run: pip install --no-binary stardist stardist
+        run: pip install --no-binary stardist "stardist[test]"
 
       # - name: Install package from wheel
       #   run: |

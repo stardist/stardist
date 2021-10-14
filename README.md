@@ -54,11 +54,19 @@ compatible with the respective version of TensorFlow. (If you need help and can 
 
 2. *StarDist* can then be installed with `pip`:
 
-    `pip install stardist`
+    - If you installed TensorFlow 2 (version *2.x.x*):
+
+          pip install stardist
+
+    - If you installed TensorFlow 1 (version *1.x.x*):
+
+          pip install "stardist[tf1]"
+
 
 #### Notes
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
+- You can find out which version of TensorFlow is installed via `pip show tensorflow`.
 - We provide pre-compiled binaries ("wheels") that should work for most Linux and Windows platforms, and also recent versions of macOS (Catalina/10.15 or later). If you're having problems, please see the [troubleshooting](#installation-1) section below.
 - *(Optional)* You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - *(Optional)* You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).

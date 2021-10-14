@@ -106,8 +106,14 @@ setup(
     ],
 
     install_requires=[
-        'csbdeep>=0.6.0',
+        'csbdeep>=0.6.3',
         'scikit-image',
         'numba',
     ],
+
+    extras_require={
+        "tf1":  ["csbdeep[tf1]>=0.6.3"],
+        "test": ["pytest"],
+    },
+
 )
