@@ -25,7 +25,7 @@ from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 from ._mrunet import mrunet_block
-
+from ._fpn import fpn_block
 
 class StarDistData2D(StarDistDataBase):
 
@@ -218,6 +218,19 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+        elif self.backbone == 'fpn':
+            self.unet_n_depth          = 4
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'elu'
+            self.unet_last_activation  = 'elu'
+            # batchnorm is more importnant for resnet blocks
+            self.unet_batch_norm       = True
+            self.unet_dropout          = 0.0
+            self.unet_prefix           = ''
+            self.net_conv_after_unet   = 128
         else:
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
@@ -324,7 +337,10 @@ class StarDist2D(StarDistBase):
         if self.config.backbone=='unet':
             unet_base = unet_block(**unet_kwargs)(pooled_img)
         elif self.config.backbone=='mrunet':
-            unet_base = mrunet_block()(pooled_img)
+            unet_base = mrunet_block(unet_kwargs['n_filter_base'])(pooled_img)
+        elif self.config.backbone=='fpn':
+            unet_base = fpn_block(head_filters=unet_kwargs['n_filter_base'],
+                                  **unet_kwargs)(pooled_img)
         else:
             _raise(NotImplementedError(self.config.backbone))
 
@@ -547,7 +563,7 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        self.config.backbone in ('unet','mrunet') or _raise(NotImplementedError())
+        self.config.backbone in ('unet','mrunet','fpn') or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid)
 

@@ -148,50 +148,50 @@ def res_path(filters, length, inp, batch_norm=False):
     return out
 
 
-def mrunet_block(n_filters=32, batch_norm=False):
-
+def mrunet_block(n_filter_base=32, batch_norm=False):
+    
     def f(x):
-
-        mresblock1 = multi_res_block(32, x, batch_norm=batch_norm)
+    
+        mresblock1 = multi_res_block(n_filter_base, x, batch_norm=batch_norm)
         pool1 = MaxPooling2D(pool_size=(2, 2))(mresblock1)
-        mresblock1 = res_path(32, 4, mresblock1, batch_norm=batch_norm)
+        mresblock1 = res_path(n_filter_base, 4, mresblock1, batch_norm=batch_norm)
 
-        mresblock2 = multi_res_block(32*2, pool1, batch_norm=batch_norm)
+        mresblock2 = multi_res_block(n_filter_base*2, pool1, batch_norm=batch_norm)
         pool2 = MaxPooling2D(pool_size=(2, 2))(mresblock2)
-        mresblock2 = res_path(32*2, 3, mresblock2, batch_norm=batch_norm)
+        mresblock2 = res_path(n_filter_base*2, 3, mresblock2, batch_norm=batch_norm)
 
-        mresblock3 = multi_res_block(32*4, pool2, batch_norm=batch_norm)
+        mresblock3 = multi_res_block(n_filter_base*4, pool2, batch_norm=batch_norm)
         pool3 = MaxPooling2D(pool_size=(2, 2))(mresblock3)
-        mresblock3 = res_path(32*4, 2, mresblock3, batch_norm=batch_norm)
+        mresblock3 = res_path(n_filter_base*4, 2, mresblock3, batch_norm=batch_norm)
 
-        mresblock4 = multi_res_block(32*8, pool3, batch_norm=batch_norm)
+        mresblock4 = multi_res_block(n_filter_base*8, pool3, batch_norm=batch_norm)
         pool4 = MaxPooling2D(pool_size=(2, 2))(mresblock4)
-        mresblock4 = res_path(32*8, 1, mresblock4, batch_norm=batch_norm)
+        mresblock4 = res_path(n_filter_base*8, 1, mresblock4, batch_norm=batch_norm)
 
-        mresblock5 = multi_res_block(32*16, pool4, batch_norm=batch_norm)
+        mresblock5 = multi_res_block(n_filter_base*16, pool4, batch_norm=batch_norm)
 
                 
-        up6 = concatenate([trans_conv2d_bn(mresblock5, 32*8, strides=(2, 2), batch_norm=batch_norm),
+        up6 = concatenate([trans_conv2d_bn(mresblock5, n_filter_base*8, strides=(2, 2), batch_norm=batch_norm),
                            mresblock4], axis=3)
         
-        mresblock6 = multi_res_block(32*8, up6)
+        mresblock6 = multi_res_block(n_filter_base*8, up6)
 
-        up7 = concatenate([trans_conv2d_bn(mresblock6, 32*4, strides=(2, 2), batch_norm=batch_norm),
+        up7 = concatenate([trans_conv2d_bn(mresblock6, n_filter_base*4, strides=(2, 2), batch_norm=batch_norm),
                            mresblock3], axis=3)
         
-        mresblock7 = multi_res_block(32*4, up7)
+        mresblock7 = multi_res_block(n_filter_base*4, up7)
 
-        up8 = concatenate([trans_conv2d_bn(mresblock7, 32*2,  strides=(2, 2), batch_norm=batch_norm),
+        up8 = concatenate([trans_conv2d_bn(mresblock7, n_filter_base*2,  strides=(2, 2), batch_norm=batch_norm),
                            mresblock2], axis=3)
         
         
-        mresblock8 = multi_res_block(32*2, up8)
+        mresblock8 = multi_res_block(n_filter_base*2, up8)
 
-        up9 = concatenate([trans_conv2d_bn(mresblock8, 32, strides=(2, 2), batch_norm=batch_norm),
+        up9 = concatenate([trans_conv2d_bn(mresblock8, n_filter_base, strides=(2, 2), batch_norm=batch_norm),
                            mresblock1], axis=3)
         
         
-        mresblock9 = multi_res_block(32, up9, batch_norm=batch_norm)
+        mresblock9 = multi_res_block(n_filter_base, up9, batch_norm=batch_norm)
 
         return mresblock9
 
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     
     inp = Input((None,None, 1))
 
-    features = mrunet_block(batch_norm=True)(inp)
+    features = mrunet_block(n_filter_base=64,batch_norm=True)(inp)
 
     out = tf.keras.layers.Conv2D(1,(1,1), padding='same', activation='sigmoid')(features)
 
