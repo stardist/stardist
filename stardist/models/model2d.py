@@ -16,7 +16,7 @@ from distutils.version import LooseVersion
 
 keras = keras_import()
 K = keras_import('backend')
-Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
+Input, Conv2D, MaxPooling2D, Concatenate, UpSampling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D', 'Concatenate', 'UpSampling2D')
 Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase, _tf_version_at_least
@@ -26,6 +26,8 @@ from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 from ._mrunet import mrunet_block
 from ._fpn import fpn_block
+from ._unetplus import unetplus_block
+from ._unetplus import unet_block as unet_block_v2
 
 class StarDistData2D(StarDistDataBase):
 
@@ -206,6 +208,17 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+        elif self.backbone == 'unetplus':
+            self.unet_n_depth          = 4
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'elu'
+            self.unet_last_activation  = 'elu'
+            # batchnorm is more importnant for resnet blocks
+            self.unet_batch_norm       = True
+            self.net_conv_after_unet   = 128
         elif self.backbone == 'mrunet':
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
@@ -336,6 +349,32 @@ class StarDist2D(StarDistBase):
 
         if self.config.backbone=='unet':
             unet_base = unet_block(**unet_kwargs)(pooled_img)
+        elif self.config.backbone=='unetplus':
+            print(unet_kwargs)
+            # unet_base = unetplus_block(n_depth=unet_kwargs['n_depth'],
+            #                            n_filter_base=unet_kwargs['n_filter_base'],
+            #                            kernel_size=(3,3),
+            #                            strides = unet_kwargs['pool'],
+            #                            block='conv_bottleneck',
+            #                            n_blocks=2,
+            #                            expansion=1.5,
+            #                            multi_heads = True,
+            #                            activation="elu",
+            #                            batch_norm=True)(pooled_img)
+
+            unet_base = unet_block_v2(n_depth=unet_kwargs['n_depth'],
+                                   n_filter_base=unet_kwargs['n_filter_base'],
+                                   kernel_size=(3,3),
+                                   strides = unet_kwargs['pool'],
+                                   block='conv_bottleneck',
+                                   n_blocks=2,
+                                   expansion=1.5,
+                                   multi_heads = True,
+                                   activation="elu",
+                                   batch_norm=True)(pooled_img)
+            unet_base = tuple(UpSampling2D(tuple(p**i for p in unet_kwargs['pool']), interpolation='bilinear')(x) for i,x in enumerate(unet_base))
+            unet_base = Concatenate()(unet_base)
+            
         elif self.config.backbone=='mrunet':
             unet_base = mrunet_block(unet_kwargs['n_filter_base'])(pooled_img)
         elif self.config.backbone=='fpn':
@@ -563,7 +602,7 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        self.config.backbone in ('unet','mrunet','fpn') or _raise(NotImplementedError())
+        self.config.backbone in ('unet','unetplus', 'mrunet','fpn') or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid)
 
@@ -600,3 +639,5 @@ class StarDist2D(StarDistBase):
     @property
     def _config_class(self):
         return Config2D
+
+
