@@ -109,12 +109,12 @@ setup(
         'csbdeep>=0.6.3',
         'scikit-image',
         'numba',
-        'bioimageio.core'
     ],
 
     extras_require={
         "tf1":  ["csbdeep[tf1]>=0.6.3"],
         "test": ["pytest"],
+        "bioimageio": ["bioimageio.core"],
     },
 
 )

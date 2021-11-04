@@ -51,6 +51,6 @@ jobs:
 
       - name: Install package (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
-        run: pip install ".[test]"
+        run: pip install ".[test,bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"

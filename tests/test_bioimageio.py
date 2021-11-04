@@ -1,9 +1,14 @@
-from bioimageio.core.resource_tests import test_model as _test
+import pytest
 from stardist.models import StarDist2D
 from stardist.data import test_image_nuclei_2d as _test_image
 
+try:
+    from bioimageio.core.resource_tests import test_model as _test
+except ImportError:
+    _test = None
 
-# TODO test mode=keras_hdf5
+
+@pytest.mark.skipif(_test is None, "Requires bioimageio.core")
 def test_pretrained(tmp_path):
     from stardist import export_bioimageio
 

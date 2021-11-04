@@ -4,10 +4,12 @@ from importlib_metadata import metadata
 from itertools import chain
 
 import numpy as np
-# I am not sure if you want to add bioimageio.core as a mandatory dependency; if not we can add a try except here
-# and then raise some exception in the functions if the dependency is not available
-from bioimageio.core.build_spec import build_model
 from csbdeep.utils import axes_check_and_normalize, normalize
+
+try:
+    from bioimageio.core.build_spec import build_model
+except ImportError:
+    build_model = None
 
 
 def _create_stardist_dependencies(outdir):
@@ -130,7 +132,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
         # output_n_channels = (1,)
         # output_scale = [1]*(ndim_tensor-1) + [0]
 
-        # TODO what are the correct output names?
+        # TODO what are the correct input/output names?
         # input_names = [inp.name for inp in model_csbdeep.inputs]
         # output_names = [out.name for out in model_csbdeep.outputs]
         input_names = model_csbdeep.input_names
@@ -224,6 +226,11 @@ def export_bioimageio(
     overwrite_spec_kwargs: dict
         (default: {})
     """
+    if build_model is None:
+        raise RuntimeError(
+            "bioimageio.core is required for modelzoo export."
+            "Install it via 'pip install bioimageio.core' or 'conda install -c conda-forge bioimageio.core'."
+        )
     name = "StarDist Model" if name is None else name
 
     outpath = Path(outpath)
