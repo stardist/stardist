@@ -47,7 +47,7 @@ def _get_stardist_metadata(outdir):
               "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy": doi_3d},
         tags=["stardist", "segmentation", "instance segmentation", "tensorflow"],
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
-        documentation=_create_stardist_doc()
+        documentation=_create_stardist_doc(outdir)
     )
     return data
 

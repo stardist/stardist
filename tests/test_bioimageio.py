@@ -8,7 +8,7 @@ except ImportError:
     _test = None
 
 
-@pytest.mark.skipif(_test is None, "Requires bioimageio.core")
+@pytest.mark.skipif(_test is None, reason="Requires bioimageio.core")
 def test_pretrained(tmp_path):
     from stardist import export_bioimageio
 
@@ -19,6 +19,5 @@ def test_pretrained(tmp_path):
         export_bioimageio(model, out_path, test_input=test_image)
         assert out_path.exists()
         res = _test(out_path)
-        breakpoint()
-        assert not res["error"]
         # breakpoint()
+        assert not res["error"]
