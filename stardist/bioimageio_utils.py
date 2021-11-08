@@ -181,10 +181,15 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
         output_offset=[[1] * (ndim_tensor-1) + [n_channel] for n_channel in output_n_channels]
     )
 
-    test_outputs = model.predict(normalize(test_input))
-
     in_path = outdir / "test_input.npy"
     np.save(in_path, _expand_dims(test_input, input_axes))
+
+    test_outputs = model.predict(normalize(test_input))
+    # tensorflow model provides a merged output tensor
+    if mode == "tensorflow_saved_model_bundle":
+        # hard-coded to channel last
+        test_outputs = np.concatenate([_expand_dims(out, output_axes) for out in test_outputs], axis=-1)
+        test_outputs = [test_outputs]
 
     out_paths = []
     for i, out in enumerate(test_outputs):
