@@ -132,17 +132,18 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
         # output_n_channels = (1,)
         # output_scale = [1]*(ndim_tensor-1) + [0]
 
-        # TODO what are the correct input/output names?
-        # input_names = [inp.name for inp in model_csbdeep.inputs]
-        # output_names = [out.name for out in model_csbdeep.outputs]
         input_names = model_csbdeep.input_names
-        output_names = model_csbdeep.output_names
+        # NOTE model_csbdeep.output_names returns the wrong value; this needs to be the key that is passed to signature[signature_key].outputs[key]:
+        # https://github.com/bioimage-io/core-bioimage-io-python/blob/main/bioimageio/core/prediction_pipeline/_model_adapters/_tensorflow_model_adapter.py#L69
+        # which is "output".Iinstead, output_names is ["concatenate_4"].
+        # output_names = model_csbdeep.output_names
+        output_names = ["output"]
 
         output_n_channels = (1 + model.config.n_rays,)
         output_scale = [1]*(ndim_tensor-1) + [0]
-        # print(output_names)
 
     # TODO need config format that is compatible with deepimagej; discuss with Esti
+    # TODO do we need parameters for down/upsampling here?
     package_data = metadata("stardist")
     config = dict(
         stardist=dict(
