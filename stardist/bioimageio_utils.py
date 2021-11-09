@@ -2,8 +2,10 @@ from pathlib import Path
 from pkg_resources import get_distribution
 from importlib_metadata import metadata
 from itertools import chain
+from zipfile import ZipFile
 
 import numpy as np
+import tensorflow as tf
 from csbdeep.utils import axes_check_and_normalize, normalize
 
 try:
@@ -89,6 +91,21 @@ def _expand_dims(x, axes):
     return expanded
 
 
+def _predict_tf(model_path, test_input):
+    # need to unzip the weights
+    model_weights = model_path.parent / "tf_model"
+    with ZipFile(model_path, "r") as f:
+        f.extractall(model_weights)
+    with tf.Session() as sess:
+        tf_model = tf.saved_model.load_v2(str(model_weights))
+        x = tf.convert_to_tensor(test_input, dtype=tf.float32)
+        model = tf_model.signatures["serving_default"]
+        y = model(x)
+        sess.run(tf.global_variables_initializer())
+        output = sess.run(y["output"])
+    return output
+
+
 def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights):
 
     # get the path to the weights
@@ -99,7 +116,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
     elif mode == "tensorflow_saved_model_bundle":
         weight_uri = model.logdir / "TF_SavedModel.zip"
         model.load_weights(weights_name)
-        model_csbdeep = model.export_TF(weight_uri, single_output=True)
+        model_csbdeep = model.export_TF(weight_uri, single_output=True, upsample_grid=True)
     else:
         raise ValueError(f"Unsupported mode: {mode}")
 
@@ -185,12 +202,11 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
     in_path = outdir / "test_input.npy"
     np.save(in_path, _expand_dims(test_input, input_axes))
 
-    test_outputs = model.predict(normalize(test_input))
-    # tensorflow model provides a merged output tensor
+    test_input = normalize(test_input)
     if mode == "tensorflow_saved_model_bundle":
-        # hard-coded to channel last
-        test_outputs = np.concatenate([_expand_dims(out, output_axes) for out in test_outputs], axis=-1)
-        test_outputs = [test_outputs]
+        test_outputs = _predict_tf(weight_uri, _expand_dims(test_input, input_axes))
+    else:
+        test_outputs = model.predict(test_input)
 
     out_paths = []
     for i, out in enumerate(test_outputs):
