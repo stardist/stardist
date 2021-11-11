@@ -106,7 +106,7 @@ def _predict_tf(model_path, test_input):
     return output
 
 
-def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights):
+def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights, min_percentile, max_percentile):
 
     # get the path to the weights
     weights_name = _get_weights_name(model, prefer_weights)
@@ -182,8 +182,8 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
             mode="per_sample",
             # TODO mighe make it an option to normalize across channels ...
             axes=net_axes_in.lower().replace("c", ""),
-            min_percentile=1.0,
-            max_percentile=99.8,
+            min_percentile=min_percentile,
+            max_percentile=max_percentile,
         ))] * n_inputs
     )
 
@@ -202,7 +202,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
     in_path = outdir / "test_input.npy"
     np.save(in_path, _expand_dims(test_input, input_axes))
 
-    test_input = normalize(test_input)
+    test_input = normalize(test_input, pmin=min_percentile, pmax=max_percentile)
     if mode == "tensorflow_saved_model_bundle":
         test_outputs = _predict_tf(weight_uri, _expand_dims(test_input, input_axes))
     else:
@@ -227,6 +227,8 @@ def export_bioimageio(
     name=None,
     mode="tensorflow_saved_model_bundle",
     prefer_weights="best",
+    min_percentile=1.0,
+    max_percentile=99.8,
     overwrite_spec_kwargs={}
 ):
     """Export stardist model into bioimageio format, https://github.com/bioimage-io/spec-bioimage-io.
@@ -267,7 +269,8 @@ def export_bioimageio(
     outdir.mkdir(exist_ok=True, parents=True)
 
     kwargs = _get_stardist_metadata(outdir)
-    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights)
+    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights,
+                                                   min_percentile=min_percentile, max_percentile=max_percentile)
     kwargs.update(model_kwargs)
     kwargs.update(overwrite_spec_kwargs)
 
