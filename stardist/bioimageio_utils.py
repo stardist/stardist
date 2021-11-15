@@ -102,6 +102,8 @@ def _expand_dims(x, axes):
 
 def _predict_tf(model_path, test_input):
     import tensorflow as tf
+    from csbdeep.utils.tf import keras_import
+    keras = keras_import()
     # need to unzip the weights
     model_weights = model_path.parent / "tf_model"
     with ZipFile(model_path, "r") as f:
@@ -113,6 +115,7 @@ def _predict_tf(model_path, test_input):
         y = model(x)
         sess.run(tf.global_variables_initializer())
         output = sess.run(y["output"])
+    keras.backend.clear_session()
     return output
 
 
