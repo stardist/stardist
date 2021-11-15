@@ -1,17 +1,25 @@
 from pathlib import Path
 from pkg_resources import get_distribution
-from importlib_metadata import metadata
 from itertools import chain
 from zipfile import ZipFile
-
 import numpy as np
-import tensorflow as tf
 from csbdeep.utils import axes_check_and_normalize, normalize
 
-try:
-    from bioimageio.core.build_spec import build_model
-except ImportError:
-    build_model = None
+
+def _import(error=True):
+    try:
+        from importlib_metadata import metadata
+        from bioimageio.core.build_spec import build_model
+    except ImportError:
+        if error:
+            raise RuntimeError(
+                "Required libraries are missing for bioimage.io model export.\n"
+                "Please install StarDist as follows: pip install 'stardist[bioimageio]'\n"
+                "(You do not need to uninstall StarDist first.)"
+            )
+        else:
+            return None
+    return metadata, build_model
 
 
 def _create_stardist_dependencies(outdir):
@@ -36,6 +44,7 @@ def _create_stardist_doc(outdir):
 
 
 def _get_stardist_metadata(outdir):
+    metadata, _ = _import()
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
     doi_3d = "https://doi.org/10.1109/WACV45572.2020.9093435"
@@ -92,6 +101,7 @@ def _expand_dims(x, axes):
 
 
 def _predict_tf(model_path, test_input):
+    import tensorflow as tf
     # need to unzip the weights
     model_weights = model_path.parent / "tf_model"
     with ZipFile(model_path, "r") as f:
@@ -161,6 +171,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
 
     # TODO need config format that is compatible with deepimagej; discuss with Esti
     # TODO do we need parameters for down/upsampling here?
+    metadata, _ = _import()
     package_data = metadata("stardist")
     config = dict(
         stardist=dict(
@@ -250,11 +261,7 @@ def export_bioimageio(
     overwrite_spec_kwargs: dict
         (default: {})
     """
-    if build_model is None:
-        raise RuntimeError(
-            "bioimageio.core is required for modelzoo export."
-            "Install it via 'pip install bioimageio.core' or 'conda install -c conda-forge bioimageio.core'."
-        )
+    _, build_model = _import()
     name = "StarDist Model" if name is None else name
 
     outpath = Path(outpath)
