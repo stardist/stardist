@@ -102,20 +102,27 @@ def _expand_dims(x, axes):
 
 def _predict_tf(model_path, test_input):
     import tensorflow as tf
-    from csbdeep.utils.tf import keras_import
-    keras = keras_import()
-    # need to unzip the weights
-    model_weights = model_path.parent / "tf_model"
+    from csbdeep.utils.tf import IS_TF_1
+    # need to unzip the model assets
+    model_assets = model_path.parent / "tf_model"
     with ZipFile(model_path, "r") as f:
-        f.extractall(model_weights)
-    with tf.Session() as sess:
-        tf_model = tf.saved_model.load_v2(str(model_weights))
+        f.extractall(model_assets)
+    if IS_TF_1:
+        # make a new graph, i.e. don't use the global default graph
+        with tf.Graph().as_default():
+            with tf.Session() as sess:
+                tf_model = tf.saved_model.load_v2(str(model_assets))
+                x = tf.convert_to_tensor(test_input, dtype=tf.float32)
+                model = tf_model.signatures["serving_default"]
+                y = model(x)
+                sess.run(tf.global_variables_initializer())
+                output = sess.run(y["output"])
+    else:
+        tf_model = tf.saved_model.load(str(model_assets))
         x = tf.convert_to_tensor(test_input, dtype=tf.float32)
         model = tf_model.signatures["serving_default"]
         y = model(x)
-        sess.run(tf.global_variables_initializer())
-        output = sess.run(y["output"])
-    keras.backend.clear_session()
+        output = y["output"].numpy()
     return output
 
 
