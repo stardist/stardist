@@ -3,7 +3,7 @@ from pkg_resources import get_distribution
 from itertools import chain
 from zipfile import ZipFile
 import numpy as np
-from csbdeep.utils import axes_check_and_normalize, normalize
+from csbdeep.utils import axes_check_and_normalize, normalize, _raise
 
 
 def _import(error=True):
@@ -24,7 +24,7 @@ def _import(error=True):
 
 def _create_stardist_dependencies(outdir):
     pkg_info = get_distribution("stardist")
-    reqs = ("tensorflow", ) + tuple(map(str, pkg_info.requires()))
+    reqs = ("tensorflow",) + tuple(map(str, pkg_info.requires()))
     path = outdir / "requirements.txt"
     with open(path, "w") as f:
         f.write("\n".join(reqs))
@@ -35,8 +35,8 @@ def _create_stardist_doc(outdir):
     doc_path = outdir / "README.md"
     text = (
         "# StarDist Model\n"
-        "This is a model for instance segmentation of starconvex objects with stardist.\n"
-        "For details please check out the [stardist repo](https://github.com/stardist/stardist)."
+        "This is a model for object detection with star-convex shapes.\n"
+        "Please see the [StarDist repository](https://github.com/stardist/stardist) for details."
     )
     with open(doc_path, "w") as f:
         f.write(text)
@@ -56,14 +56,14 @@ def _get_stardist_metadata(outdir):
         dependencies=_create_stardist_dependencies(outdir),
         cite={"Cell Detection with Star-Convex Polygons": doi_2d,
               "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy": doi_3d},
-        tags=["stardist", "segmentation", "instance segmentation", "tensorflow"],
+        tags=["stardist", "segmentation", "instance segmentation", "object detection", "tensorflow"],
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
-        documentation=_create_stardist_doc(outdir)
+        documentation=_create_stardist_doc(outdir),
     )
     return data
 
 
-# TODO factor that out (its the same as csbdeep.base_model)
+# TODO factor that out (it's the same as in csbdeep.base_model)
 def _get_weights_name(model, prefer="best"):
     # get all weight files and sort by modification time descending (newest first)
     weights_ext = ("*.h5", "*.hdf5")
@@ -160,7 +160,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
 
     elif mode == "tensorflow_saved_model_bundle":
         if model._is_multiclass():
-            raise NotImplementedError("Tensorflow SaveModel not supported for multiclass models yet")
+            raise NotImplementedError("Tensorflow SavedModel not supported for multiclass models yet")
         # output_names = ("outputall",)
         # output_n_channels = (1 + model.config.n_rays,)
         # output_scale = [1]*(ndim_tensor-1) + [0]
@@ -201,7 +201,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
         input_data_range=[["-inf", "inf"]] * n_inputs,
         preprocessing=[dict(scale_range=dict(
             mode="per_sample",
-            # TODO mighe make it an option to normalize across channels ...
+            # TODO might make it an option to normalize across channels ...
             axes=net_axes_in.lower().replace("c", ""),
             min_percentile=min_percentile,
             max_percentile=max_percentile,
@@ -245,7 +245,7 @@ def export_bioimageio(
     model,
     outpath,
     test_input,
-    name=None,
+    name="bioimageio_model",
     mode="tensorflow_saved_model_bundle",
     prefer_weights="best",
     min_percentile=1.0,
@@ -256,14 +256,14 @@ def export_bioimageio(
 
     Parameters
     ----------
-    model: StarDist2D, StarDist3d
+    model: StarDist2D, StarDist3D
         the model to convert
     outpath: str, Path
         where to save the model
     test_input: np.ndarray
         input image for generating test data
     name: str
-        the name of this model (default: None)
+        the name of this model (default: "StarDist Model")
     mode: str
         (default: "tensorflow_saved_model_bundle")
     prefer_weights: str
@@ -272,7 +272,9 @@ def export_bioimageio(
         (default: {})
     """
     _, build_model = _import()
-    name = "StarDist Model" if name is None else name
+    from stardist.models import StarDist2D, StarDist3D
+    isinstance(model, (StarDist2D, StarDist3D)) or _raise(ValueError("not a valid model"))
+    0 <= min_percentile < max_percentile <= 100 or _raise(ValueError("invalid percentile values"))
 
     outpath = Path(outpath)
     if outpath.suffix == "":
@@ -282,7 +284,7 @@ def export_bioimageio(
         outdir = outpath.parent
         zip_path = outpath
     else:
-        raise ValueError(f"outpath has to be a folder or zip file, got {outpath.suffix}")
+        raise ValueError(f"outpath has to be a folder or zip file, got {outpath}")
     outdir.mkdir(exist_ok=True, parents=True)
 
     kwargs = _get_stardist_metadata(outdir)
