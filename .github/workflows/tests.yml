@@ -51,10 +51,10 @@ jobs:
 
       - name: Install package (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
-        steps:
-          - if: python.version < 3.7 # || tensorflow == 'tensorflow'
-            run: pip install ".[test]"
-          - if: python.version >= 3.7 # && tensorflow != 'tensorflow'
-            run: pip install ".[test,bioimageio]"
+        run: pip install ".[test]"
+
+      - name: Install bioimage.io dependencies
+        if: matrix.python-version >= 3.7
+        run: pip install ".[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
