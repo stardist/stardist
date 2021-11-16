@@ -51,6 +51,10 @@ jobs:
 
       - name: Install package (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
-        run: pip install ".[test,bioimageio]"
+        steps:
+          - if: python.version < 3.7 # || tensorflow == 'tensorflow'
+            run: pip install ".[test]"
+          - if: python.version >= 3.7 # && tensorflow != 'tensorflow'
+            run: pip install ".[test,bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
