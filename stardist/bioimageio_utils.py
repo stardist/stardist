@@ -63,43 +63,6 @@ def _get_stardist_metadata(outdir):
     return data
 
 
-# TODO factor that out (it's the same as in csbdeep.base_model)
-def _get_weights_name(model, prefer="best"):
-    # get all weight files and sort by modification time descending (newest first)
-    weights_ext = ("*.h5", "*.hdf5")
-    weights_files = chain(*(model.logdir.glob(ext) for ext in weights_ext))
-    weights_files = reversed(sorted(weights_files, key=lambda f: f.stat().st_mtime))
-    weights_files = list(weights_files)
-    if len(weights_files) == 0:
-        raise ValueError("Couldn't find any network weights (%s) to load." % ', '.join(weights_ext))
-    weights_preferred = list(filter(lambda f: prefer in f.name, weights_files))
-    weights_chosen = weights_preferred[0] if len(weights_preferred) > 0 else weights_files[0]
-    return weights_chosen.name
-
-
-# TODO we may need to permute axes for images with channel as well
-def _expand_dims(x, axes):
-    n_expand = len(axes) - x.ndim
-    assert n_expand in (0, 1, 2)
-    if n_expand == 0:
-        return x
-
-    # batch should always be first
-    assert axes[0] == "b"
-    if n_expand == 1:
-        return x[None]
-
-    # channel first or channel last
-    assert axes[1] == "c" or axes[-1] == "c"
-    if axes[1] == "c":
-        expander = np.s_[None, None]
-    else:
-        expander = np.s_[None, ..., None]
-    expanded = x[expander]
-    assert expanded.ndim == len(axes)
-    return expanded
-
-
 def _predict_tf(model_path, test_input):
     import tensorflow as tf
     from csbdeep.utils.tf import IS_TF_1
@@ -126,32 +89,46 @@ def _predict_tf(model_path, test_input):
     return output
 
 
-def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights, min_percentile, max_percentile):
+def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode, min_percentile, max_percentile):
 
-    # get the path to the weights
-    weights_name = _get_weights_name(model, prefer_weights)
+    # get the path to the exported model assets (saved in outdir)
     if mode == "keras_hdf5":
         raise NotImplementedError("Export to keras format is not supported yet")
-        weight_uri = model.logdir / weights_name
     elif mode == "tensorflow_saved_model_bundle":
-        weight_uri = model.logdir / "TF_SavedModel.zip"
-        model.load_weights(weights_name)
-        model_csbdeep = model.export_TF(weight_uri, single_output=True, upsample_grid=True)
+        assets_uri = outdir / "TF_SavedModel.zip"
+        model_csbdeep = model.export_TF(assets_uri, single_output=True, upsample_grid=True)
     else:
         raise ValueError(f"Unsupported mode: {mode}")
 
-    # TODO: this needs more attention, e.g. how axes are treated in a general way
-    axes = model.config.axes.lower()
-    # img_axes_in = axes_check_and_normalize(axes, model.config.n_dim+1)
-    net_axes_in = axes
+    # to force "inputs.data_type: float32" in the spec (bonus: disables normalization warning in model._predict_setup)
+    test_input = test_input.astype(np.float32)
+
+    # convert test_input to axes_net semantics and shape, also resize if necessary (to adhere to axes_net_div_by)
+    test_input, axes_img, axes_net, axes_net_div_by, *_ = model._predict_setup(
+        img = test_input,
+        axes = test_input_axes,
+        normalizer = None,
+        n_tiles = None,
+        show_tile_progress = False,
+        predict_kwargs = {},
+    )
+
+    # normalization axes string and numeric indices
+    axes_norm = set(axes_net).intersection(set(axes_check_and_normalize(test_input_norm_axes, disallowed='S')))
+    axes_norm = ''.join(a for a in axes_net if a in axes_norm) # preserve order of axes_net
+    axes_norm_num = tuple(axes_net.index(a) for a in axes_norm)
+
+    # normalize input image
+    test_input_norm = normalize(test_input, pmin=min_percentile, pmax=max_percentile, axis=axes_norm_num)
+
+    net_axes_in = axes_net.lower()
     net_axes_out = axes_check_and_normalize(model._axes_out).lower()
-    # net_axes_lost = set(net_axes_in).difference(set(net_axes_out))
-    # img_axes_out = ''.join(a for a in img_axes_in if a not in net_axes_lost)
+    ndim_tensor = len(net_axes_out) + 1
 
-    ndim_tensor = model.config.n_dim + 2
-
-    # input shape including batch size
-    div_by = list(model._axes_div_by(net_axes_in))
+    input_min_shape = list(axes_net_div_by)
+    input_min_shape[axes_net.index('C')] = model.config.n_channel_in
+    input_step = list(axes_net_div_by)
+    input_step[axes_net.index('C')] = 0
 
     if mode == "keras_hdf5":
         output_names = ("prob", "dist") + (("class_prob",) if model._is_multiclass() else ())
@@ -161,21 +138,9 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
     elif mode == "tensorflow_saved_model_bundle":
         if model._is_multiclass():
             raise NotImplementedError("Tensorflow SavedModel not supported for multiclass models yet")
-        # output_names = ("outputall",)
-        # output_n_channels = (1 + model.config.n_rays,)
-        # output_scale = [1]*(ndim_tensor-1) + [0]
-
-        # output_names = ("prob",)
-        # output_n_channels = (1,)
-        # output_scale = [1]*(ndim_tensor-1) + [0]
-
-        input_names = model_csbdeep.input_names
-        # NOTE model_csbdeep.output_names returns the wrong value; this needs to be the key that is passed to signature[signature_key].outputs[key]:
-        # https://github.com/bioimage-io/core-bioimage-io-python/blob/main/bioimageio/core/prediction_pipeline/_model_adapters/_tensorflow_model_adapter.py#L69
-        # which is "output".Iinstead, output_names is ["concatenate_4"].
-        # output_names = model_csbdeep.output_names
+        # regarding input/output names: https://github.com/CSBDeep/CSBDeep/blob/b0d2f5f344ebe65a9b4c3007f4567fe74268c813/csbdeep/utils/tf.py#L193-L194
+        input_names  = ["input"]
         output_names = ["output"]
-
         output_n_channels = (1 + model.config.n_rays,)
         output_scale = [1]*(ndim_tensor-1) + [0]
 
@@ -195,21 +160,19 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
     input_axes = "b" + net_axes_in.lower()
     input_config = dict(
         input_name=input_names,
-        input_step=[[0]+div_by] * n_inputs,
-        input_min_shape=[[1] + div_by] * n_inputs,
-        input_axes=[input_axes] * n_inputs,
-        input_data_range=[["-inf", "inf"]] * n_inputs,
+        input_min_shape=[[1]+input_min_shape],
+        input_step=[[0]+input_step],
+        input_axes=[input_axes],
+        input_data_range=[["-inf", "inf"]],
         preprocessing=[dict(scale_range=dict(
             mode="per_sample",
-            # TODO might make it an option to normalize across channels ...
-            axes=net_axes_in.lower().replace("c", ""),
+            axes=axes_norm.lower(),
             min_percentile=min_percentile,
             max_percentile=max_percentile,
-        ))] * n_inputs
+        ))]
     )
 
     n_outputs = len(output_names)
-    assert len(output_n_channels) == n_outputs
     output_axes = "b" + net_axes_out.lower()
     output_config = dict(
         output_name=output_names,
@@ -217,25 +180,27 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
         output_axes=[output_axes] * n_outputs,
         output_reference=[input_names[0]] * n_outputs,
         output_scale=[output_scale] * n_outputs,
-        output_offset=[[1] * (ndim_tensor-1) + [n_channel] for n_channel in output_n_channels]
+        output_offset=[[0]*(ndim_tensor)] * n_outputs,
     )
 
     in_path = outdir / "test_input.npy"
-    np.save(in_path, _expand_dims(test_input, input_axes))
+    np.save(in_path, test_input[np.newaxis])
 
-    test_input = normalize(test_input, pmin=min_percentile, pmax=max_percentile)
     if mode == "tensorflow_saved_model_bundle":
-        test_outputs = _predict_tf(weight_uri, _expand_dims(test_input, input_axes))
+        test_outputs = _predict_tf(assets_uri, test_input_norm[np.newaxis])
     else:
-        test_outputs = model.predict(test_input)
+        test_outputs = model.predict(test_input_norm)
 
-    out_paths = []
-    for i, out in enumerate(test_outputs):
-        p = outdir / f"test_output{i}.npy"
-        np.save(p, _expand_dims(out, output_axes))
-        out_paths.append(p)
+    # out_paths = []
+    # for i, out in enumerate(test_outputs):
+    #     p = outdir / f"test_output{i}.npy"
+    #     np.save(p, out)
+    #     out_paths.append(p)
+    assert n_outputs == 1
+    out_paths = [outdir / f"test_output.npy"]
+    np.save(out_paths[0], test_outputs)
 
-    data = dict(weight_uri=weight_uri, test_inputs=[in_path], test_outputs=out_paths, config=config)
+    data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths, config=config)
     data.update(input_config)
     data.update(output_config)
     return data
@@ -245,9 +210,10 @@ def export_bioimageio(
     model,
     outpath,
     test_input,
+    test_input_axes=None,
+    test_input_norm_axes='ZYX',
     name="bioimageio_model",
     mode="tensorflow_saved_model_bundle",
-    prefer_weights="best",
     min_percentile=1.0,
     max_percentile=99.8,
     overwrite_spec_kwargs={}
@@ -262,14 +228,18 @@ def export_bioimageio(
         where to save the model
     test_input: np.ndarray
         input image for generating test data
+    test_input_axes: str or None
+         the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
+         using None assumes that axes of test_input are the same as those of model
+    test_input_norm_axes: str
+         the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
+         use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
     name: str
         the name of this model (default: "StarDist Model")
     mode: str
-        (default: "tensorflow_saved_model_bundle")
-    prefer_weights: str
-        (default: "best")
+        the export type for this model (default: "tensorflow_saved_model_bundle")
     overwrite_spec_kwargs: dict
-        (default: {})
+        spec keywords that should be overloaded (default: {})
     """
     _, build_model = _import()
     from stardist.models import StarDist2D, StarDist3D
@@ -288,7 +258,7 @@ def export_bioimageio(
     outdir.mkdir(exist_ok=True, parents=True)
 
     kwargs = _get_stardist_metadata(outdir)
-    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights,
+    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                    min_percentile=min_percentile, max_percentile=max_percentile)
     kwargs.update(model_kwargs)
     kwargs.update(overwrite_spec_kwargs)
