@@ -3,7 +3,7 @@ from pkg_resources import get_distribution
 from itertools import chain
 from zipfile import ZipFile
 import numpy as np
-from csbdeep.utils import axes_check_and_normalize, normalize, _raise
+from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
 
 
 def _import(error=True):
@@ -77,29 +77,6 @@ def _get_weights_name(model, prefer="best"):
     return weights_chosen.name
 
 
-# TODO we may need to permute axes for images with channel as well
-def _expand_dims(x, axes):
-    n_expand = len(axes) - x.ndim
-    assert n_expand in (0, 1, 2)
-    if n_expand == 0:
-        return x
-
-    # batch should always be first
-    assert axes[0] == "b"
-    if n_expand == 1:
-        return x[None]
-
-    # channel first or channel last
-    assert axes[1] == "c" or axes[-1] == "c"
-    if axes[1] == "c":
-        expander = np.s_[None, None]
-    else:
-        expander = np.s_[None, ..., None]
-    expanded = x[expander]
-    assert expanded.ndim == len(axes)
-    return expanded
-
-
 def _predict_tf(model_path, test_input):
     import tensorflow as tf
     from csbdeep.utils.tf import IS_TF_1
@@ -126,7 +103,9 @@ def _predict_tf(model_path, test_input):
     return output
 
 
-def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights, min_percentile, max_percentile):
+def _get_weights_and_model_metadata(
+    outdir, model, test_input, input_axes, mode, prefer_weights, min_percentile, max_percentile
+):
 
     # get the path to the weights
     weights_name = _get_weights_name(model, prefer_weights)
@@ -192,12 +171,14 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
 
     n_inputs = len(input_names)
     assert n_inputs == 1
-    input_axes = "b" + net_axes_in.lower()
+    # the input axes according to the network (csbdeep convention)
+    csbdeep_input_axes = "S" + net_axes_in.lower()
+    bioimageio_input_axes = csbdeep_input_axes.replace("S", "B").lower()
     input_config = dict(
         input_name=input_names,
         input_step=[[0]+div_by] * n_inputs,
         input_min_shape=[[1] + div_by] * n_inputs,
-        input_axes=[input_axes] * n_inputs,
+        input_axes=[bioimageio_input_axes] * n_inputs,
         input_data_range=[["-inf", "inf"]] * n_inputs,
         preprocessing=[dict(scale_range=dict(
             mode="per_sample",
@@ -210,29 +191,31 @@ def _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weig
 
     n_outputs = len(output_names)
     assert len(output_n_channels) == n_outputs
-    output_axes = "b" + net_axes_out.lower()
+    output_axes = net_axes_out
+    csbdeep_output_axes = "S" + output_axes
+    bioimageio_output_axes = csbdeep_output_axes.replace("S", "B").lower()
     output_config = dict(
         output_name=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
-        output_axes=[output_axes] * n_outputs,
+        output_axes=[bioimageio_output_axes] * n_outputs,
         output_reference=[input_names[0]] * n_outputs,
         output_scale=[output_scale] * n_outputs,
         output_offset=[[1] * (ndim_tensor-1) + [n_channel] for n_channel in output_n_channels]
     )
 
     in_path = outdir / "test_input.npy"
-    np.save(in_path, _expand_dims(test_input, input_axes))
+    np.save(in_path, move_image_axes(test_input, input_axes.upper(), csbdeep_input_axes))
 
     test_input = normalize(test_input, pmin=min_percentile, pmax=max_percentile)
     if mode == "tensorflow_saved_model_bundle":
-        test_outputs = _predict_tf(weight_uri, _expand_dims(test_input, input_axes))
+        test_outputs = _predict_tf(weight_uri, move_image_axes(test_input, input_axes.upper(), csbdeep_input_axes))
     else:
         test_outputs = model.predict(test_input)
 
     out_paths = []
     for i, out in enumerate(test_outputs):
         p = outdir / f"test_output{i}.npy"
-        np.save(p, _expand_dims(out, output_axes))
+        np.save(p, move_image_axes(out, output_axes, bioimageio_output_axes))
         out_paths.append(p)
 
     data = dict(weight_uri=weight_uri, test_inputs=[in_path], test_outputs=out_paths, config=config)
@@ -245,6 +228,7 @@ def export_bioimageio(
     model,
     outpath,
     test_input,
+    input_axes,
     name="bioimageio_model",
     mode="tensorflow_saved_model_bundle",
     prefer_weights="best",
@@ -262,14 +246,16 @@ def export_bioimageio(
         where to save the model
     test_input: np.ndarray
         input image for generating test data
+    input_axes: str
+        the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
     name: str
         the name of this model (default: "StarDist Model")
     mode: str
-        (default: "tensorflow_saved_model_bundle")
+        the weight type for this model (default: "tensorflow_saved_model_bundle")
     prefer_weights: str
-        (default: "best")
+        the checkpoint to be loaded (default: "best")
     overwrite_spec_kwargs: dict
-        (default: {})
+        spec keywords that should be overloaded (default: {})
     """
     _, build_model = _import()
     from stardist.models import StarDist2D, StarDist3D
@@ -288,7 +274,7 @@ def export_bioimageio(
     outdir.mkdir(exist_ok=True, parents=True)
 
     kwargs = _get_stardist_metadata(outdir)
-    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, mode, prefer_weights,
+    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, input_axes, mode, prefer_weights,
                                                    min_percentile=min_percentile, max_percentile=max_percentile)
     kwargs.update(model_kwargs)
     kwargs.update(overwrite_spec_kwargs)
