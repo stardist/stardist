@@ -3,13 +3,15 @@ from pkg_resources import get_distribution
 from itertools import chain
 from zipfile import ZipFile
 import numpy as np
-from csbdeep.utils import axes_check_and_normalize, normalize, _raise
+from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
 
 
 def _import(error=True):
     try:
         from importlib_metadata import metadata
         from bioimageio.core.build_spec import build_model
+        import xarray as xr
+        import bioimageio.core
     except ImportError:
         if error:
             raise RuntimeError(
@@ -19,7 +21,7 @@ def _import(error=True):
             )
         else:
             return None
-    return metadata, build_model
+    return metadata, build_model, bioimageio.core, xr
 
 
 def _create_stardist_dependencies(outdir):
@@ -44,7 +46,7 @@ def _create_stardist_doc(outdir):
 
 
 def _get_stardist_metadata(outdir):
-    metadata, _ = _import()
+    metadata, *_ = _import()
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
     doi_3d = "https://doi.org/10.1109/WACV45572.2020.9093435"
@@ -160,12 +162,13 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     # TODO need config format that is compatible with deepimagej; discuss with Esti
     # TODO do we need parameters for down/upsampling here?
-    metadata, _ = _import()
+    metadata, *_ = _import()
     package_data = metadata("stardist")
     config = dict(
         stardist=dict(
-            stardist_version=package_data["Version"],
-            thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob)
+            python_version=package_data["Version"],
+            thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
+            config=vars(model.config),
         )
     )
 
@@ -253,7 +256,7 @@ def export_bioimageio(
     overwrite_spec_kwargs: dict
         spec keywords that should be overloaded (default: {})
     """
-    _, build_model = _import()
+    _, build_model, *_ = _import()
     from stardist.models import StarDist2D, StarDist3D
     isinstance(model, (StarDist2D, StarDist3D)) or _raise(ValueError("not a valid model"))
     0 <= min_percentile < max_percentile <= 100 or _raise(ValueError("invalid percentile values"))
@@ -276,3 +279,92 @@ def export_bioimageio(
     kwargs.update(overwrite_spec_kwargs)
 
     build_model(name=name, output_path=zip_path, **kwargs)
+
+
+class BioimageioModel():
+    def __init__(self, rdf):
+        """Load bioimage.io StarDist model (2D or 3D) from an RDF string (DOI, URL, or file path).
+
+        Note: This is currently not as full-featured as a standard StarDist2D or StarDist3D model.
+        """
+        *_, self.bioimageio_core, self.xr = _import()
+        from bioimageio.core.prediction_pipeline import create_prediction_pipeline
+        self.model = self.bioimageio_core.load_resource_description(rdf)
+        self.pipeline = create_prediction_pipeline(bioimageio_model=self.model)
+        self.thresholds = self.model.config['stardist'].get('thresholds', dict(prob=0.5,nms=0.4))
+        assert self.model.config['stardist']['config']['n_dim'] in (2,3)
+        from stardist.models import Config2D, Config3D
+        self.config = (Config2D if self.model.config['stardist']['config']['n_dim'] == 2 else Config3D)(**self.model.config['stardist']['config'])
+
+
+    def predict(self, img, axes=None):
+        """Predict.
+
+        Parameters
+        ----------
+        img : :class:`numpy.ndarray`
+            Input image
+        axes : str or None
+            Axes of the input ``img``.
+            ``None`` denotes that axes of img are the same as those of the model.
+
+        Returns
+        -------
+        (:class:`numpy.ndarray`, :class:`numpy.ndarray`)
+            Returns the tuple (`prob`, `dist`) of per-pixel object probabilities and star-convex polygon/polyhedra distances.
+
+        """
+        axes_net = self.model.inputs[0].axes
+        if axes is None:
+            axes = ''.join(axes_net).replace('b','')
+            if img.ndim == len(axes)-1 and self.config.n_channel_in == 1:
+                axes = axes.replace('c','')
+        img = move_image_axes(img, axes, ''.join(axes_net).replace('b','s'), adjust_singletons=True)
+        x = self.xr.DataArray(img, dims=axes_net)
+        y = self.pipeline(x)[0]
+        prob, dist = y[0,...,0], y[0,...,1:]
+        return prob, dist
+
+
+    def predict_instances(self, img, axes=None, prob_thresh=None, nms_thresh=None):
+        """Predict instance segmentation from input image.
+
+        Parameters
+        ----------
+        img : :class:`numpy.ndarray`
+            See `BioimageioModel.predict`
+        axes : str or None
+            See `BioimageioModel.predict`
+        prob_thresh : float or None
+            Consider only object candidates from pixels with predicted object probability
+            above this threshold (default: `BioimageioModel.thresholds['prob']`).
+        nms_thresh : float or None
+            Perform non-maximum suppression that considers two objects to be the same
+            when their area/surface overlap exceeds this threshold (default: `BioimageioModel.thresholds['nms']`).
+
+        Returns
+        -------
+        (:class:`numpy.ndarray`, dict)
+            Returns a tuple of the label instances image and also
+            a dictionary with the details (coordinates, etc.) of all remaining polygons/polyhedra.
+
+        """
+        prob, dist = self.predict(img, axes)
+
+        if prob_thresh is None: prob_thresh = self.thresholds['prob']
+        if nms_thresh  is None: nms_thresh  = self.thresholds['nms']
+
+        if self.config.n_dim == 2:
+            from stardist import dist_to_coord, polygons_to_label, non_maximum_suppression
+            points, probi, disti = non_maximum_suppression(dist, prob, prob_thresh=prob_thresh, nms_thresh=nms_thresh)
+            labels = polygons_to_label(disti, points, prob=probi, shape=img.shape)
+            coord = dist_to_coord(disti, points)
+            res_dict = dict(coord=coord, points=points, prob=probi)
+        else:
+            from stardist import rays_from_json, polyhedron_to_label, non_maximum_suppression_3d
+            rays = rays_from_json(self.config.rays_json)
+            points, probi, disti = non_maximum_suppression_3d(dist, prob, rays, prob_thresh=prob_thresh, nms_thresh=nms_thresh)
+            labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img.shape, verbose=False)
+            res_dict = dict(dist=disti, points=points, prob=probi, rays=rays, rays_vertices=rays.vertices, rays_faces=rays.faces)
+        return labels, res_dict
+
