@@ -130,10 +130,17 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     input_step = list(axes_net_div_by)
     input_step[axes_net.index('C')] = 0
 
+    # the axes strings in bioimageio convention
+    input_axes = "b" + net_axes_in.lower()
+    output_axes = "b" + net_axes_out.lower()
+
     if mode == "keras_hdf5":
         output_names = ("prob", "dist") + (("class_prob",) if model._is_multiclass() else ())
         output_n_channels = (1, model.config.n_rays,) + ((1,) if model._is_multiclass() else ())
+        # the output shape is computed from the input shape using
+        # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
         output_scale = [1]+list(1/g for g in model.config.grid) + [0]
+        output_offset = [0]*(ndim_tensor)
 
     elif mode == "tensorflow_saved_model_bundle":
         if model._is_multiclass():
@@ -142,7 +149,14 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
         input_names  = ["input"]
         output_names = ["output"]
         output_n_channels = (1 + model.config.n_rays,)
-        output_scale = [1]*(ndim_tensor-1) + [0]
+        # the output shape is computed from the input shape using
+        # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
+        # same shape as input except for the channel dimension
+        output_scale = [1]*(ndim_tensor)
+        output_scale[output_axes.index("c")] = 0
+        # no offset, except for the input axes, where it is output channel / 2
+        output_offset = [0.0]*(ndim_tensor)
+        output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
 
     # TODO need config format that is compatible with deepimagej; discuss with Esti
     # TODO do we need parameters for down/upsampling here?
@@ -157,7 +171,6 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     n_inputs = len(input_names)
     assert n_inputs == 1
-    input_axes = "b" + net_axes_in.lower()
     input_config = dict(
         input_name=input_names,
         input_min_shape=[[1]+input_min_shape],
@@ -173,14 +186,13 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     )
 
     n_outputs = len(output_names)
-    output_axes = "b" + net_axes_out.lower()
     output_config = dict(
         output_name=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
         output_axes=[output_axes] * n_outputs,
         output_reference=[input_names[0]] * n_outputs,
         output_scale=[output_scale] * n_outputs,
-        output_offset=[[0]*(ndim_tensor)] * n_outputs,
+        output_offset=[output_offset] * n_outputs,
     )
 
     in_path = outdir / "test_input.npy"
