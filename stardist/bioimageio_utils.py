@@ -189,6 +189,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     )
 
     n_outputs = len(output_names)
+    halo = [0 if ax in "bc" else 32 for ax in output_axes]
     output_config = dict(
         output_name=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
@@ -196,6 +197,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
         output_reference=[input_names[0]] * n_outputs,
         output_scale=[output_scale] * n_outputs,
         output_offset=[output_offset] * n_outputs,
+        halo=[halo] * n_outputs
     )
 
     in_path = outdir / "test_input.npy"
