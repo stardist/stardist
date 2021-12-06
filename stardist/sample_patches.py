@@ -40,13 +40,17 @@ def get_valid_inds(datas, patch_size, patch_filter = None):
         raise ValueError("patch_size %s negative or larger than data shape %s along some dimensions" % (str(patch_size), str(datas[0].shape)))
 
     if patch_filter is None:
+        # only cut border indices (which is faster)
         patch_mask = np.ones(datas[0].shape,dtype=np.bool)
+        valid_inds = tuple(np.arange(p // 2, s - p + p // 2 + 1) for p, s in zip(patch_size, datas[0].shape))
+        valid_inds = tuple(s.ravel() for s in np.meshgrid(*tuple(np.arange(p // 2, s - p + p // 2 + 1).astype(np.uint16) \
+            for p, s in zip(patch_size, datas[0].shape)), indexing='ij'))
     else:
         patch_mask = patch_filter(datas[0], patch_size)
 
-    # get the valid indices
+        # get the valid indices
+        border_slices = tuple([slice(p // 2, s - p + p // 2 + 1) for p, s in zip(patch_size, datas[0].shape)])
+        valid_inds = np.where(patch_mask[border_slices])
+        valid_inds = tuple((v + s.start).astype(np.uint16) for s, v in zip(border_slices, valid_inds))
 
-    border_slices = tuple([slice(p // 2, s - p + p // 2 + 1) for p, s in zip(patch_size, datas[0].shape)])
-    valid_inds = np.where(patch_mask[border_slices])
-    valid_inds = tuple(v + s.start for s, v in zip(border_slices, valid_inds))
     return valid_inds
