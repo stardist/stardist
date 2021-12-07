@@ -17,7 +17,7 @@ import warnings
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="""
-Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif -m model_folder_or_pretrained_name -o output_folder
+Prediction script for a 3D stardist model, usage: stardist-predict -i input.tif -m model_folder_or_pretrained_name -o output_folder
 
 """)
     parser.add_argument("-i","--input", type=str, nargs="+", required=True, help = "input file (tiff)")
@@ -39,16 +39,15 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
 
     from csbdeep.utils import normalize
     from csbdeep.models.base_model import get_registered_models
-    from stardist.models import StarDist2D
-    from imageio import imread
-    from tifffile import imsave
+    from stardist.models import StarDist3D
+    from tifffile import imsave, imread
 
-    get_registered_models(StarDist2D, verbose=True)
+    get_registered_models(StarDist3D, verbose=True)
 
     if pathlib.Path(args.model).is_dir():
-        model = StarDist2D(None, name=args.model)
+        model = StarDist3D(None, name=args.model)
     else:
-        model = StarDist2D.from_pretrained(args.model)
+        model = StarDist3D.from_pretrained(args.model)
 
     if model is None:
         raise ValueError(f"unknown model: {args.model}\navailable models:\n {get_registered_models(StarDist2D, verbose=True)}")
@@ -57,13 +56,17 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
         if args.verbose:
             print(f'reading image {fname}')
 
+        if not pathlib.Path(fname).suffix.lower() in (".tif", ".tiff"):
+            raise ValueError('only tiff files supported in 3D for now')
+
         img = imread(fname)
 
-        if not img.ndim in (2,3):
-            raise ValueError(f'currently only 2d and 3d images are supported by the prediction script')
+
+        if not img.ndim in (3,4):
+            raise ValueError(f'currently only 3d (or 4D with channel) images are supported by the prediction script')
 
         if args.axes is None:
-            args.axes = {2:'YX',3:'YXC'}[img.ndim]
+            args.axes = {3:'ZYX',4:'ZYXC'}[img.ndim]
         
         if len(args.axes) != img.ndim:
             raise ValueError(f'dimension of input ({img.ndim}) not the same as length of given axes ({len(args.axes)})')
