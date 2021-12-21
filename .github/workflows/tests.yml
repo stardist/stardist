@@ -13,7 +13,7 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     env:
-        SETUPTOOLS_USE_DISTUTILS: local
+        SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
