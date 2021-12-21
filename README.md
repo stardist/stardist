@@ -54,11 +54,19 @@ compatible with the respective version of TensorFlow. (If you need help and can 
 
 2. *StarDist* can then be installed with `pip`:
 
-    `pip install stardist`
+    - If you installed TensorFlow 2 (version *2.x.x*):
+
+          pip install stardist
+
+    - If you installed TensorFlow 1 (version *1.x.x*):
+
+          pip install "stardist[tf1]"
+
 
 #### Notes
 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
+- You can find out which version of TensorFlow is installed via `pip show tensorflow`.
 - We provide pre-compiled binaries ("wheels") that should work for most Linux and Windows platforms, and also recent versions of macOS (Catalina/10.15 or later). If you're having problems, please see the [troubleshooting](#installation-1) section below.
 - *(Optional)* You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - *(Optional)* You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).
@@ -99,6 +107,7 @@ And then try it out with a test image:
 from stardist.data import test_image_nuclei_2d
 from stardist.plot import render_label
 from csbdeep.utils import normalize
+import matplotlib.pyplot as plt
 
 img = test_image_nuclei_2d() 
 
@@ -151,6 +160,16 @@ To see how this could be done, have a look at the following [example QuPath proj
 
 ![](https://github.com/stardist/stardist/raw/master/images/qupath.png)
 
+
+### Multi-class Prediction
+
+StarDist also supports multi-class prediction, i.e. each found object instance can additionally be classified into a fixed number of discrete object classes (e.g. cell types):
+
+![](https://github.com/stardist/stardist/raw/master/images/stardist_multiclass.png)
+
+Please see the [multi-class example notebook](https://nbviewer.jupyter.org/github/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) if you're interested in this.
+
+
 ## Troubleshooting & Support
 
 1. Please first take a look at the [frequently asked questions (FAQ)]( https://stardist.net/docs/faq.html).
@@ -176,6 +195,11 @@ If you use `conda` on macOS and after `import stardist` see errors similar to th
     Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next
 
 please see [this issue](https://github.com/stardist/stardist/issues/19#issuecomment-535610758) for a temporary workaround.  
+
+##### Apple M1 
+
+For installation of tensorflow and stardist on Apple M1 architecture, please see [this excellent post](https://forum.image.sc/t/napari-tensorflow-aicsimageio-stardist-care-n2v-pyclesperanto-running-native-on-apple-silicon-m1/55051/3) by Peter Sobolewski.
+
 
 #### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) from Microsoft to compile extensions for Python 3.6 and newer (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
