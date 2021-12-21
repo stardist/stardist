@@ -12,6 +12,8 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+        SETUPTOOLS_USE_DISTUTILS: local
     strategy:
       fail-fast: false
       matrix:
