@@ -18,8 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-10.15]
-        # os: [ubuntu-20.04, windows-latest, macos-10.15]
+        os: [ubuntu-20.04, windows-latest, macos-10.15]
         # os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
@@ -66,8 +65,8 @@ jobs:
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: pytest tensorflow
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          # CIBW_TEST_REQUIRES: pytest tensorflow
+          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
 
       - uses: actions/upload-artifact@v2
         name: Upload wheels
