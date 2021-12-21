@@ -124,6 +124,7 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     ----------
     y_true: ndarray
         ground truth label image (integer valued)
+    y_pred: ndarray
         predicted label image (integer valued)
     thresh: float
         threshold for matching criterion (default 0.5)
