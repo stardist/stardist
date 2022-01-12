@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from pkg_resources import get_distribution
 from itertools import chain
@@ -161,14 +162,14 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
         output_offset = [0.0]*(ndim_tensor)
         output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
 
-    # TODO need config format that is compatible with deepimagej; discuss with Esti
-    # TODO do we need parameters for down/upsampling here?
     metadata, *_ = _import()
     package_data = metadata("stardist")
+    macro_file = os.path.join(os.path.split(__file__)[0], "../extras/stardist_postprocessing.ij")
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
             thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
+            postprocessing_macro=macro_file,
             config=vars(model.config),
         )
     )
@@ -220,7 +221,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     tf_version = tf.__version__
     data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths,
-                config=config, tensorflow_version=tf_version)
+                config=config, tensorflow_version=tf_version, attachments=dict(files=[macro_file]))
     data.update(input_config)
     data.update(output_config)
     return data
@@ -283,7 +284,7 @@ def export_bioimageio(
     kwargs.update(model_kwargs)
     kwargs.update(overwrite_spec_kwargs)
 
-    build_model(name=name, output_path=zip_path, **kwargs)
+    build_model(name=name, output_path=zip_path, add_deepimagej_config=True, **kwargs)
 
 
 class BioimageioModel():
