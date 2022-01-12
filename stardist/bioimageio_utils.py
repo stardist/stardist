@@ -4,6 +4,7 @@ from itertools import chain
 from zipfile import ZipFile
 import numpy as np
 from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
+import tensorflow as tf
 
 
 def _import(error=True):
@@ -107,17 +108,17 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     # convert test_input to axes_net semantics and shape, also resize if necessary (to adhere to axes_net_div_by)
     test_input, axes_img, axes_net, axes_net_div_by, *_ = model._predict_setup(
-        img = test_input,
-        axes = test_input_axes,
-        normalizer = None,
-        n_tiles = None,
-        show_tile_progress = False,
-        predict_kwargs = {},
+        img=test_input,
+        axes=test_input_axes,
+        normalizer=None,
+        n_tiles=None,
+        show_tile_progress=False,
+        predict_kwargs={},
     )
 
     # normalization axes string and numeric indices
     axes_norm = set(axes_net).intersection(set(axes_check_and_normalize(test_input_norm_axes, disallowed='S')))
-    axes_norm = ''.join(a for a in axes_net if a in axes_norm) # preserve order of axes_net
+    axes_norm = "".join(a for a in axes_net if a in axes_norm)  # preserve order of axes_net
     axes_norm_num = tuple(axes_net.index(a) for a in axes_norm)
 
     # normalize input image
@@ -148,7 +149,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
         if model._is_multiclass():
             raise NotImplementedError("Tensorflow SavedModel not supported for multiclass models yet")
         # regarding input/output names: https://github.com/CSBDeep/CSBDeep/blob/b0d2f5f344ebe65a9b4c3007f4567fe74268c813/csbdeep/utils/tf.py#L193-L194
-        input_names  = ["input"]
+        input_names = ["input"]
         output_names = ["output"]
         output_n_channels = (1 + model.config.n_rays,)
         # the output shape is computed from the input shape using
@@ -175,7 +176,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     n_inputs = len(input_names)
     assert n_inputs == 1
     input_config = dict(
-        input_name=input_names,
+        input_names=input_names,
         input_min_shape=[[1]+input_min_shape],
         input_step=[[0]+input_step],
         input_axes=[input_axes],
@@ -191,7 +192,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     n_outputs = len(output_names)
     halo = [0 if ax in "bc" else 32 for ax in output_axes]
     output_config = dict(
-        output_name=output_names,
+        output_names=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
         output_axes=[output_axes] * n_outputs,
         output_reference=[input_names[0]] * n_outputs,
@@ -214,10 +215,12 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     #     np.save(p, out)
     #     out_paths.append(p)
     assert n_outputs == 1
-    out_paths = [outdir / f"test_output.npy"]
+    out_paths = [outdir / "test_output.npy"]
     np.save(out_paths[0], test_outputs)
 
-    data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths, config=config)
+    tf_version = tf.__version__
+    data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths,
+                config=config, tensorflow_version=tf_version)
     data.update(input_config)
     data.update(output_config)
     return data
@@ -293,11 +296,10 @@ class BioimageioModel():
         from bioimageio.core.prediction_pipeline import create_prediction_pipeline
         self.model = self.bioimageio_core.load_resource_description(rdf)
         self.pipeline = create_prediction_pipeline(bioimageio_model=self.model)
-        self.thresholds = self.model.config['stardist'].get('thresholds', dict(prob=0.5,nms=0.4))
-        assert self.model.config['stardist']['config']['n_dim'] in (2,3)
+        self.thresholds = self.model.config['stardist'].get('thresholds', dict(prob=0.5, nms=0.4))
+        assert self.model.config['stardist']['config']['n_dim'] in (2, 3)
         from stardist.models import Config2D, Config3D
         self.config = (Config2D if self.model.config['stardist']['config']['n_dim'] == 2 else Config3D)(**self.model.config['stardist']['config'])
-
 
     def predict(self, img, axes=None):
         """Predict.
@@ -318,15 +320,14 @@ class BioimageioModel():
         """
         axes_net = self.model.inputs[0].axes
         if axes is None:
-            axes = ''.join(axes_net).replace('b','')
+            axes = ''.join(axes_net).replace('b', '')
             if img.ndim == len(axes)-1 and self.config.n_channel_in == 1:
-                axes = axes.replace('c','')
-        img = move_image_axes(img, axes, ''.join(axes_net).replace('b','s'), adjust_singletons=True)
+                axes = axes.replace('c', '')
+        img = move_image_axes(img, axes, ''.join(axes_net).replace('b', 's'), adjust_singletons=True)
         x = self.xr.DataArray(img, dims=axes_net)
         y = self.pipeline(x)[0]
-        prob, dist = y[0,...,0], y[0,...,1:]
+        prob, dist = y[0, ..., 0], y[0, ..., 1:]
         return prob, dist
-
 
     def predict_instances(self, img, axes=None, prob_thresh=None, nms_thresh=None):
         """Predict instance segmentation from input image.
