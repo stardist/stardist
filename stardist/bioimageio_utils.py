@@ -93,6 +93,24 @@ def _predict_tf(model_path, test_input):
     return output
 
 
+def replace_in_macro(in_path, out_path, to_replace):
+    lines = []
+    with open(in_path) as f:
+        for line in f:
+            kwarg = [kwarg for kwarg in to_replace if line.startswith(kwarg)]
+            if kwarg:
+                assert len(kwarg) == 1
+                kwarg = kwarg[0]
+                # each kwarg should only be replaced ones
+                val = to_replace.pop(kwarg)
+                lines.append(f"{kwarg} = {val};\n")
+            else:
+                lines.append(line)
+    with open(out_path, "w") as f:
+        for line in lines:
+            f.write(line)
+
+
 def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode, min_percentile, max_percentile):
 
     # get the path to the exported model assets (saved in outdir)
@@ -164,12 +182,15 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     metadata, *_ = _import()
     package_data = metadata("stardist")
-    macro_file = os.path.join(os.path.split(__file__)[0], "../extras/stardist_postprocessing.ij")
+    macro_in_file = os.path.join(os.path.split(__file__)[0], "../extras/stardist_postprocessing.ij")
+    macro_out_file = "./stardist_postprocessing.ij"
+    replace_in_macro(macro_in_file, macro_out_file,
+                     to_replace=dict(probThresh=model.thresholds.prob, nmsThresh=model.thresholds.nms))
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
             thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
-            postprocessing_macro=macro_file,
+            postprocessing_macro="stardist_postprocessing.ij",
             config=vars(model.config),
         )
     )
@@ -221,7 +242,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     tf_version = tf.__version__
     data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths,
-                config=config, tensorflow_version=tf_version, attachments=dict(files=[macro_file]))
+                config=config, tensorflow_version=tf_version, attachments=dict(files=[macro_out_file]))
     data.update(input_config)
     data.update(output_config)
     return data

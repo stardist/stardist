@@ -19,6 +19,10 @@
 // Get the name of the image to call it
 name=getTitle();
 
+// these values will be replaced
+probThresh=0.5;
+nmsThresh=0.5;
+
 // Isolate the detection probability scores
 run("Make Substack...", "channels=1");
 rename("scores");
