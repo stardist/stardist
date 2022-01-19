@@ -533,7 +533,7 @@ class StarDist3D(StarDistBase):
             if self._is_multiclass():
                 _n = min(3, self.config.n_classes)
                 output_slices += [[slice(None)]*5]
-                output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n, self.config.n_classes//_n)
+                output_slices[2][1+channel] = slice(1,1+(self.config.n_classes//_n)*_n, self.config.n_classes//_n)
 
             if IS_TF_1:
                 for cb in self.callbacks:
