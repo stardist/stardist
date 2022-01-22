@@ -17,6 +17,7 @@
 //*******************************************************************
 
 // Get the name of the image to call it
+getDimensions(width, height, channels, slices, frames);
 name=getTitle();
 
 // these values will be replaced
