@@ -182,7 +182,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     metadata, *_ = _import()
     package_data = metadata("stardist")
-    macro_in_file = os.path.join(os.path.split(__file__)[0], "../extras/stardist_postprocessing.ijm")
+    macro_in_file = os.path.join(os.path.dirname(__file__), "stardist_postprocessing.ijm")
     macro_out_file = "./stardist_postprocessing.ijm"
     replace_in_macro(macro_in_file, macro_out_file,
                      to_replace=dict(probThresh=model.thresholds.prob, nmsThresh=model.thresholds.nms))

@@ -89,7 +89,7 @@ setup(
         ),
     ],
 
-    package_data={'stardist': [ 'kernels/*.cl', 'data/images/*' ], 'deepImageJ': ['extras/stardist_postprocessing.ijm']},
+    package_data={'stardist': ['kernels/*.cl', 'data/images/*', '*.ijm']},
 
     classifiers=[
         'Development Status :: 4 - Beta',
