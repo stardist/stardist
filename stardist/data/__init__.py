@@ -19,7 +19,8 @@ def test_image_nuclei_2d(return_mask=False):
         return img
 
 def test_image_he_2d():
-    """ synthetic nuclei 
+    """ H&E stained RGB example image from the Cancer Imaging Archive
+    https://www.cancerimagingarchive.net
     """
     from imageio import imread
     img = imread(abspath("images/histo.jpg"))
@@ -28,8 +29,7 @@ def test_image_he_2d():
 
 
 def test_image_nuclei_3d(return_mask=False):
-    """ H&E stained RGB example image from the Cancer Imaging Archive
-    https://www.cancerimagingarchive.net
+    """ synthetic nuclei 
     """
     from tifffile import imread
     img = imread(abspath("images/img3d.tif"))
