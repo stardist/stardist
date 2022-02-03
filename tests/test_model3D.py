@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pytest
 from itertools import product
+from stardist.data import test_image_nuclei_3d
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
@@ -347,6 +348,15 @@ def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_s
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
 
+
+@pytest.mark.parametrize('scale', (None, .5, 2.0))
+def test_predict_with_scale(scale):
+    model = StarDist3D.from_pretrained('3D_demo')
+    x = test_image_nuclei_3d()
+    x = normalize(x)
+    labels, res = model.predict_instances(x, scale=scale, verbose=True)
+    return labels
+    
 
 # this test has to be at the end of the model
 def test_load_and_export_TF(model3d):

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 from itertools import product
+from stardist.data import test_image_nuclei_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
@@ -465,6 +466,14 @@ def test_pretrained_integration():
     # return y1, res1, y2, res2
 
 
+@pytest.mark.parametrize('scale', (None, .5, 2.0))
+def test_predict_with_scale(scale):
+    model = StarDist2D.from_pretrained('2D_versatile_fluo')
+    x = test_image_nuclei_2d()
+    x = normalize(x)
+    labels, res = model.predict_instances(x, scale=scale, verbose=True)
+    return labels
+
 
 # this test has to be at the end of the model
 def test_load_and_export_TF(model2d):
@@ -474,6 +483,7 @@ def test_load_and_export_TF(model2d):
     # model.export_TF(single_output=False, upsample_grid=True)
     model.export_TF(single_output=True, upsample_grid=False)
     model.export_TF(single_output=True, upsample_grid=True)
+    
 
 if __name__ == '__main__':
     from conftest import _model2d
@@ -484,6 +494,9 @@ if __name__ == '__main__':
 
     # test_foreground_warning()
 
-    model = test_model("tmpdir", 32, (2, 2), 1, False, 1)
+    # model = test_model("tmpdir", 32, (2, 2), 1, False, 1)
 
-    test_load_and_export_TF(model)
+    # test_load_and_export_TF(model)
+
+
+    y = test_predict_with_scale(.4)

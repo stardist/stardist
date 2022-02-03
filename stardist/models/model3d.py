@@ -559,7 +559,7 @@ class StarDist3D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, scale=None, **nms_kwargs):
         """
         if points is None     -> dense prediction
         if points is not None -> sparse prediction
@@ -588,6 +588,11 @@ class StarDist3D(StarDistBase):
 
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
+
+        if scale is not None:
+            points = points/scale
+            disti = disti/scale
+
 
         if return_labels:
             labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)

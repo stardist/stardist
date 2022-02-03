@@ -108,6 +108,7 @@ setup(
     install_requires=[
         'csbdeep>=0.6.3',
         'scikit-image',
+        'scipy',
         'numba',
     ],
 

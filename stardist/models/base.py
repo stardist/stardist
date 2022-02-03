@@ -8,6 +8,7 @@ from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
 import threading
+import scipy.ndimage as ndi
 
 from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
@@ -603,6 +604,7 @@ class StarDistBase(BaseModel):
                           prob_thresh=None, nms_thresh=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose=False,
+                          scale=None,
                           return_labels=True,
                           predict_kwargs=None, nms_kwargs=None,
                           overlap_label=None, return_predict=False):
@@ -663,7 +665,7 @@ class StarDistBase(BaseModel):
 
         if return_predict and sparse:
             sparse = False
-            warnings.warn("Setting sparse to False because return_predict is True")
+            warnings.warn("Setting sparse to False because return_predict is True")        
 
         nms_kwargs.setdefault("verbose", verbose)
 
@@ -672,6 +674,10 @@ class StarDistBase(BaseModel):
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
+        if scale is not None:
+            verbose and print(f"scaling image by factor {scale}")
+            img = ndi.zoom(img, tuple(scale for s,a in zip(_permute_axes(img).shape, _axes_net) if a !='C' or s>1), order=1)
+            
         if sparse:
             res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
                                       prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs)
@@ -691,6 +697,7 @@ class StarDistBase(BaseModel):
                                                         prob_class=prob_class,
                                                         prob_thresh=prob_thresh,
                                                         nms_thresh=nms_thresh,
+                                                        scale=scale,
                                                         return_labels=return_labels,
                                                         overlap_label=overlap_label,
                                                         **nms_kwargs)
