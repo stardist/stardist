@@ -590,7 +590,7 @@ class StarDistBase(BaseModel):
         dista = np.asarray(dista).reshape((-1,self.config.n_rays))
         pointsa = np.asarray(pointsa).reshape((-1,self.config.n_dim))
 
-        idx = resizer.filter_points(results[0], pointsa, axes)
+        idx = resizer.filter_points(results[0], pointsa, axes_net)
         proba = proba[idx]
         dista = dista[idx]
         pointsa = pointsa[idx]
