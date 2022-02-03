@@ -591,8 +591,14 @@ class StarDistBase(BaseModel):
         dista = np.asarray(dista).reshape((-1,self.config.n_rays))
         pointsa = np.asarray(pointsa).reshape((-1,self.config.n_dim))
 
+        idx = resizer.filter_points(pointsa, axes)
+        proba = proba[idx]
+        dista = dista[idx]
+        pointsa = pointsa[idx]
+        
         if self._is_multiclass():
             prob_classa = np.asarray(prob_classa).reshape((-1,self.config.n_classes+1))
+            prob_classa = prob_classa[idx]
             return proba, dista, prob_classa, pointsa
         else:
             prob_classa = None
@@ -1111,6 +1117,18 @@ class StarDistPadAndCropResizer(Resizer):
         )
         # print(crop)
         return x[crop]
+
+
+    def filter_points(self, points, axes):
+        """ returns indices of points inside crop region """
+        assert points.ndim==2
+        axes = axes_check_and_normalize(axes,points.shape[1])
+
+        bounds = np.array(tuple(self.padded_shape[a]-self.pad[a][1] for a in axes if a.lower() in ('z','y','x')))
+        idx = np.where(np.all(points< bounds, 1))
+        return idx
+
+    
 
 def _tf_version_at_least(version_string="1.0.0"):
     from packaging import version

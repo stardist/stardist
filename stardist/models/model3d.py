@@ -573,6 +573,7 @@ class StarDist3D(StarDistBase):
         rays = rays_from_json(self.config.rays_json)
 
         # sparse prediction
+        print(points.max(axis=0))
         if points is not None:
             points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, **nms_kwargs)
             if prob_class is not None:
@@ -607,7 +608,9 @@ class StarDist3D(StarDistBase):
                 labels[labels == fwd[overlap_label2]] = overlap_label
             else:
                 # TODO relabel_sequential necessary?
+                print(np.unique(labels))
                 labels, _,_ = relabel_sequential(labels)
+                print(np.unique(labels))
         else:
             labels = None
 
