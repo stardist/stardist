@@ -602,9 +602,9 @@ class StarDistBase(BaseModel):
     def predict_instances(self, img, axes=None, normalizer=None,
                           sparse=True,
                           prob_thresh=None, nms_thresh=None,
+                          scale=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose=False,
-                          scale=None,
                           return_labels=True,
                           predict_kwargs=None, nms_kwargs=None,
                           overlap_label=None, return_predict=False):
@@ -629,6 +629,8 @@ class StarDistBase(BaseModel):
         nms_thresh : float or None
             Perform non-maximum suppression that considers two objects to be the same
             when their area/surface overlap exceeds this threshold (also see `optimize_thresholds`).
+        scale: float or None
+            Scale the input image internally by this factor and rescale the output accordingly. 
         n_tiles : iterable or None
             Out of memory (OOM) errors can occur if the input image is too large.
             To avoid this problem, the input image is broken up into (overlapping) tiles
