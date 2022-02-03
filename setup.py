@@ -110,6 +110,8 @@ setup(
         'scikit-image',
         'scipy',
         'numba',
+        'tifffile', 
+        'imageio'
     ],
 
     extras_require={

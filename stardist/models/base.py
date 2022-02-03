@@ -678,8 +678,8 @@ class StarDistBase(BaseModel):
 
         if scale is not None:
             verbose and print(f"scaling image by factor {scale}")
-            img = ndi.zoom(img, tuple(scale for s,a in zip(_permute_axes(img).shape, _axes_net) if a !='C' or s>1), order=1)
-            
+            img = ndi.zoom(img, tuple(scale if a !='C' else 1 for s,a in zip(_permute_axes(img).shape, _axes_net) if a !='C' or s>1), order=1)
+
         if sparse:
             res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
                                       prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs)

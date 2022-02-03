@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 from itertools import product
-from stardist.data import test_image_nuclei_2d
+from stardist.data import test_image_nuclei_2d, test_image_he_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
@@ -467,12 +467,19 @@ def test_pretrained_integration():
 
 
 @pytest.mark.parametrize('scale', (None, .5, 2.0))
-def test_predict_with_scale(scale):
-    model = StarDist2D.from_pretrained('2D_versatile_fluo')
-    x = test_image_nuclei_2d()
+def test_predict_with_scale(scale, mode='fluo'):
+    if mode=='fluo':
+        model = StarDist2D.from_pretrained('2D_versatile_fluo')
+        x = test_image_nuclei_2d()
+    elif mode=='he':
+        model = StarDist2D.from_pretrained('2D_versatile_he')
+        x = test_image_he_2d()
+    else:
+        raise ValueError(mode)
+        
     x = normalize(x)
     labels, res = model.predict_instances(x, scale=scale, verbose=True)
-    return labels
+    return x, labels
 
 
 # this test has to be at the end of the model
@@ -499,4 +506,4 @@ if __name__ == '__main__':
     # test_load_and_export_TF(model)
 
 
-    y = test_predict_with_scale(.4)
+    x, y = test_predict_with_scale(.4, mode='he')
