@@ -94,9 +94,11 @@ def test_load_and_predict_big():
                        basedir=str(model_path.parent))
     img = test_image_nuclei_2d()
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(8,8))
-    labels, polygons = model.predict_instances(x)
-    return labels
+    x = np.tile(x,(4,4))
+    labels1, polygons1 = model.predict_instances(x)
+    labels2, polygons2 = model.predict_instances(x, n_tiles=(4,4))
+    assert np.allclose(labels1>0, labels2>0)
+    return labels1
 
 
 def test_optimize_thresholds(model2d):
