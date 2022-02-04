@@ -208,11 +208,15 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     metadata, *_ = _import()
     package_data = metadata("stardist")
     is_2D = model.config.n_dim == 2
+
+    weights_file = outdir / "stardist_weights.h5"
+    model.keras_model.save_weights(str(weights_file))
     
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
             thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
+            weights=weights_file.name,
             config=vars(model.config),
         )
     )
@@ -274,7 +278,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     data.update(input_config)
     data.update(output_config)
     if is_2D:
-        data.update(attachments=dict(files=[str(macro_file)]))
+        data.update(attachments=dict(files=[str(macro_file),str(weights_file)]))
 
     return data
 
