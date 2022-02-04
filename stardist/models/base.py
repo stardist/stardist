@@ -591,7 +591,7 @@ class StarDistBase(BaseModel):
         dista = np.asarray(dista).reshape((-1,self.config.n_rays))
         pointsa = np.asarray(pointsa).reshape((-1,self.config.n_dim))
 
-        idx = resizer.filter_points(results[0], pointsa, axes_net)
+        idx = resizer.filter_points(x.ndim, pointsa, axes_net)
         proba = proba[idx]
         dista = dista[idx]
         pointsa = pointsa[idx]
@@ -1119,10 +1119,10 @@ class StarDistPadAndCropResizer(Resizer):
         return x[crop]
 
 
-    def filter_points(self, x, points, axes):
+    def filter_points(self, ndim, points, axes):
         """ returns indices of points inside crop region """
         assert points.ndim==2
-        axes = axes_check_and_normalize(axes,x.ndim)
+        axes = axes_check_and_normalize(axes,ndim)
 
         bounds = np.array(tuple(self.padded_shape[a]-self.pad[a][1] for a in axes if a.lower() in ('z','y','x')))
         idx = np.where(np.all(points< bounds, 1))
