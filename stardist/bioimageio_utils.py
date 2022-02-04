@@ -1,11 +1,54 @@
-import os
 from pathlib import Path
 from pkg_resources import get_distribution
 from itertools import chain
 from zipfile import ZipFile
 import numpy as np
 from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
-import tensorflow as tf
+
+
+DEEPIMAGEJ_MACRO = \
+"""
+//*******************************************************************
+// Date: July-2021
+// Credits: StarDist, DeepImageJ
+// URL: 
+//      https://github.com/stardist/stardist
+//      https://deepimagej.github.io/deepimagej
+// This macro was adapted from
+// https://github.com/deepimagej/imagej-macros/blob/648caa867f6ccb459649d4d3799efa1e2e0c5204/StarDist2D_Post-processing.ijm
+// Please cite the respective contributions when using this code.
+//*******************************************************************
+//  Macro to run StarDist postprocessing on 2D images. 
+//  StarDist and deepImageJ plugins need to be installed.
+//  The macro assumes that the image to process is a stack in which 
+//  the first channel corresponds to the object probability map
+//  and the remaining channels are the radial distances from each
+//  pixel to the object boundary.
+//*******************************************************************
+
+// Get the name of the image to call it
+getDimensions(width, height, channels, slices, frames);
+name=getTitle();
+
+probThresh={probThresh};
+nmsThresh={nmsThresh};
+
+// Isolate the detection probability scores
+run("Make Substack...", "channels=1");
+rename("scores");
+
+// Isolate the oriented distances
+run("Fire");
+selectWindow(name);
+run("Delete Slice", "delete=channel");
+selectWindow(name);
+run("Properties...", "channels=" + maxOf(channels, slices) - 1 + " slices=1 frames=1 pixel_width=1.0000 pixel_height=1.0000 voxel_depth=1.0000");
+rename("distances");
+run("royal");
+
+// Run StarDist plugin
+run("Command From Macro", "command=[de.csbdresden.stardist.StarDist2DNMS], args=['prob':'scores', 'dist':'distances', 'probThresh':'" + probThresh + "', 'nmsThresh':'" + nmsThresh + "', 'outputType':'Both', 'excludeBoundary':'2', 'roiPosition':'Stack', 'verbose':'false'], process=[false]");
+"""
 
 
 def _import(error=True):
@@ -93,24 +136,6 @@ def _predict_tf(model_path, test_input):
     return output
 
 
-def replace_in_macro(in_path, out_path, to_replace):
-    lines = []
-    with open(in_path) as f:
-        for line in f:
-            kwarg = [kwarg for kwarg in to_replace if line.startswith(kwarg)]
-            if kwarg:
-                assert len(kwarg) == 1
-                kwarg = kwarg[0]
-                # each kwarg should only be replaced ones
-                val = to_replace.pop(kwarg)
-                lines.append(f"{kwarg} = {val};\n")
-            else:
-                lines.append(line)
-    with open(out_path, "w") as f:
-        for line in lines:
-            f.write(line)
-
-
 def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode, min_percentile, max_percentile):
 
     # get the path to the exported model assets (saved in outdir)
@@ -182,18 +207,21 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     metadata, *_ = _import()
     package_data = metadata("stardist")
-    macro_in_file = os.path.join(os.path.dirname(__file__), "stardist_postprocessing.ijm")
-    macro_out_file = "./stardist_postprocessing.ijm"
-    replace_in_macro(macro_in_file, macro_out_file,
-                     to_replace=dict(probThresh=model.thresholds.prob, nmsThresh=model.thresholds.nms))
+    is_2D = model.config.n_dim == 2
+    
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
             thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
-            postprocessing_macro="stardist_postprocessing.ijm",
             config=vars(model.config),
         )
     )
+    
+    if is_2D:
+        macro_file = outdir / "stardist_postprocessing.ijm"
+        with open(str(macro_file), 'w', encoding='utf-8') as f:
+            f.write(DEEPIMAGEJ_MACRO.format(probThresh=model.thresholds.prob, nmsThresh=model.thresholds.nms))
+        config['stardist'].update(postprocessing_macro=macro_file.name)
 
     n_inputs = len(input_names)
     assert n_inputs == 1
@@ -240,11 +268,14 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     out_paths = [outdir / "test_output.npy"]
     np.save(out_paths[0], test_outputs)
 
-    tf_version = tf.__version__
+    from tensorflow import __version__ as tf_version
     data = dict(weight_uri=assets_uri, test_inputs=[in_path], test_outputs=out_paths,
-                config=config, tensorflow_version=tf_version, attachments=dict(files=[macro_out_file]))
+                config=config, tensorflow_version=tf_version)
     data.update(input_config)
     data.update(output_config)
+    if is_2D:
+        data.update(attachments=dict(files=[str(macro_file)]))
+
     return data
 
 
@@ -305,7 +336,7 @@ def export_bioimageio(
     kwargs.update(model_kwargs)
     kwargs.update(overwrite_spec_kwargs)
 
-    build_model(name=name, output_path=zip_path, add_deepimagej_config=True, **kwargs)
+    build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), **kwargs)
 
 
 class BioimageioModel():

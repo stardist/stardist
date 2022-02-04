@@ -114,7 +114,7 @@ setup(
     extras_require={
         "tf1":  ["csbdeep[tf1]>=0.6.3"],
         "test": ["pytest"],
-        "bioimageio": ["bioimageio.core","importlib-metadata"],
+        "bioimageio": ["bioimageio.core>=0.4.5","importlib-metadata"],
     },
 
 )
