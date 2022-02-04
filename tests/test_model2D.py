@@ -86,7 +86,7 @@ def test_load_and_predict(model2d):
     assert len(polygons['coord']) == len(
         polygons['points']) == len(polygons['prob'])
     stats = matching(mask, labels, thresh=0.5)
-    assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
+    assert (stats.fp, stats.tp, stats.fn) == (5, 114, 11)
     return labels
 
 def test_load_and_predict_big():
@@ -113,8 +113,8 @@ def test_optimize_thresholds(model2d):
                               optimize_kwargs=dict(tol=1e-1),
                               save_to_json=False)
 
-    np.testing.assert_almost_equal(res["prob"], 0.454617141955, decimal=3)
-    np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
+    np.testing.assert_almost_equal(res["prob"], 0.549501654040, decimal=3)
+    np.testing.assert_almost_equal(res["nms"] , 0.5, decimal=3)
 
 
 @pytest.mark.parametrize('n_classes, classes', [(None,(1,1)),(2,(1,2))])
@@ -508,4 +508,4 @@ if __name__ == '__main__':
 
     # test_load_and_export_TF(model)
 
-    test_predict_dense_sparse(_model2d())
+    # test_predict_dense_sparse(_model2d())
