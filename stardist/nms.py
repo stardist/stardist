@@ -48,7 +48,7 @@ def _non_maximum_suppression_old(coord, prob, grid=(1,1), b=2, nms_thresh=0.5, p
 
     # sort scores descendingly
     ind = np.argsort(scores)[::-1]
-    survivors = np.zeros(len(ind), np.bool)
+    survivors = np.zeros(len(ind), bool)
     polygons = polygons[ind]
     scores = scores[ind]
 
@@ -219,9 +219,9 @@ def non_maximum_suppression_inds(dist, points, scores, thresh=0.5, use_bbox=True
 
     inds = c_non_max_suppression_inds(_prep(dist,  np.float32),
                                       _prep(points, np.float32),
-                                      np.int(use_kdtree),
-                                      np.int(use_bbox),
-                                      np.int(verbose),
+                                      int(use_kdtree),
+                                      int(use_bbox),
+                                      int(verbose),
                                       np.float32(thresh))
 
     return inds
@@ -357,7 +357,7 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
 
     # sort scores descendingly
     ind = np.argsort(scores)[::-1]
-    survivors = np.ones(n_poly, np.bool)
+    survivors = np.ones(n_poly, bool)
     dist = dist[ind]
     points = points[ind]
     scores = scores[ind]
@@ -373,9 +373,9 @@ def non_maximum_suppression_3d_inds(dist, points, rays, scores, thresh=0.5, use_
                                                 _prep(rays.vertices, np.float32),
                                                 _prep(rays.faces, np.int32),
                                                 _prep(scores, np.float32),
-                                                np.int(use_bbox),
-                                                np.int(use_kdtree),
-                                                np.int(verbose),
+                                                int(use_bbox),
+                                                int(use_kdtree),
+                                                int(verbose),
                                                 np.float32(thresh))
 
     if verbose:
