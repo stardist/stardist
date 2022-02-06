@@ -244,7 +244,9 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     )
 
     n_outputs = len(output_names)
-    halo = [0 if ax in "bc" else 32 for ax in output_axes]
+    assert all(s in (0,1) for s in output_scale), "halo computation assumption violated"
+    halo = model._axes_tile_overlap(output_axes.replace('b','s'))
+    halo = [int(np.ceil(v/8)*8) for v in halo] # optional: round up to be divisible by 8
     output_config = dict(
         output_names=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
