@@ -349,13 +349,27 @@ def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_s
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
 
 
-@pytest.mark.parametrize('scale', (None, .5, 2.0))
+@pytest.mark.parametrize('scale', (0.5, 1.25, (1.12, 0.43, 0.96)))
 def test_predict_with_scale(scale):
+    from scipy.ndimage import zoom
+    if np.isscalar(scale):
+        scale = (scale,scale,scale)
     model = StarDist3D.from_pretrained('3D_demo')
+
     x = test_image_nuclei_3d()
     x = normalize(x)
-    labels, res = model.predict_instances(x, scale=scale, verbose=True)
-    assert x.shape==labels.shape
+    x_scaled = zoom(x, scale, order=1)
+    
+    labels,        res        = model.predict_instances(x, scale=scale)
+    labels_scaled, res_scaled = model.predict_instances(x_scaled)
+
+    assert x.shape == labels.shape
+    assert np.allclose(res['dist'], res_scaled['dist'])
+    assert np.allclose(res['points'] / res_scaled['points'], 1/np.asarray(scale).reshape(1,3))
+    assert np.allclose(res['prob'], res_scaled['prob'])
+    assert np.allclose(res['rays_faces'], res_scaled['rays_faces'])
+    assert np.allclose(res['rays_vertices'][1:-1] / res_scaled['rays_vertices'][1:-1], 1/np.asarray(scale).reshape(1,3))
+
     return x, labels
     
 
