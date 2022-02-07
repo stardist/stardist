@@ -437,7 +437,7 @@ class Polygon:
         self.slice = tuple(slice(*r) for r in self.bbox)
         self.shape = tuple(r[1]-r[0] for r in self.bbox)
         rr,cc = polygon(*self.coord, self.shape)
-        self.mask = np.zeros(self.shape, np.bool)
+        self.mask = np.zeros(self.shape, bool)
         self.mask[rr,cc] = True
 
     @staticmethod
@@ -459,7 +459,7 @@ class Polyhedron:
         self.slice = tuple(slice(*r) for r in self.bbox)
         self.shape = tuple(r[1]-r[0] for r in self.bbox)
         _origin = origin.reshape(1,3) - np.array([r[0] for r in self.bbox]).reshape(1,3)
-        self.mask = polyhedron_to_label(dist[np.newaxis], _origin, rays, shape=self.shape, verbose=False).astype(np.bool)
+        self.mask = polyhedron_to_label(dist[np.newaxis], _origin, rays, shape=self.shape, verbose=False).astype(bool)
 
     @staticmethod
     def coords_bbox(*dist_origin, rays, shape_max=None):

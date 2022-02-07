@@ -110,14 +110,6 @@ def test_predict_dense_sparse():
     return labels2, labels2
 
 
-def test_load_and_export_TF():
-    model_path = path_model3d()
-    model = StarDist3D(None, name=model_path.name,
-                       basedir=str(model_path.parent))
-    model.export_TF(single_output=True, upsample_grid=False)
-    model.export_TF(single_output=True, upsample_grid=True)
-
-
 def test_optimize_thresholds(model3d):
     model = model3d
     img, mask = real_image3d()

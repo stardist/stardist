@@ -403,7 +403,7 @@ class StarDistBase(BaseModel):
             x_tiling_axis = tuple(axes_dict(axes_net)[a] for a in tiling_axes) # numerical axis ids for x
             axes_net_tile_overlaps = self._axes_tile_overlap(axes_net)
             # hack: permute tiling axis in the same way as img -> x was permuted
-            _n_tiles = _permute_axes(np.empty(n_tiles,np.bool)).shape
+            _n_tiles = _permute_axes(np.empty(n_tiles,bool)).shape
             (all(_n_tiles[i] == 1 for i in range(x.ndim) if i not in x_tiling_axis) or
                 _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
 
