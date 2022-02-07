@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pytest
 from itertools import product
+from stardist.data import test_image_nuclei_3d
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
@@ -340,6 +341,29 @@ def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_s
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
 
 
+@pytest.mark.parametrize('scale', (0.5, 1.25, (1.12, 0.43, 0.96)))
+def test_predict_with_scale(scale):
+    from scipy.ndimage import zoom
+    if np.isscalar(scale):
+        scale = (scale,scale,scale)
+    model = StarDist3D.from_pretrained('3D_demo')
+
+    x = test_image_nuclei_3d()
+    x = normalize(x)
+    x_scaled = zoom(x, scale, order=1)
+    
+    labels,        res        = model.predict_instances(x, scale=scale)
+    labels_scaled, res_scaled = model.predict_instances(x_scaled)
+
+    assert x.shape == labels.shape
+    assert np.allclose(res['dist'], res_scaled['dist'])
+    assert np.allclose(res['points'] * np.asarray(scale).reshape(1,3), res_scaled['points'])
+    assert np.allclose(res['prob'], res_scaled['prob'])
+    assert np.allclose(res['rays_faces'], res_scaled['rays_faces'])
+    assert np.allclose(res['rays_vertices'] * np.asarray(scale).reshape(1,3), res_scaled['rays_vertices'])
+    return x, labels
+    
+
 # this test has to be at the end of the model
 def test_load_and_export_TF(model3d):
     model = model3d
@@ -354,5 +378,7 @@ def test_load_and_export_TF(model3d):
 if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
-    res = _test_model_multiclass(n_classes = 2, classes="auto", n_channel=1, epochs=20)
+    # res = _test_model_multiclass(n_classes = 2, classes="auto", n_channel=1, epochs=20)
     # test_stardistdata((2,2,2), True)
+
+    x, y = test_predict_with_scale((.4,1,1))

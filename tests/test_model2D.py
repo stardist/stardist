@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 from itertools import product
-from stardist.data import test_image_nuclei_2d
+from stardist.data import test_image_nuclei_2d, test_image_he_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
@@ -468,6 +468,37 @@ def test_pretrained_integration():
     # return y1, res1, y2, res2
 
 
+@pytest.mark.parametrize('scale', (0.5, 2.0, (0.34, 1.47)))
+@pytest.mark.parametrize('mode', ('fluo', 'he'))
+def test_predict_with_scale(scale, mode):
+    from scipy.ndimage import zoom
+    if np.isscalar(scale):
+        scale = (scale,scale)
+    if mode=='fluo':
+        model = StarDist2D.from_pretrained('2D_versatile_fluo')
+        x = test_image_nuclei_2d()
+        _scale = tuple(scale)
+    elif mode=='he':
+        model = StarDist2D.from_pretrained('2D_versatile_he')
+        x = test_image_he_2d()
+        _scale = tuple(scale) + (1,)
+    else:
+        raise ValueError(mode)
+
+    x = normalize(x)
+    x = zoom(x, (0.5,0.5) if x.ndim==2 else (0.5,0.5,1), order=1) # to speed test up
+    x_scaled = zoom(x, _scale, order=1)
+    
+    labels,        res        = model.predict_instances(x, scale=_scale)
+    labels_scaled, res_scaled = model.predict_instances(x_scaled)
+
+    assert x.shape[:2] == labels.shape
+    assert np.allclose(res['points'] * np.asarray(scale).reshape(1,2),   res_scaled['points'])
+    assert np.allclose(res['coord']  * np.asarray(scale).reshape(1,2,1), res_scaled['coord'])
+    assert np.allclose(res['prob'], res_scaled['prob'])
+
+    return x, labels
+
 
 # this test has to be at the end of the model
 def test_load_and_export_TF(model2d):
@@ -477,6 +508,7 @@ def test_load_and_export_TF(model2d):
     # model.export_TF(single_output=False, upsample_grid=True)
     model.export_TF(single_output=True, upsample_grid=False)
     model.export_TF(single_output=True, upsample_grid=True)
+    
 
 if __name__ == '__main__':
     from conftest import _model2d

@@ -14,6 +14,7 @@ Example:
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
 from scipy.spatial import ConvexHull
+import copy
 import warnings
 
 class Rays_Base(object):
@@ -37,10 +38,12 @@ class Rays_Base(object):
 
     @property
     def vertices(self):
+        """read-only property"""
         return self._vertices.copy()
 
     @property
     def faces(self):
+        """read-only property"""
         return self._faces.copy()
 
     def __getitem__(self, i):
@@ -137,6 +140,17 @@ class Rays_Base(object):
         d = .5*np.linalg.norm(np.cross(list(pa), list(pb)), axis = -1)
         d = d.reshape((len(self.faces),)+dist.shape[1:-1])
         return np.sum(d, axis = 0)
+
+    
+    def copy(self, scale=(1,1,1)):
+        """ returns a copy whose vertices are scaled by given factor"""
+        scale = np.asarray(scale)
+        assert scale.shape == (3,)
+        res = copy.deepcopy(self)
+        res._vertices *= scale[np.newaxis]
+        return res 
+
+
 
     
 def rays_from_json(d):
