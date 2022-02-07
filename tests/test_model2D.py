@@ -4,7 +4,6 @@ import pytest
 from pathlib import Path
 from itertools import product
 from stardist.data import test_image_nuclei_2d, test_image_he_2d
-from stardist.data import test_image_nuclei_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois

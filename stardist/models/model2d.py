@@ -529,7 +529,6 @@ class StarDist2D(StarDistBase):
             labels = None
 
         coord = dist_to_coord(disti, points, scale_dist=rescale)
-
         res_dict = dict(coord=coord, points=points, prob=probi)
 
         # multi class prediction
