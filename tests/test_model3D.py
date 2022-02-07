@@ -357,11 +357,10 @@ def test_predict_with_scale(scale):
 
     assert x.shape == labels.shape
     assert np.allclose(res['dist'], res_scaled['dist'])
-    assert np.allclose(res['points'] / res_scaled['points'], 1/np.asarray(scale).reshape(1,3))
+    assert np.allclose(res['points'] * np.asarray(scale).reshape(1,3), res_scaled['points'])
     assert np.allclose(res['prob'], res_scaled['prob'])
     assert np.allclose(res['rays_faces'], res_scaled['rays_faces'])
-    assert np.allclose(res['rays_vertices'] * np.asarray(scale).reshape(1,3),
-                        res_scaled['rays_vertices'])
+    assert np.allclose(res['rays_vertices'] * np.asarray(scale).reshape(1,3), res_scaled['rays_vertices'])
     return x, labels
     
 

@@ -494,8 +494,8 @@ def test_predict_with_scale(scale, mode):
     labels_scaled, res_scaled = model.predict_instances(x_scaled)
 
     assert x.shape[:2] == labels.shape
-    assert np.allclose(res['points'] / res_scaled['points'], 1/np.asarray(scale).reshape(1,2))
-    assert np.allclose(res['coord']  / res_scaled['coord'],  1/np.asarray(scale).reshape(1,2,1))
+    assert np.allclose(res['points'] * np.asarray(scale).reshape(1,2),   res_scaled['points'])
+    assert np.allclose(res['coord']  * np.asarray(scale).reshape(1,2,1), res_scaled['coord'])
     assert np.allclose(res['prob'], res_scaled['prob'])
 
     return x, labels
