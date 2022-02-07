@@ -513,21 +513,22 @@ class StarDist2D(StarDistBase):
                 prob_class = prob_class[inds]
 
         if scale is not None:
-            try:
-                scale_factor_inv = 1/np.array([scale['Y'], scale['X']])
-            except KeyError:
-                _raise(f'scale parameter {scale} should contain "X" and "Y" keys!')
-            points = points*np.expand_dims(scale_factor_inv, 0)
+            # need to undo the scaling given by the scale dict, e.g. scale = dict(X=0.5,Y=0.5):
+            #   1. re-scale points (origins of polygons)
+            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons 
+            if not (isinstance(scale,dict) and 'X' in scale and 'Y' in scale):
+                raise ValueError("scale must be a dictionary with entries for 'X' and 'Y'")
+            rescale = (1/scale['Y'],1/scale['X'])
+            points = points * np.array(rescale).reshape(1,2)
         else:
-            scale_factor_inv = (1,1)
+            rescale = (1,1)
 
         if return_labels:
-            labels = polygons_to_label(disti, points, prob=probi, 
-                                    shape=img_shape, scale_dist=scale_factor_inv)
+            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape, scale_dist=rescale)
         else:
             labels = None
 
-        coord = dist_to_coord(disti, points, scale_dist=scale_factor_inv)
+        coord = dist_to_coord(disti, points, scale_dist=rescale)
 
         res_dict = dict(coord=coord, points=points, prob=probi)
 

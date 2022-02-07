@@ -136,13 +136,12 @@ def dist_to_coord(dist, points, scale_dist=(1,1)):
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
-    scale_dist = np.asarray(scale_dist)
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points) \
-        and points.shape[1]==2 and scale_dist.shape==(2,)
+        and points.shape[1]==2 and len(scale_dist)==2
     n_rays = dist.shape[1]
     phis = ray_angles(n_rays)
     coord = (dist[:,np.newaxis]*np.array([np.sin(phis),np.cos(phis)])).astype(np.float32)
-    coord *= scale_dist[np.newaxis, :, np.newaxis] 
+    coord *= np.asarray(scale_dist).reshape(1,2,1)    
     coord += points[...,np.newaxis] 
     return coord
 
@@ -177,7 +176,6 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf, scale_dist=(1
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
-    scale_dist = np.asarray(scale_dist)
     prob = np.inf*np.ones(len(points)) if prob is None else np.asarray(prob)
 
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points)
