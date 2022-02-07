@@ -614,9 +614,9 @@ class StarDist3D(StarDistBase):
                 labels[labels == fwd[overlap_label2]] = overlap_label
             else:
                 # TODO relabel_sequential necessary?
-                print(np.unique(labels))
+                # print(np.unique(labels))
                 labels, _,_ = relabel_sequential(labels)
-                print(np.unique(labels))
+                # print(np.unique(labels))
         else:
             labels = None
 
