@@ -5,8 +5,7 @@ def abspath(path):
 
 
 def test_image_nuclei_2d(return_mask=False):
-    """ Fluorescence microscopy image and mask from the 
-    2018 kaggle DSB challenge
+    """ Fluorescence microscopy image and mask from the 2018 kaggle DSB challenge
 
     Caicedo et al. "Nucleus segmentation across imaging experiments: the 2018 Data Science Bowl." Nature methods 16.12
     """
@@ -18,6 +17,7 @@ def test_image_nuclei_2d(return_mask=False):
     else:
         return img
 
+
 def test_image_he_2d():
     """ H&E stained RGB example image from the Cancer Imaging Archive
     https://www.cancerimagingarchive.net
@@ -25,7 +25,6 @@ def test_image_he_2d():
     from imageio import imread
     img = imread(abspath("images/histo.jpg"))
     return img
-
 
 
 def test_image_nuclei_3d(return_mask=False):
