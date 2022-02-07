@@ -3,6 +3,7 @@ from pkg_resources import get_distribution
 from itertools import chain
 from zipfile import ZipFile
 import numpy as np
+import tempfile
 from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
 
 
@@ -316,13 +317,13 @@ def export_bioimageio(
          the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
          use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
     name: str
-        the name of this model (default: "StarDist Model")
+        the name of this model (default: "bioimageio_model")
     mode: str
         the export type for this model (default: "tensorflow_saved_model_bundle")
     min_percentile: float
-        min percentile to be used for image normalization
+        min percentile to be used for image normalization (default: 1.0)
     max_percentile: float
-        max percentile to be used for image normalization
+        max percentile to be used for image normalization (default: 99.8)
     overwrite_spec_kwargs: dict or None
         spec keywords that should be overloaded (default: None)
     """
@@ -342,14 +343,17 @@ def export_bioimageio(
         raise ValueError(f"outpath has to be a folder or zip file, got {outpath}")
     outdir.mkdir(exist_ok=True, parents=True)
 
-    kwargs = _get_stardist_metadata(outdir)
-    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode,
-                                                   min_percentile=min_percentile, max_percentile=max_percentile)
-    kwargs.update(model_kwargs)
-    if overwrite_spec_kwargs is not None:
-        kwargs.update(overwrite_spec_kwargs)
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        tmp_dir = Path(_tmp_dir)        
+        kwargs = _get_stardist_metadata(tmp_dir)
+        model_kwargs = _get_weights_and_model_metadata(tmp_dir, model, test_input, test_input_axes, test_input_norm_axes, mode,
+                                                       min_percentile=min_percentile, max_percentile=max_percentile)
+        kwargs.update(model_kwargs)
+        if overwrite_spec_kwargs is not None:
+            kwargs.update(overwrite_spec_kwargs)
 
-    build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), **kwargs)
+        build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), root=tmp_dir, **kwargs)
+        print(f"\nbioimage.io model exported to '{zip_path}'")
 
 
 def import_bioimageio(source, outpath):
