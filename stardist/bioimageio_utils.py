@@ -297,7 +297,7 @@ def export_bioimageio(
     mode="tensorflow_saved_model_bundle",
     min_percentile=1.0,
     max_percentile=99.8,
-    overwrite_spec_kwargs={}
+    overwrite_spec_kwargs=None,
 ):
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
@@ -323,8 +323,8 @@ def export_bioimageio(
         min percentile to be used for image normalization
     max_percentile: float
         max percentile to be used for image normalization
-    overwrite_spec_kwargs: dict
-        spec keywords that should be overloaded (default: {})
+    overwrite_spec_kwargs: dict or None
+        spec keywords that should be overloaded (default: None)
     """
     _, build_model, *_ = _import()
     from .models import StarDist2D, StarDist3D
@@ -346,7 +346,8 @@ def export_bioimageio(
     model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                    min_percentile=min_percentile, max_percentile=max_percentile)
     kwargs.update(model_kwargs)
-    kwargs.update(overwrite_spec_kwargs)
+    if overwrite_spec_kwargs is not None:
+        kwargs.update(overwrite_spec_kwargs)
 
     build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), **kwargs)
 
