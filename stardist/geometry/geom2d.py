@@ -127,18 +127,23 @@ def _polygons_to_label_old(coord, prob, points, shape=None, thr=-np.inf):
     return lbl
 
 
-def dist_to_coord(dist, points):
+def dist_to_coord(dist, points, scale_dist=(1,1)):
     """convert from polar to cartesian coordinates for a list of distances and center points
     dist.shape   = (n_polys, n_rays)
     points.shape = (n_polys, 2)
+    len(scale_dist) = 2
     return coord.shape = (n_polys,2,n_rays)
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
-    assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points) and points.shape[1]==2
+    scale_dist = np.asarray(scale_dist)
+    assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points) \
+        and points.shape[1]==2 and scale_dist.shape==(2,)
     n_rays = dist.shape[1]
     phis = ray_angles(n_rays)
-    coord = points[...,np.newaxis] + (dist[:,np.newaxis]*np.array([np.sin(phis),np.cos(phis)]))
+    coord = (dist[:,np.newaxis]*np.array([np.sin(phis),np.cos(phis)])).astype(np.float32)
+    coord *= scale_dist[np.newaxis, :, np.newaxis] 
+    coord += points[...,np.newaxis] 
     return coord
 
 
@@ -162,7 +167,7 @@ def polygons_to_label_coord(coord, shape, labels=None):
     return lbl
 
 
-def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
+def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf, scale_dist=(1,1)):
     """converts distances and center points to label image
 
     dist.shape   = (n_polys, n_rays)
@@ -172,6 +177,7 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
     """
     dist = np.asarray(dist)
     points = np.asarray(points)
+    scale_dist = np.asarray(scale_dist)
     prob = np.inf*np.ones(len(points)) if prob is None else np.asarray(prob)
 
     assert dist.ndim==2 and points.ndim==2 and len(dist)==len(points)
@@ -188,7 +194,7 @@ def polygons_to_label(dist, points, shape, prob=None, thr=-np.inf):
     points = points[ind]
     dist = dist[ind]
 
-    coord = dist_to_coord(dist, points)
+    coord = dist_to_coord(dist, points, scale_dist=scale_dist)
 
     return polygons_to_label_coord(coord, shape=shape, labels=ind)
 

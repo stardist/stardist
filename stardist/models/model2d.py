@@ -513,15 +513,22 @@ class StarDist2D(StarDistBase):
                 prob_class = prob_class[inds]
 
         if scale is not None:
-            points = points/scale
-            disti = disti/scale
+            try:
+                scale_factor_inv = 1/np.array([scale['Y'], scale['X']])
+            except KeyError:
+                _raise(f'scale parameter {scale} should contain "X" and "Y" keys!')
+            points = points*np.expand_dims(scale_factor_inv, 0)
+        else:
+            scale_factor_inv = (1,1)
 
         if return_labels:
-            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape)
+            labels = polygons_to_label(disti, points, prob=probi, 
+                                    shape=img_shape, scale_dist=scale_factor_inv)
         else:
             labels = None
 
-        coord = dist_to_coord(disti, points)
+        coord = dist_to_coord(disti, points, scale_dist=scale_factor_inv)
+
         res_dict = dict(coord=coord, points=points, prob=probi)
 
         # multi class prediction
