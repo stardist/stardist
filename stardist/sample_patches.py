@@ -41,7 +41,7 @@ def get_valid_inds(datas, patch_size, patch_filter = None):
 
     if patch_filter is None:
         # only cut border indices (which is faster)
-        patch_mask = np.ones(datas[0].shape,dtype=np.bool)
+        patch_mask = np.ones(datas[0].shape,dtype=bool)
         valid_inds = tuple(np.arange(p // 2, s - p + p // 2 + 1) for p, s in zip(patch_size, datas[0].shape))
         valid_inds = tuple(s.ravel() for s in np.meshgrid(*tuple(np.arange(p // 2, s - p + p // 2 + 1).astype(np.uint32) \
             for p, s in zip(patch_size, datas[0].shape)), indexing='ij'))

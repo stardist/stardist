@@ -22,7 +22,7 @@ class Rays_Base(object):
         self.kwargs = kwargs
         self._vertices, self._faces = self.setup_vertices_faces()
         self._vertices = np.asarray(self._vertices, np.float32)
-        self._faces = np.asarray(self._faces, np.int)
+        self._faces = np.asarray(self._faces, int)
         self._faces = np.asanyarray(self._faces)
 
     def setup_vertices_faces(self):
