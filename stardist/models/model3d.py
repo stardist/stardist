@@ -589,10 +589,14 @@ class StarDist3D(StarDistBase):
         verbose = nms_kwargs.get('verbose',False)
         verbose and print("render polygons...")
 
+        # handle scale
         if scale is not None:
-            points = points/scale
-            disti = disti/scale
-
+            try:
+                scale_factor_inv = 1/np.array([scale['Z'], scale['Y'], scale['X']])
+            except KeyError:
+                _raise(f'scale parameter {scale} should contain "X", "Y", and "Z" keys!')
+            points = points*np.expand_dims(scale_factor_inv, 0)
+            rays = rays.copy(scale=scale_factor_inv)
 
         if return_labels:
             labels = polyhedron_to_label(disti, points, rays=rays, prob=probi, shape=img_shape, overlap_label=overlap_label, verbose=verbose)
