@@ -355,7 +355,8 @@ def test_predict_with_scale(scale):
     x = test_image_nuclei_3d()
     x = normalize(x)
     labels, res = model.predict_instances(x, scale=scale, verbose=True)
-    return labels
+    assert x.shape==labels.shape
+    return x, labels
     
 
 # this test has to be at the end of the model
@@ -372,5 +373,7 @@ def test_load_and_export_TF(model3d):
 if __name__ == '__main__':
     # from conftest import _model3d
     # model, lbl = test_load_and_predict_with_overlap(_model3d())
-    res = _test_model_multiclass(n_classes = 2, classes="auto", n_channel=1, epochs=20)
+    # res = _test_model_multiclass(n_classes = 2, classes="auto", n_channel=1, epochs=20)
     # test_stardistdata((2,2,2), True)
+
+    x, y = test_predict_with_scale((.4,1,1))
