@@ -98,8 +98,13 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 
-def weighted_categorical_crossentropy(weights, ndim):
-    """ ndim = (2,3) """
+def weighted_categorical_crossentropy(weights, ndim, gamma=0):
+    """ 
+    weighted focal cce loss
+    ndim = (2,3) 
+
+    if gamma != 0 -> focal loss
+    """
 
     axis = -1 if backend_channels_last() else 1
     shape = [1]*(ndim+2)
@@ -110,12 +115,38 @@ def weighted_categorical_crossentropy(weights, ndim):
     def weighted_cce(y_true, y_pred):
         # ignore pixels that have y_true (prob_class) < 0
         mask = K.cast(y_true>=0, K.floatx())
+
+        #normalize
         y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
-        loss = - K.sum(weights*mask*y_true*K.log(y_pred), axis = axis)
+
+        # cross entropy
+        loss = weights*mask*y_true*K.log(y_pred)
+        
+        #focal term if given
+        loss = K.pow(1 - y_pred, gamma) * loss
+        
+        loss = - K.sum(loss, axis = axis)
         return loss
 
     return weighted_cce
+
+
+def dice_loss(y_true, y_pred):
+    inter = y_true*y_pred
+    over  = y_true+y_pred
+    score  = (2*inter+K.epsilon())/(over+K.epsilon())
+    return 1-score
+
+
+def compound_dice_cce(weights, ndim, gamma):
+    """ sum of weighted cce and dice loss """
+    cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
+
+    def dice_cce(y_true, y_pred):
+        return K.mean(cce(y_true, y_pred)) + K.mean(dice_loss(y_true, y_pred))
+    
+    return dice_cce
 
 
 class StarDistDataBase(RollingSequence):
@@ -235,12 +266,13 @@ class StarDistBase(BaseModel):
                 if config is None and len(tuple(self.logdir.glob('*.h5'))) > 0:
                     print("Couldn't load thresholds from 'thresholds.json', using default values. "
                           "(Call 'optimize_thresholds' to change that.)")
-
+                    
         self.thresholds = dict (
             prob = 0.5 if threshs['prob'] is None else threshs['prob'],
             nms  = 0.4 if threshs['nms']  is None else threshs['nms'],
         )
         print("Using default values: prob_thresh={prob:g}, nms_thresh={nms:g}.".format(prob=self.thresholds.prob, nms=self.thresholds.nms))
+        
 
 
     @property
@@ -324,9 +356,11 @@ class StarDistBase(BaseModel):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
-
         if self._is_multiclass():
-            prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
+            # prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
+            prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            print(f'{self.config.train_focal_gamma=}')
+            
             loss = [prob_loss, dist_loss, prob_class_loss]
         else:
             loss = [prob_loss, dist_loss]

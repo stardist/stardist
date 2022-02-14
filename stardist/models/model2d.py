@@ -6,7 +6,7 @@ import math
 from tqdm import tqdm
 
 from csbdeep.models import BaseConfig
-from csbdeep.internals.blocks import unet_block
+from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
@@ -142,6 +142,8 @@ class Config2D(BaseConfig):
         Maxpooling size for all (U-Net) convolution layers.
     net_conv_after_unet : int
         Number of filters of the extra convolution layer after U-Net (0 to disable).
+    head_blocks : int
+        Number of extra blocks before each head.
     unet_* : *
         Additional parameters for U-net backbone.
     train_shape_completion : bool
@@ -209,6 +211,11 @@ class Config2D(BaseConfig):
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
+        # no additional head blocks by default (backward compatible)
+        self.head_blocks = 2
+
+
+        
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
@@ -233,6 +240,8 @@ class Config2D(BaseConfig):
         self.train_batch_size          = 4
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
+        # focal loss gamma parameter for multiclass 
+        self.train_focal_gamma         = 0
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
@@ -253,6 +262,14 @@ class Config2D(BaseConfig):
         if not len(self.train_class_weights) == (2 if self.n_classes is None else self.n_classes+1):
             raise ValueError(f"train_class_weights {self.train_class_weights} not compatible with n_classes ({self.n_classes}): must be 'n_classes + 1' weights if n_classes is not None, otherwise 2")
 
+
+    @classmethod
+    def parse_loaded_config(cls, conf):
+        conf = super().parse_loaded_config(conf)
+        # backward-compatible defaults if new parameters are not present
+        conf.setdefault('head_blocks', 0)
+        conf.setdefault('n_classes',None)
+        return conf        
 
 
 class StarDist2D(StarDistBase):
@@ -293,6 +310,11 @@ class StarDist2D(StarDistBase):
 
 
     def _build(self):
+        def _head(x, filters=32):
+            for _i in range(self.config.head_blocks):
+                x = resnet_block(filters)(x)
+            return x 
+
         self.config.backbone == 'unet' or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
@@ -316,19 +338,23 @@ class StarDist2D(StarDistBase):
                           name='features', padding='same', activation=self.config.unet_activation)(unet_base)
         else:
             unet = unet_base
-
-        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(unet)
-        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
+                
+        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(_head(unet, self.config.unet_n_filter_base//2))
+        
+        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(_head(unet, self.config.n_rays))
 
         # attach extra classification head when self.n_classes is given
         if self._is_multiclass():
             if self.config.net_conv_after_unet > 0:
-                unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                                     name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+                unet_class  = Conv2D(self.config.net_conv_after_unet,
+                                self.config.unet_kernel_size,
+                                name='features_class', padding='same',
+                                activation=self.config.unet_activation)(unet_base)
             else:
                 unet_class  = unet_base
 
-            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(unet_class)
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(_head(unet_class,self.config.unet_n_filter_base//2))
+            
             return Model([input_img], [output_prob,output_dist,output_prob_class])
         else:
             return Model([input_img], [output_prob,output_dist])
