@@ -26,4 +26,9 @@ register_model(StarDist3D,   '3D_demo',           'https://github.com/stardist/s
 register_aliases(StarDist2D, '2D_paper_dsb2018',  'DSB 2018 (from StarDist 2D paper)')
 register_aliases(StarDist2D, '2D_versatile_fluo', 'Versatile (fluorescent nuclei)')
 register_aliases(StarDist2D, '2D_versatile_he',   'Versatile (H&E nuclei)')
+
+
+register_model(StarDist2D,   '2D_yeast', 'file:///Users/weigert/tmp/yeast_model.zip', '4383102e3a054814a569320b5f2f2885')
+register_aliases(StarDist2D, '2D_yeast',  'Budding yeast')
+
 del register_model, register_aliases, clear_models_and_aliases
