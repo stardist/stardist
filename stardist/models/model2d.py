@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 import math
 from tqdm import tqdm
-
+import tensorflow as tf
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
@@ -211,6 +211,7 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'unetplus':
             self.unet_n_depth          = 4
             self.unet_kernel_size      = 3,3
@@ -222,6 +223,7 @@ class Config2D(BaseConfig):
             # batchnorm is more importnant for resnet blocks
             self.unet_batch_norm       = True
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'mrunet':
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
@@ -234,6 +236,7 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'fpn':
             self.unet_n_depth          = 4
             self.unet_kernel_size      = 3,3
@@ -247,12 +250,12 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         else:
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
-        # no additional head blocks by default (backward compatible)
-        self.head_blocks = 2
+        
 
 
         
@@ -354,8 +357,6 @@ class StarDist2D(StarDistBase):
             for _i in range(self.config.head_blocks):
                 x = resnet_block(filters)(x)
             return x 
-
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
 
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
@@ -524,8 +525,23 @@ class StarDist2D(StarDistBase):
         data_val = _data_val[0]
 
         # expose data generator as member for general diagnostics
-        self.data_train = StarDistData2D(X, Y, classes=classes, batch_size=self.config.train_batch_size,
-                                         augmenter=augmenter, length=epochs*steps_per_epoch, **data_kwargs)
+        # self.data_train = StarDistData2D(X, Y, classes=classes,
+        #                             batch_size=self.config.train_batch_size,
+        #                             augmenter=augmenter,
+        #                             length=epochs*steps_per_epoch, **data_kwargs)
+        data_train = StarDistData2D(X, Y, classes=classes,
+                                    batch_size=1,
+                                    augmenter=augmenter,
+                                    length=epochs*steps_per_epoch, **data_kwargs)
+
+        def _tf_generator():
+            for a,b in data_train:
+                yield tuple(tf.convert_to_tensor(x[0]) for x in a),
+                tuple(tf.convert_to_tensor(x[0]) for x in b)
+
+        data_train = tf.data.Dataset.from_generator(_tf_generator,
+                    output_types=(tf.float32, (tf.float32, ) * (3 if self._is_multiclass else 2)))
+        self.data_train = data_train.shuffle(128).batch(self.config.train_batch_size, drop_remainder=True).repeat(int(epochs*steps_per_epoch)).prefetch(tf.data.AUTOTUNE)
 
         if self.config.train_tensorboard:
             # show dist for three rays
@@ -550,7 +566,7 @@ class StarDist2D(StarDistBase):
                                                            n_images=3, prob_out=False, output_slices=output_slices))
 
         fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
-        history = fit(iter(self.data_train), validation_data=data_val,
+        history = fit(self.data_train, validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
                       workers=workers, use_multiprocessing=workers>1,
                       callbacks=self.callbacks, verbose=1,
