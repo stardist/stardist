@@ -85,11 +85,11 @@ class StarDistData2D(StarDistDataBase):
         # prob      = prob[self.ss_grid]
 
         # append dist_mask to dist as additional channel
-        # dist_and_mask = np.concatenate([dist,dist_mask],axis=-1)
-        # faster than concatenate
-        dist_and_mask = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
-        dist_and_mask[...,:-1] = dist
-        dist_and_mask[...,-1:] = dist_mask
+        dist_and_mask = np.concatenate([dist,dist_mask],axis=-1)
+        # # faster than concatenate
+        # dist_and_mask = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
+        # dist_and_mask[...,:-1] = dist
+        # dist_and_mask[...,-1:] = dist_mask
 
 
         if self.n_classes is None:
@@ -100,7 +100,8 @@ class StarDistData2D(StarDistDataBase):
             # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
             # 'zoom' might lead to better registered maps (especially if upscaled later)
-            prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
+            if any(g!=1 for g in self.grid):
+                prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
             return [X], [prob,dist_and_mask, prob_class]
 
