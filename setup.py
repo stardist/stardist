@@ -109,6 +109,7 @@ setup(
         'csbdeep>=0.6.3',
         'scikit-image',
         'numba',
+        'imageio',
     ],
 
     extras_require={

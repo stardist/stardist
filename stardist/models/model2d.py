@@ -6,7 +6,7 @@ import math
 from tqdm import tqdm
 
 from csbdeep.models import BaseConfig
-from csbdeep.internals.blocks import unet_block
+from csbdeep.internals.blocks import unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
 from skimage.segmentation import clear_border
@@ -88,11 +88,11 @@ class StarDistData2D(StarDistDataBase):
         # prob      = prob[self.ss_grid]
 
         # append dist_mask to dist as additional channel
-        # dist_and_mask = np.concatenate([dist,dist_mask],axis=-1)
-        # faster than concatenate
-        dist_and_mask = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
-        dist_and_mask[...,:-1] = dist
-        dist_and_mask[...,-1:] = dist_mask
+        dist_and_mask = np.concatenate([dist,dist_mask],axis=-1)
+        # # faster than concatenate
+        # dist_and_mask = np.empty(dist.shape[:-1]+(self.n_rays+1,), np.float32)
+        # dist_and_mask[...,:-1] = dist
+        # dist_and_mask[...,-1:] = dist_mask
 
 
         if self.n_classes is None:
@@ -103,7 +103,8 @@ class StarDistData2D(StarDistDataBase):
             # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
             # 'zoom' might lead to better registered maps (especially if upscaled later)
-            prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
+            if any(g!=1 for g in self.grid):
+                prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
             return [X], [prob,dist_and_mask, prob_class]
 
@@ -145,6 +146,8 @@ class Config2D(BaseConfig):
         Maxpooling size for all (U-Net) convolution layers.
     net_conv_after_unet : int
         Number of filters of the extra convolution layer after U-Net (0 to disable).
+    head_blocks : int
+        Number of extra blocks before each head.
     unet_* : *
         Additional parameters for U-net backbone.
     train_shape_completion : bool
@@ -248,6 +251,11 @@ class Config2D(BaseConfig):
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
+        # no additional head blocks by default (backward compatible)
+        self.head_blocks = 2
+
+
+        
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
@@ -272,6 +280,8 @@ class Config2D(BaseConfig):
         self.train_batch_size          = 4
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
+        # focal loss gamma parameter for multiclass 
+        self.train_focal_gamma         = 0
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
@@ -292,6 +302,14 @@ class Config2D(BaseConfig):
         if not len(self.train_class_weights) == (2 if self.n_classes is None else self.n_classes+1):
             raise ValueError(f"train_class_weights {self.train_class_weights} not compatible with n_classes ({self.n_classes}): must be 'n_classes + 1' weights if n_classes is not None, otherwise 2")
 
+
+    @classmethod
+    def parse_loaded_config(cls, conf):
+        conf = super().parse_loaded_config(conf)
+        # backward-compatible defaults if new parameters are not present
+        conf.setdefault('head_blocks', 0)
+        conf.setdefault('n_classes',None)
+        return conf        
 
 
 class StarDist2D(StarDistBase):
@@ -332,6 +350,13 @@ class StarDist2D(StarDistBase):
 
 
     def _build(self):
+        def _head(x, filters=32):
+            for _i in range(self.config.head_blocks):
+                x = resnet_block(filters)(x)
+            return x 
+
+        self.config.backbone == 'unet' or _raise(NotImplementedError())
+
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img = Input(self.config.net_input_shape, name='input')
@@ -388,19 +413,23 @@ class StarDist2D(StarDistBase):
                           name='features', padding='same', activation=self.config.unet_activation)(unet_base)
         else:
             unet = unet_base
-
-        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(unet)
-        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(unet)
+                
+        output_prob = Conv2D(                 1, (1,1), name='prob', padding='same', activation='sigmoid')(_head(unet, self.config.unet_n_filter_base//2))
+        
+        output_dist = Conv2D(self.config.n_rays, (1,1), name='dist', padding='same', activation='linear')(_head(unet, self.config.n_rays))
 
         # attach extra classification head when self.n_classes is given
         if self._is_multiclass():
             if self.config.net_conv_after_unet > 0:
-                unet_class  = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
-                                     name='features_class', padding='same', activation=self.config.unet_activation)(unet_base)
+                unet_class  = Conv2D(self.config.net_conv_after_unet,
+                                self.config.unet_kernel_size,
+                                name='features_class', padding='same',
+                                activation=self.config.unet_activation)(unet_base)
             else:
                 unet_class  = unet_base
 
-            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(unet_class)
+            output_prob_class  = Conv2D(self.config.n_classes+1, (1,1), name='prob_class', padding='same', activation='softmax')(_head(unet_class,self.config.unet_n_filter_base//2))
+            
             return Model([input_img], [output_prob,output_dist,output_prob_class])
         else:
             return Model([input_img], [output_prob,output_dist])
@@ -558,7 +587,7 @@ class StarDist2D(StarDistBase):
     #     return labels, res_dict
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, scale=None, **nms_kwargs):
         """
         if points is None     -> dense prediction
         if points is not None -> sparse prediction
@@ -584,12 +613,23 @@ class StarDist2D(StarDistBase):
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
                 prob_class = prob_class[inds]
 
+        if scale is not None:
+            # need to undo the scaling given by the scale dict, e.g. scale = dict(X=0.5,Y=0.5):
+            #   1. re-scale points (origins of polygons)
+            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons 
+            if not (isinstance(scale,dict) and 'X' in scale and 'Y' in scale):
+                raise ValueError("scale must be a dictionary with entries for 'X' and 'Y'")
+            rescale = (1/scale['Y'],1/scale['X'])
+            points = points * np.array(rescale).reshape(1,2)
+        else:
+            rescale = (1,1)
+
         if return_labels:
-            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape)
+            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape, scale_dist=rescale)
         else:
             labels = None
 
-        coord = dist_to_coord(disti, points)
+        coord = dist_to_coord(disti, points, scale_dist=rescale)
         res_dict = dict(coord=coord, points=points, prob=probi)
 
         # multi class prediction
