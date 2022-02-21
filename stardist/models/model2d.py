@@ -211,6 +211,7 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'unetplus':
             self.unet_n_depth          = 4
             self.unet_kernel_size      = 3,3
@@ -222,6 +223,7 @@ class Config2D(BaseConfig):
             # batchnorm is more importnant for resnet blocks
             self.unet_batch_norm       = True
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'mrunet':
             self.unet_n_depth          = 3
             self.unet_kernel_size      = 3,3
@@ -234,6 +236,7 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         elif self.backbone == 'fpn':
             self.unet_n_depth          = 4
             self.unet_kernel_size      = 3,3
@@ -247,15 +250,11 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         else:
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
-        # no additional head blocks by default (backward compatible)
-        self.head_blocks = 2
-
-
-        
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
@@ -354,8 +353,6 @@ class StarDist2D(StarDistBase):
             for _i in range(self.config.head_blocks):
                 x = resnet_block(filters)(x)
             return x 
-
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
 
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
