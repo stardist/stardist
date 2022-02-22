@@ -521,17 +521,13 @@ def test_tfdata():
 
     def _tf_generator():
         for a,b in s:
-            yield tf.zeros(1)
-            # yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
-            #     tuple(tf.convert_to_tensor(x[0]) for x in b)
+            yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
+                tuple(tf.convert_to_tensor(x[0]) for x in b)
 
-    # return _tf_generator
-    # s = tf.data.Dataset.from_generator(_tf_generator,
-    #         output_types=(tf.float32, (tf.float32, tf.float32)) )
-    s = tf.data.Dataset.from_generator(_tf_generator,
-            output_types=(tf.float32 ))
-    
-    return s 
+    data = tf.data.Dataset.from_generator(_tf_generator,
+            output_types=(tf.float32, (tf.float32, tf.float32)) )
+
+    return data
 
 
 # this test has to be at the end of the model
@@ -559,7 +555,5 @@ if __name__ == '__main__':
 
     # test_predict_dense_sparse(_model2d())
 
-
-    s = test_tfdata()
-
-    a,b = next(iter(s))
+    data = test_tfdata()
+    
