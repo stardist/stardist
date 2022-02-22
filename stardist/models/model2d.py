@@ -529,23 +529,22 @@ class StarDist2D(StarDistBase):
         #                             batch_size=self.config.train_batch_size,
         #                             augmenter=augmenter,
         #                             length=epochs*steps_per_epoch, **data_kwargs)
-        data_train = StarDistData2D(X, Y, classes=classes,
+
+        data_train_plain = StarDistData2D(X, Y, classes=classes,
                                     batch_size=1,
                                     augmenter=augmenter,
                                     length=epochs*steps_per_epoch, **data_kwargs)
 
         def _tf_generator():
-            for a,b in data_train:
+            for a,b in data_train_plain:
                 yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
                 tuple(tf.convert_to_tensor(x[0]) for x in b)
                 
-        # self.data_train = data_train
-        
-        data_train = tf.data.Dataset.from_generator(_tf_generator,
+        self.data_train = tf.data.Dataset.from_generator(_tf_generator,
                     output_types=(tf.float32, (tf.float32, ) * (3 if self._is_multiclass else 2)))
-        self.data_train = data_train.shuffle(128).batch(self.config.train_batch_size, drop_remainder=True).repeat(int(epochs*steps_per_epoch))
+        self.data_train = self.data_train.shuffle(128).batch(self.config.train_batch_size, drop_remainder=True).repeat(int(epochs*steps_per_epoch))
 
-        # self.data_train = self.data_train.prefetch(tf.data.AUTOTUNE)
+        self.data_train = self.data_train.prefetch(tf.data.AUTOTUNE)
 
         # if self.config.train_tensorboard:
         #     # show dist for three rays
