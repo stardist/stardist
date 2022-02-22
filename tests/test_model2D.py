@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pytest
 from pathlib import Path
+import tensorflow as tf
 from itertools import product
 from stardist.data import test_image_nuclei_2d, test_image_he_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
@@ -500,6 +501,39 @@ def test_predict_with_scale(scale, mode):
     return x, labels
 
 
+def test_tfdata():
+    np.random.seed(42)
+    from stardist.models import StarDistData2D
+    from time import sleep
+
+    def augmenter(x,y):
+        return x,y
+
+    n_samples = 4
+
+    _ , mask = test_image_nuclei_2d(return_mask=True)
+    Y = np.stack([mask+i for i in range(n_samples)])
+    s = StarDistData2D(Y.astype(np.float32), Y,
+                       grid = (1,1),
+                       n_classes = None, augmenter=augmenter,
+                       batch_size=1, patch_size=mask.shape, n_rays=32, length=len(Y))
+
+
+    def _tf_generator():
+        for a,b in s:
+            yield tf.zeros(1)
+            # yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
+            #     tuple(tf.convert_to_tensor(x[0]) for x in b)
+
+    # return _tf_generator
+    # s = tf.data.Dataset.from_generator(_tf_generator,
+    #         output_types=(tf.float32, (tf.float32, tf.float32)) )
+    s = tf.data.Dataset.from_generator(_tf_generator,
+            output_types=(tf.float32 ))
+    
+    return s 
+
+
 # this test has to be at the end of the model
 def test_load_and_export_TF(model2d):
     model = model2d
@@ -524,3 +558,8 @@ if __name__ == '__main__':
     # test_load_and_export_TF(model)
 
     # test_predict_dense_sparse(_model2d())
+
+
+    s = test_tfdata()
+
+    a,b = next(iter(s))
