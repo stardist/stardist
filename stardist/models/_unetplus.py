@@ -14,7 +14,8 @@ def conv_block(n_filters,
                 **kwargs):
     if strides is None: strides = (1,)*len(kernel_size)
     assert len(strides)==len(kernel_size) or _raise(ValueError('kernel and pool sizes must match.'))
-    (ndim := len(kernel_size)) in (2,3) or _raise(ValueError('block only supports 2d or 3d.'))
+    ndim = len(kernel_size)
+    (ndim in (2,3) ) or _raise(ValueError('block only supports 2d or 3d.'))
     
     def _f_single(inp):
         x = inp
@@ -51,7 +52,8 @@ def _main_block(n_filters,
     if bottleneck: n_conv += 1
     n_conv >= 2 or _raise(ValueError('required: n_conv >= 2'))
     len(strides) == len(kernel_size) or _raise(ValueError('kernel and pool sizes must match.'))
-    (ndim := len(kernel_size)) in (2,3) or _raise(ValueError('block only supports 2d or 3d.'))
+    ndim = len(kernel_size)
+    (ndim in (2,3)) or _raise(ValueError('block only supports 2d or 3d.'))
 
     def _f_single(inp):
         x = inp
