@@ -533,8 +533,9 @@ class StarDist2D(StarDistBase):
 
         data_train_stardist = StarDistData2D(X, Y, classes=classes,
                                     batch_size=1,
-                                    augmenter=augmenter,
-                                    length=epochs*steps_per_epoch, **data_kwargs)
+                augmenter=augmenter,
+                length=self.config.train_batch_size*epochs*steps_per_epoch,
+                                          **data_kwargs)
 
         self.data_train = wrap_stardistdata_as_tfdata(data_train_stardist,
                                                       shuffle=True, num_parallel_calls=workers)
