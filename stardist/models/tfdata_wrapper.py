@@ -14,7 +14,7 @@ def wrap_stardistdata_as_tfdata(data, shuffle=True, num_parallel_calls=1, verbos
     def _id_map(idx):
         return tf.numpy_function(func=_pre_map,
                     inp=[idx],
-                    Tout=[tf.float32]* 3 if data.n_classes is None else 4)
+                    Tout=[tf.float32]* (3 if data.n_classes is None else 4))
     def _post_map(*args):
         return (args[0],), args[1:]
 
@@ -25,5 +25,7 @@ def wrap_stardistdata_as_tfdata(data, shuffle=True, num_parallel_calls=1, verbos
         data_tf = data_tf.shuffle(data.data_size)
 
     data_tf = data_tf.map(_id_map, num_parallel_calls=num_parallel_calls)
+    
     data_tf = data_tf.map(_post_map)
+    
     return data_tf

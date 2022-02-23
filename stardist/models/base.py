@@ -378,7 +378,12 @@ class StarDistBase(BaseModel):
                 if IS_TF_1:
                     self.callbacks.append(CARETensorBoard(log_dir=str(self.logdir), prefix_with_timestamp=False, n_images=3, write_images=True, prob_out=False))
                 else:
-                    self.callbacks.append(TensorBoard(log_dir=str(self.logdir/'logs'), write_graph=False, profile_batch=0))
+                    self.callbacks.append(
+                        TensorBoard(log_dir=str(self.logdir/'logs'),
+                                    write_graph=False,
+                                    profile_batch=0
+                                    # profile_batch='10,100'
+                                    ))
 
         if self.config.train_reduce_lr is not None:
             rlrop_params = self.config.train_reduce_lr

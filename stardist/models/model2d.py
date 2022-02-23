@@ -538,7 +538,7 @@ class StarDist2D(StarDistBase):
                                           **data_kwargs)
 
         self.data_train = wrap_stardistdata_as_tfdata(data_train_stardist,
-                                                      shuffle=True, num_parallel_calls=workers)
+                                shuffle=True, num_parallel_calls=workers)
 
         self.data_train = self.data_train.batch(self.config.train_batch_size, drop_remainder=True)
 
@@ -570,7 +570,6 @@ class StarDist2D(StarDistBase):
 
         history = fit(self.data_train, validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, use_multiprocessing=workers>1,
                       callbacks=self.callbacks, verbose=1,
                       # set validation batchsize to training batchsize (only works for tf >= 2.2)
                       **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
