@@ -504,6 +504,7 @@ def test_predict_with_scale(scale, mode):
 def test_tfdata():
     np.random.seed(42)
     from stardist.models import StarDistData2D
+    from stardist.models.tfdata_wrapper import wrap_stardistdata_as_tfdata
     from time import sleep
 
     def augmenter(x,y):
@@ -518,14 +519,7 @@ def test_tfdata():
                        n_classes = None, augmenter=augmenter,
                        batch_size=1, patch_size=mask.shape, n_rays=32, length=len(Y))
 
-
-    def _tf_generator():
-        for a,b in s:
-            yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
-                tuple(tf.convert_to_tensor(x[0]) for x in b)
-
-    data = tf.data.Dataset.from_generator(_tf_generator,
-            output_types=(tf.float32, (tf.float32, tf.float32)) )
+    data = wrap_stardistdata_as_tfdata(s, shuffle=True, num_parallel_calls=2, verbose=True)
 
     return data
 

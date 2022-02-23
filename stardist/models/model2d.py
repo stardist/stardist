@@ -28,6 +28,7 @@ from ._mrunet import mrunet_block
 from ._fpn import fpn_block
 from ._unetplus import unetplus_block
 from ._unetplus import unet_block as unet_block_v2
+from .tfdata_wrapper import wrap_stardistdata_as_tfdata
 
 class StarDistData2D(StarDistDataBase):
 
@@ -530,56 +531,52 @@ class StarDist2D(StarDistBase):
         #                             augmenter=augmenter,
         #                             length=epochs*steps_per_epoch, **data_kwargs)
 
-        data_train_plain = StarDistData2D(X, Y, classes=classes,
+        data_train_stardist = StarDistData2D(X, Y, classes=classes,
                                     batch_size=1,
                                     augmenter=augmenter,
                                     length=epochs*steps_per_epoch, **data_kwargs)
 
-        def _tf_generator():
-            for a,b in data_train_plain:
-                yield tuple(tf.convert_to_tensor(x[0]) for x in a),\
-                tuple(tf.convert_to_tensor(x[0]) for x in b)
-                
-        self.data_train = tf.data.Dataset.from_generator(_tf_generator,
-                    output_types=(tf.float32, (tf.float32, ) * (3 if self._is_multiclass else 2)))
-        self.data_train = self.data_train.shuffle(128).batch(self.config.train_batch_size, drop_remainder=True).repeat(int(epochs*steps_per_epoch))
+        self.data_train = wrap_stardistdata_as_tfdata(data_train_stardist,
+                                                      shuffle=True, num_parallel_calls=workers)
+
+        self.data_train = self.data_train.batch(self.config.train_batch_size, drop_remainder=True)
 
         self.data_train = self.data_train.prefetch(tf.data.AUTOTUNE)
 
-        # if self.config.train_tensorboard:
-        #     # show dist for three rays
-        #     _n = min(3, self.config.n_rays)
-        #     channel = axes_dict(self.config.axes)['C']
-        #     output_slices = [[slice(None)]*4,[slice(None)]*4]
-        #     output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n, self.config.n_rays//_n)
-        #     if self._is_multiclass():
-        #         _n = min(3, self.config.n_classes)
-        #         output_slices += [[slice(None)]*4]
-        #         output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n, self.config.n_classes//_n)
+        if self.config.train_tensorboard:
+            # show dist for three rays
+            _n = min(3, self.config.n_rays)
+            channel = axes_dict(self.config.axes)['C']
+            output_slices = [[slice(None)]*4,[slice(None)]*4]
+            output_slices[1][1+channel] = slice(0,(self.config.n_rays//_n)*_n, self.config.n_rays//_n)
+            if self._is_multiclass():
+                _n = min(3, self.config.n_classes)
+                output_slices += [[slice(None)]*4]
+                output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n, self.config.n_classes//_n)
 
-        #     if IS_TF_1:
-        #         for cb in self.callbacks:
-        #             if isinstance(cb,CARETensorBoard):
-        #                 cb.output_slices = output_slices
-        #                 # target image for dist includes dist_mask and thus has more channels than dist output
-        #                 cb.output_target_shapes = [None,[None]*4,None]
-        #                 cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
-        #     elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
-        #         self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
-        #                                                    n_images=3, prob_out=False, output_slices=output_slices))
+            if IS_TF_1:
+                for cb in self.callbacks:
+                    if isinstance(cb,CARETensorBoard):
+                        cb.output_slices = output_slices
+                        # target image for dist includes dist_mask and thus has more channels than dist output
+                        cb.output_target_shapes = [None,[None]*4,None]
+                        cb.output_target_shapes[1][1+channel] = data_val[1][1].shape[1+channel]
+            elif self.basedir is not None and not any(isinstance(cb,CARETensorBoardImage) for cb in self.callbacks):
+                self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
+                                                           n_images=3, prob_out=False, output_slices=output_slices))
 
-        # fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
 
-        # history = fit(self.data_train, validation_data=data_val,
-        #               epochs=epochs, steps_per_epoch=steps_per_epoch,
-        #               workers=workers, use_multiprocessing=workers>1,
-        #               callbacks=self.callbacks, verbose=1,
-        #               # set validation batchsize to training batchsize (only works for tf >= 2.2)
-        #               **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
+        history = fit(self.data_train, validation_data=data_val,
+                      epochs=epochs, steps_per_epoch=steps_per_epoch,
+                      workers=workers, use_multiprocessing=workers>1,
+                      callbacks=self.callbacks, verbose=1,
+                      # set validation batchsize to training batchsize (only works for tf >= 2.2)
+                      **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
         
-        # self._training_finished()
+        self._training_finished()
 
-        # return history
+        return history
 
 
     # def _instances_from_prediction_old(self, img_shape, prob, dist,points = None, prob_class = None,  prob_thresh=None, nms_thresh=None, overlap_label = None, **nms_kwargs):
