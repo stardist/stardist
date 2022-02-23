@@ -413,7 +413,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   float * radius_outer = new float[n_polys];
 
   float * areas = new float[n_polys];
-  bool * suppressed = new bool[n_polys];
+  int * suppressed = new int[n_polys];
   ClipperLib::Path * poly_paths = new ClipperLib::Path[n_polys];
 
   const float ANGLE_PI = 2*M_PI/n_rays;
@@ -423,7 +423,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   //initialize indices
 #pragma omp parallel for
   for (int i=0; i<n_polys; i++) {
-    suppressed[i] = false;
+    suppressed[i] = -1;
   }
 
 
@@ -523,7 +523,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   
   // suppress (double loop)
   for (int i=0; i<n_polys-1; i++) {
-    if (suppressed[i]) continue;
+    if (suppressed[i]>=0) continue;
 
     if (verbose)
       prog.update(100.*count_suppressed/n_polys);
@@ -569,7 +569,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       long j = results[neigh].first;
       // printf("%d %d",i,j);
       
-      if ((suppressed[j]) || (j<=i))
+      if ((suppressed[j]>=0) || (j<=i))
         continue;
       
       // skip if bounding boxes are not even intersecting
@@ -580,7 +580,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
       const float overlap = area_inter / fmin( areas[i]+1.e-10, areas[j]+1.e-10 );
       if (overlap > threshold){
         count_suppressed +=1;
-        suppressed[j] = true;
+        suppressed[j] = i;
           
       }
 
@@ -597,10 +597,10 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   npy_intp dims_result[1];
   dims_result[0] = n_polys;
 
-  result = (PyArrayObject*)PyArray_SimpleNew(1,dims_result,NPY_BOOL);
+  result = (PyArrayObject*)PyArray_SimpleNew(1,dims_result,NPY_INT);
 
   for (int i=0; i<n_polys;i++)
-    *(bool *)PyArray_GETPTR1(result,i) = !suppressed[i];
+    *(int *)PyArray_GETPTR1(result,i) = suppressed[i];
 
   delete [] areas;
   delete [] suppressed;

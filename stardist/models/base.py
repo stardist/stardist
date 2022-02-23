@@ -359,7 +359,7 @@ class StarDistBase(BaseModel):
         if self._is_multiclass():
             # prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
             prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
-            print(f'{self.config.train_focal_gamma=}')
+            print(f'focal_gamma: {self.config.train_focal_gamma}')
             
             loss = [prob_loss, dist_loss, prob_class_loss]
         else:
