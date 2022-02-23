@@ -16,7 +16,7 @@ from distutils.version import LooseVersion
 
 keras = keras_import()
 K = keras_import('backend')
-Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
+Input, Conv2D, MaxPooling2D, Concatenate, UpSampling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D', 'Concatenate', 'UpSampling2D')
 Model = keras_import('models', 'Model')
 
 from .base import StarDistBase, StarDistDataBase, _tf_version_at_least
@@ -24,7 +24,10 @@ from ..sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
-
+from ._mrunet import mrunet_block
+from ._fpn import fpn_block
+from ._unetplus import unetplus_block
+from ._unetplus import unet_block as unet_block_v2
 
 class StarDistData2D(StarDistDataBase):
 
@@ -208,15 +211,50 @@ class Config2D(BaseConfig):
             self.unet_dropout          = 0.0
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
+        elif self.backbone == 'unetplus':
+            self.unet_n_depth          = 4
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'elu'
+            self.unet_last_activation  = 'elu'
+            # batchnorm is more importnant for resnet blocks
+            self.unet_batch_norm       = True
+            self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
+        elif self.backbone == 'mrunet':
+            self.unet_n_depth          = 3
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'relu'
+            self.unet_last_activation  = 'relu'
+            self.unet_batch_norm       = False
+            self.unet_dropout          = 0.0
+            self.unet_prefix           = ''
+            self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
+        elif self.backbone == 'fpn':
+            self.unet_n_depth          = 4
+            self.unet_kernel_size      = 3,3
+            self.unet_n_filter_base    = 32
+            self.unet_n_conv_per_depth = 2
+            self.unet_pool             = 2,2
+            self.unet_activation       = 'elu'
+            self.unet_last_activation  = 'elu'
+            # batchnorm is more importnant for resnet blocks
+            self.unet_batch_norm       = True
+            self.unet_dropout          = 0.0
+            self.unet_prefix           = ''
+            self.net_conv_after_unet   = 128
+            self.head_blocks           = 2
         else:
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
-        # no additional head blocks by default (backward compatible)
-        self.head_blocks = 2
-
-
-        
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
@@ -316,7 +354,6 @@ class StarDist2D(StarDistBase):
                 x = resnet_block(filters)(x)
             return x 
 
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
         unet_kwargs = {k[len('unet_'):]:v for (k,v) in vars(self.config).items() if k.startswith('unet_')}
 
         input_img = Input(self.config.net_input_shape, name='input')
@@ -332,7 +369,41 @@ class StarDist2D(StarDistBase):
                                     padding='same', activation=self.config.unet_activation)(pooled_img)
             pooled_img = MaxPooling2D(pool)(pooled_img)
 
-        unet_base = unet_block(**unet_kwargs)(pooled_img)
+        if self.config.backbone=='unet':
+            unet_base = unet_block(**unet_kwargs)(pooled_img)
+        elif self.config.backbone=='unetplus':
+            print(unet_kwargs)
+            # unet_base = unetplus_block(n_depth=unet_kwargs['n_depth'],
+            #                            n_filter_base=unet_kwargs['n_filter_base'],
+            #                            kernel_size=(3,3),
+            #                            strides = unet_kwargs['pool'],
+            #                            block='conv_bottleneck',
+            #                            n_blocks=2,
+            #                            expansion=1.5,
+            #                            multi_heads = True,
+            #                            activation="elu",
+            #                            batch_norm=True)(pooled_img)
+
+            unet_base = unet_block_v2(n_depth=unet_kwargs['n_depth'],
+                                   n_filter_base=unet_kwargs['n_filter_base'],
+                                   kernel_size=(3,3),
+                                   strides = unet_kwargs['pool'],
+                                   block='conv_bottleneck',
+                                   n_blocks=2,
+                                   expansion=1.5,
+                                   multi_heads = True,
+                                   activation="elu",
+                                   batch_norm=True)(pooled_img)
+            unet_base = tuple(UpSampling2D(tuple(p**i for p in unet_kwargs['pool']), interpolation='bilinear')(x) for i,x in enumerate(unet_base))
+            unet_base = Concatenate()(unet_base)
+            
+        elif self.config.backbone=='mrunet':
+            unet_base = mrunet_block(unet_kwargs['n_filter_base'])(pooled_img)
+        elif self.config.backbone=='fpn':
+            unet_base = fpn_block(head_filters=unet_kwargs['n_filter_base'],
+                                  **unet_kwargs)(pooled_img)
+        else:
+            _raise(NotImplementedError(self.config.backbone))
 
         if self.config.net_conv_after_unet > 0:
             unet = Conv2D(self.config.net_conv_after_unet, self.config.unet_kernel_size,
@@ -573,13 +644,23 @@ class StarDist2D(StarDistBase):
 
 
     def _axes_div_by(self, query_axes):
-        self.config.backbone == 'unet' or _raise(NotImplementedError())
+        self.config.backbone in ('unet','unetplus', 'mrunet','fpn') or _raise(NotImplementedError())
         query_axes = axes_check_and_normalize(query_axes)
         assert len(self.config.unet_pool) == len(self.config.grid)
-        div_by = dict(zip(
-            self.config.axes.replace('C',''),
-            tuple(p**self.config.unet_n_depth * g for p,g in zip(self.config.unet_pool,self.config.grid))
-        ))
+
+        if self.config.backbone == 'mrunet':
+            depth, pool = 4, (2,2)
+            div_by = dict(zip(
+                self.config.axes.replace('C',''),
+                tuple(p**depth * g for p,g in zip(pool,self.config.grid))
+            ))
+        else:
+            div_by = dict(zip(
+                self.config.axes.replace('C',''),
+                tuple(p**self.config.unet_n_depth * g for p,g in zip(self.config.unet_pool,self.config.grid))
+            ))
+
+            
         return tuple(div_by.get(a,1) for a in query_axes)
 
 
@@ -600,3 +681,5 @@ class StarDist2D(StarDistBase):
     @property
     def _config_class(self):
         return Config2D
+
+
