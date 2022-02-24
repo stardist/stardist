@@ -256,10 +256,6 @@ class Config2D(BaseConfig):
             # TODO: resnet backbone for 2D model?
             raise ValueError("backbone '%s' not supported." % self.backbone)
 
-        
-
-
-        
         # net_mask_shape not needed but kept for legacy reasons
         if backend_channels_last():
             self.net_input_shape       = None,None,self.n_channel_in
@@ -622,11 +618,12 @@ class StarDist2D(StarDistBase):
             points, probi, disti, indsi = non_maximum_suppression_sparse(dist, prob, points, nms_thresh=nms_thresh, **nms_kwargs)
             if prob_class is not None:
                 prob_class = prob_class[indsi]
+            nms = None # TODO: not implemented
 
         # dense prediction
         else:
-            points, probi, disti = non_maximum_suppression(dist, prob, grid=self.config.grid,
-                                                           prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
+            points, probi, disti, nms = non_maximum_suppression(dist, prob, grid=self.config.grid,
+                                                                prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
             if prob_class is not None:
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
                 prob_class = prob_class[inds]
@@ -648,7 +645,11 @@ class StarDist2D(StarDistBase):
             labels = None
 
         coord = dist_to_coord(disti, points, scale_dist=rescale)
-        res_dict = dict(coord=coord, points=points, prob=probi)
+
+        if nms is not None:
+            nms['coord'] = dist_to_coord(nms['dist'], nms['points'], scale_dist=rescale)
+
+        res_dict = dict(coord=coord, points=points, prob=probi, nms=nms)
 
         # multi class prediction
         if prob_class is not None:

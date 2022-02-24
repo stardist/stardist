@@ -124,12 +124,13 @@ def non_maximum_suppression(dist, prob, grid=(1,1), b=2, nms_thresh=0.5, prob_th
     inds = non_maximum_suppression_inds(dist, points.astype(np.int32, copy=False), scores=scores,
                                         use_bbox=use_bbox, use_kdtree=use_kdtree,
                                         thresh=nms_thresh, verbose=verbose)
+    _inds = inds == -1
 
     if verbose:
         print("keeping %s/%s polygons" % (np.count_nonzero(inds), len(inds)))
         print("NMS took %.4f s" % (time() - t))
 
-    return points[inds], scores[inds], dist[inds]
+    return points[_inds], scores[_inds], dist[_inds], dict(suppressed=inds, points=points, scores=scores, dist=dist)
 
 
 def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
@@ -175,6 +176,7 @@ def non_maximum_suppression_sparse(dist, prob, points, b=2, nms_thresh=0.5,
         t = time()
 
     inds = non_maximum_suppression_inds(disti, pointsi, scores=probi, thresh=nms_thresh, use_kdtree = use_kdtree, verbose=verbose)
+    inds = inds == -1
 
     if verbose:
         print("keeping %s/%s polyhedra" % (np.count_nonzero(inds), len(inds)))
