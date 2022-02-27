@@ -75,7 +75,7 @@ class StarDistData2D(StarDistDataBase):
         else:
             # directly subsample with grid
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode, grid=self.grid) for lbl in Y])
-            dist_mask = prob
+            dist_mask = prob #+ (prob>0)
 
         X = np.stack(X)
         if X.ndim == 3: # input image has no channel axis
