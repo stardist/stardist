@@ -12,16 +12,16 @@ DEEPIMAGEJ_MACRO = \
 //*******************************************************************
 // Date: July-2021
 // Credits: StarDist, DeepImageJ
-// URL: 
+// URL:
 //      https://github.com/stardist/stardist
 //      https://deepimagej.github.io/deepimagej
 // This macro was adapted from
 // https://github.com/deepimagej/imagej-macros/blob/648caa867f6ccb459649d4d3799efa1e2e0c5204/StarDist2D_Post-processing.ijm
 // Please cite the respective contributions when using this code.
 //*******************************************************************
-//  Macro to run StarDist postprocessing on 2D images. 
+//  Macro to run StarDist postprocessing on 2D images.
 //  StarDist and deepImageJ plugins need to be installed.
-//  The macro assumes that the image to process is a stack in which 
+//  The macro assumes that the image to process is a stack in which
 //  the first channel corresponds to the object probability map
 //  and the remaining channels are the radial distances from each
 //  pixel to the object boundary.
@@ -102,8 +102,8 @@ def _get_stardist_metadata(outdir):
         git_repo=package_data["Home-Page"],
         license=package_data["License"],
         dependencies=_create_stardist_dependencies(outdir),
-        cite={"Cell Detection with Star-Convex Polygons": doi_2d,
-              "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy": doi_3d},
+        cite=[{"text": "Cell Detection with Star-Convex Polygons", "doi": doi_2d},
+              {"text": "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy", "doi": doi_3d}],
         tags=["stardist", "segmentation", "instance segmentation", "object detection", "tensorflow"],
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
         documentation=_create_stardist_doc(outdir),
@@ -178,6 +178,10 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     input_step = list(axes_net_div_by)
     input_step[axes_net.index('C')] = 0
 
+    # add the batch axis to shape and step
+    input_min_shape = [1] + input_min_shape
+    input_step = [0] + input_step
+
     # the axes strings in bioimageio convention
     input_axes = "b" + net_axes_in.lower()
     output_axes = "b" + net_axes_out.lower()
@@ -206,13 +210,23 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
         output_offset = [0.0]*(ndim_tensor)
         output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
 
+    assert all(s in (0, 1) for s in output_scale), "halo computation assumption violated"
+    halo = model._axes_tile_overlap(output_axes.replace('b', 's'))
+    halo = [int(np.ceil(v/8)*8) for v in halo]  # optional: round up to be divisible by 8
+
+    # the output shape needs to be valid after cropping the halo, so we add the halo to the input min shape
+    input_min_shape = [ms + 2 * ha for ms, ha in zip(input_min_shape, halo)]
+
+    # make sure the input min shape is still divisible by the min axis divisor
+    assert all(ms % div_by == 0 for ms, div_by in zip(input_min_shape[1:], axes_net_div_by))
+
     metadata, *_ = _import()
     package_data = metadata("stardist")
     is_2D = model.config.n_dim == 2
 
     weights_file = outdir / "stardist_weights.h5"
     model.keras_model.save_weights(str(weights_file))
-    
+
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
@@ -221,7 +235,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
             config=vars(model.config),
         )
     )
-    
+
     if is_2D:
         macro_file = outdir / "stardist_postprocessing.ijm"
         with open(str(macro_file), 'w', encoding='utf-8') as f:
@@ -232,22 +246,21 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     assert n_inputs == 1
     input_config = dict(
         input_names=input_names,
-        input_min_shape=[[1]+input_min_shape],
-        input_step=[[0]+input_step],
+        input_min_shape=[input_min_shape],
+        input_step=[input_step],
         input_axes=[input_axes],
         input_data_range=[["-inf", "inf"]],
-        preprocessing=[dict(scale_range=dict(
-            mode="per_sample",
-            axes=axes_norm.lower(),
-            min_percentile=min_percentile,
-            max_percentile=max_percentile,
-        ))]
-    )
+        preprocessing=[[dict(
+            name="scale_range",
+            kwargs=dict(
+                mode="per_sample",
+                axes=axes_norm.lower(),
+                min_percentile=min_percentile,
+                max_percentile=max_percentile,
+            ))]]
+        )
 
     n_outputs = len(output_names)
-    assert all(s in (0,1) for s in output_scale), "halo computation assumption violated"
-    halo = model._axes_tile_overlap(output_axes.replace('b','s'))
-    halo = [int(np.ceil(v/8)*8) for v in halo] # optional: round up to be divisible by 8
     output_config = dict(
         output_names=output_names,
         output_data_range=[["-inf", "inf"]] * n_outputs,
@@ -344,7 +357,7 @@ def export_bioimageio(
     outdir.mkdir(exist_ok=True, parents=True)
 
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        tmp_dir = Path(_tmp_dir)        
+        tmp_dir = Path(_tmp_dir)
         kwargs = _get_stardist_metadata(tmp_dir)
         model_kwargs = _get_weights_and_model_metadata(tmp_dir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                        min_percentile=min_percentile, max_percentile=max_percentile)
@@ -374,7 +387,7 @@ def import_bioimageio(source, outpath):
     StarDist2D or StarDist3D
         stardist model loaded from `outpath`
 
-    """    
+    """
     import shutil
     from csbdeep.utils import save_json
     from .models import StarDist2D, StarDist3D
