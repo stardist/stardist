@@ -131,20 +131,29 @@ def weighted_categorical_crossentropy(weights, ndim, gamma=0):
 
     return weighted_cce
 
-
-def dice_loss(y_true, y_pred):
-    inter = y_true*y_pred
-    over  = y_true+y_pred
-    score  = (2*inter+K.epsilon())/(over+K.epsilon())
-    return 1-score
-
+def weighted_dice_loss(weights, ndim):
+    axis = -1 if backend_channels_last() else 1
+    shape = [1]*(ndim+2)
+    shape[axis] = len(weights)
+    weights = np.broadcast_to(weights, shape)
+    weights = K.constant(weights)
+    
+    def weighted_dice(y_true, y_pred):
+        inter = y_true*y_pred
+        over  = y_true+y_pred
+        score  = (2*inter+K.epsilon())/(over+K.epsilon())
+        loss = weights*(1-score)
+        return loss
+    
+    return weighted_dice
 
 def compound_dice_cce(weights, ndim, gamma):
     """ sum of weighted cce and dice loss """
-    cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
+    _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
+    _dice = weighted_dice_loss(weights, ndim)
 
     def dice_cce(y_true, y_pred):
-        return K.mean(cce(y_true, y_pred)) + K.mean(dice_loss(y_true, y_pred))
+        return K.mean(_cce(y_true, y_pred)) + K.mean(_dice(y_true, y_pred))
     
     return dice_cce
 

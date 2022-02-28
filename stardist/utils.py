@@ -379,6 +379,41 @@ def mask_to_categorical(y, n_classes, classes, return_cls_dict=False):
     else:
         return y_mask
 
+def mask_clsdict_from_categorical(y):
+    """creates a single instance mask and class dict from a 
+    multichannel categorical instance mask 
+
+    (w,h,n_classes) -> (w,h) , class_dict
+
+    Parameters
+    ----------
+    y : n-dimensional ndarray
+        integer label array of shape (n, w, n_classes)
+    Returns
+    -------
+    instance mask ans class dictionary mapping ids to classes
+    """
+    n_classes = y.shape[-1]
+
+    if np.count_nonzero(y, axis=-1).max()>1:
+        _tmp = np.count_nonzero(y, axis=-1)
+        _tmp = np.count_nonzero(_tmp>1)
+        warnings.warn(f'Categorical mask contains {_tmp} pixels that are labeled more than once! Ignoring all but last class...')
+
+    y_channel_first = np.moveaxis(y, -1, 0).copy()
+    
+    u = np.zeros(y.shape[:-1], np.int32)
+    clsdict = dict()
+    count = 1
+    for i, _y in enumerate(y_channel_first):
+        for r in regionprops(_y):
+            m = _y[r.slice]==r.label
+            u[r.slice][m] = count 
+            clsdict[count] = i+1
+            count += 1
+            
+    return u, clsdict
+
 
 def _is_floatarray(x):
     return isinstance(x.dtype.type(0),np.floating)

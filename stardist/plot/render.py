@@ -1,8 +1,11 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
+import warnings
 from csbdeep.utils import normalize
+from collections.abc import Iterable
 from ..matching import matching
 from .plot import random_label_cmap
+
 
 
 def _single_color_integer_cmap(color = (.3,.4,.5)):
@@ -25,10 +28,17 @@ def _single_color_integer_cmap(color = (.3,.4,.5)):
                 return res
     return BinaryMap(color)
                        
+def _relabel(lbl, label_dict):
+    from skimage.measure import regionprops
+    res = np.zeros_like(lbl) 
+    for r in regionprops(lbl):
+        mask = lbl[r.slice]==r.label 
+        res[r.slice][mask] = label_dict[r.label]
+    return res
 
 
 
-def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, alpha_boundary = None, normalize_img = True):
+def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, alpha_boundary = 0.8, label_dict=None, normalize_img = False):
     """Renders a label image and optionally overlays it with another image. Used for generating simple output images to asses the label quality
 
     Parameters
@@ -45,8 +55,10 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
         The alpha value of the overlay. Set alpha=1 to get fully opaque labels
     alpha_boundary: float
         The alpha value of the boundary (if None, use the same as for labels, i.e. no boundaries are visible)
+    label_dict: None or dict
+        A dictionary mapping label ids to values used by cmap
     normalize_img: bool
-        If True, normalizes the img (if given)
+        If True, normalizes the img 
 
     Returns
     -------
@@ -67,6 +79,7 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
     """
     from skimage.segmentation import find_boundaries
     from matplotlib import cm
+    from matplotlib.colors import ListedColormap
     
     alpha = np.clip(alpha, 0, 1)
 
@@ -75,8 +88,8 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
         
     if cmap is None:
         cmap = random_label_cmap()
-    elif isinstance(cmap, tuple):
-        cmap = _single_color_integer_cmap(cmap)
+    elif isinstance(cmap, Iterable):
+        cmap = ListedColormap(cmap)
     else:
         pass
         
@@ -100,10 +113,13 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
         else:
             raise ValueError("img should be 2 or 3 dimensional")
             
-                
-            
+    if label_dict is not None:
+        lbl_mapped = _relabel(lbl, label_dict) 
+    else:
+        lbl_mapped = lbl 
+
     # render label
-    im_lbl = cmap(lbl)
+    im_lbl = cmap(lbl_mapped)
 
     mask_lbl = lbl>0
     mask_bound = np.bitwise_and(mask_lbl,find_boundaries(lbl, mode = "thick"))

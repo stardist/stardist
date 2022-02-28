@@ -76,7 +76,7 @@ class StarDistData2D(StarDistDataBase):
         else:
             # directly subsample with grid
             dist      = np.stack([star_dist(lbl,self.n_rays,mode=self.sd_mode, grid=self.grid) for lbl in Y])
-            dist_mask = prob
+            dist_mask = prob #+ (prob>0)
 
         X = np.stack(X)
         if X.ndim == 3: # input image has no channel axis
@@ -654,7 +654,8 @@ class StarDist2D(StarDistBase):
         # multi class prediction
         if prob_class is not None:
             prob_class = np.asarray(prob_class)
-            class_id = np.argmax(prob_class, axis=-1)
+            # ignore background for class_ids
+            class_id = 1+np.argmax(prob_class[...,1:], axis=-1)
             res_dict.update(dict(class_prob=prob_class, class_id=class_id))
 
         return labels, res_dict
