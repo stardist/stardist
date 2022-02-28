@@ -637,7 +637,8 @@ class StarDist2D(StarDistBase):
         # multi class prediction
         if prob_class is not None:
             prob_class = np.asarray(prob_class)
-            class_id = np.argmax(prob_class, axis=-1)
+            # ignore background for class_ids
+            class_id = 1+np.argmax(prob_class[...,1:], axis=-1)
             res_dict.update(dict(class_prob=prob_class, class_id=class_id))
 
         return labels, res_dict
