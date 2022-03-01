@@ -227,6 +227,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     input_min_shape = [ms + 2 * ha for ms, ha in zip(input_min_shape, halo)]
 
     # make sure the input min shape is still divisible by the min axis divisor
+    input_min_shape = input_min_shape[:1] + [ms + (-ms % div_by) for ms, div_by in zip(input_min_shape[1:], axes_net_div_by)]
     assert all(ms % div_by == 0 for ms, div_by in zip(input_min_shape[1:], axes_net_div_by))
 
     metadata, *_ = _import()
