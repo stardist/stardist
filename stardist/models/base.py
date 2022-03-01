@@ -147,6 +147,7 @@ def weighted_dice_loss(weights, ndim):
     
     return weighted_dice
 
+
 def compound_dice_cce(weights, ndim, gamma):
     """ sum of weighted cce and dice loss """
     _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
@@ -156,6 +157,55 @@ def compound_dice_cce(weights, ndim, gamma):
         return K.mean(_cce(y_true, y_pred)) + K.mean(_dice(y_true, y_pred))
     
     return dice_cce
+
+
+def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
+    """ focal tversky loss
+
+    loss(x,y) = xy / (1-(a+b)) xy + ax + by 
+    loss(x,y) = xy / ax + by   (if a+b=1)
+
+
+    Abraham, Nabila, and Naimul Mefraz Khan. "A novel focal tversky loss function with improved attention u-net for lesion segmentation." 2019 IEEE 16th international symposium on biomedical imaging (ISBI 2019). IEEE, 2019.
+
+    Special cases:
+
+        dice loss    -> gamma=1, alpha=0.5
+        tversky loss -> gamma=1
+
+    """
+    axis = -1 if backend_channels_last() else 1
+    shape = [1]*(ndim+2)
+    shape[axis] = len(weights)
+    weights = np.broadcast_to(weights, shape)
+    weights = K.constant(weights)
+
+    print(gamma)
+    assert alpha>=0 and alpha<=1.
+    
+    def weighted_dice(y_true, y_pred):
+        inter = y_true*y_pred
+        over  = alpha*y_true+(1-alpha)*y_pred
+        loss = (inter + eps) / (over + eps)
+        loss = K.clip(loss, eps, 1-eps)
+        loss = K.pow(1-loss, gamma) 
+        loss = weights*loss
+        return loss
+    
+    return weighted_dice
+
+
+def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
+    """ sum of weighted cce and dice loss """
+    _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
+    _tversky = weighted_tversky_loss(weights, ndim, alpha, 1+.2*gamma)
+
+    def dice_cce(y_true, y_pred):
+        return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
+    
+    return dice_cce
+
+
 
 
 class StarDistDataBase(RollingSequence):
@@ -366,9 +416,11 @@ class StarDistBase(BaseModel):
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
         if self._is_multiclass():
-            # prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
-            prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
-            print(f'focal_gamma: {self.config.train_focal_gamma}')
+            # prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            prob_class_loss = compound_tversky_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            
+            print(f'class_weights: {self.config.train_class_weights}')
+            print(f'focal_gamma:   {self.config.train_focal_gamma}')
             
             loss = [prob_loss, dist_loss, prob_class_loss]
         else:

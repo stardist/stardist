@@ -250,7 +250,12 @@ def render_label_pred(y_true, y_pred,
     pairs = np.array(res.matched_pairs)
     scores = np.array(res.matched_scores)
     ind_tp_pairs = np.where(scores>=matching_kwargs["thresh"])[0]
-    tp_true, tp_pred = tuple(zip(*pairs[ind_tp_pairs]))
+
+    if len(ind_tp_pairs)==0:
+        tp_true, tp_pred = (),()
+    else:
+        tp_true, tp_pred = tuple(zip(*pairs[ind_tp_pairs]))
+        
     tp = tp_pred
     fn = all_true.difference(tp_true)
     fp = all_pred.difference(tp_pred)
