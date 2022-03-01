@@ -104,7 +104,16 @@ def _get_stardist_metadata(outdir):
         dependencies=_create_stardist_dependencies(outdir),
         cite=[{"text": "Cell Detection with Star-Convex Polygons", "doi": doi_2d},
               {"text": "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy", "doi": doi_3d}],
-        tags=["stardist", "segmentation", "instance segmentation", "object detection", "tensorflow"],
+        tags=[
+            'fluorescence-light-microscopy', 'whole-slide-imaging', 'other', # modality
+            '2d', '2d-t', # dims
+            'cells', 'nuclei', # content
+            'tensorflow', # framework
+            'fiji', # software
+            'unet', # network
+            'instance-segmentation', 'object-detection', 'semantic-segmentation', # task
+            'stardist',
+        ],
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
         documentation=_create_stardist_doc(outdir),
     )
