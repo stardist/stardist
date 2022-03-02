@@ -98,6 +98,15 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 
+def _broadcast_to_last(x, ndim):
+    axis = -1 if backend_channels_last() else 1
+    shape = [1]*(ndim+2)
+    shape[axis] = len(x)
+    x = np.broadcast_to(x, shape)
+    x = K.constant(x)
+    return x
+
+
 def weighted_categorical_crossentropy(weights, ndim, gamma=0):
     """ 
     weighted focal cce loss
@@ -105,15 +114,11 @@ def weighted_categorical_crossentropy(weights, ndim, gamma=0):
 
     if gamma != 0 -> focal loss
     """
-
     axis = -1 if backend_channels_last() else 1
-    shape = [1]*(ndim+2)
-    shape[axis] = len(weights)
-    weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
+    weights = _broadcast_to_last(weights, ndim)
 
     def weighted_cce(y_true, y_pred):
-        # ignore pixels that have y_true (prob_class) < 0
+        # ignore pixels that have y_true  < 0 (to allow for sparse labeling)
         mask = K.cast(y_true>=0, K.floatx())
 
         #normalize
@@ -121,22 +126,18 @@ def weighted_categorical_crossentropy(weights, ndim, gamma=0):
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
 
         # cross entropy
-        loss = weights*mask*y_true*K.log(y_pred)
+        loss = -weights*mask*y_true*K.log(y_pred)
         
         #focal term if given
         loss = K.pow(1 - y_pred, gamma) * loss
-        
-        loss = - K.sum(loss, axis = axis)
+
+        loss = K.sum(loss, axis = axis)
         return loss
 
     return weighted_cce
 
 def weighted_dice_loss(weights, ndim):
-    axis = -1 if backend_channels_last() else 1
-    shape = [1]*(ndim+2)
-    shape[axis] = len(weights)
-    weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
+    weights = _broadcast_to_last(weights, ndim)
     
     def weighted_dice(y_true, y_pred):
         inter = y_true*y_pred
@@ -159,7 +160,7 @@ def compound_dice_cce(weights, ndim, gamma):
     return dice_cce
 
 
-def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
+def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-4):
     """ focal tversky loss
 
     loss(x,y) = xy / (1-(a+b)) xy + ax + by 
@@ -174,25 +175,21 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
         tversky loss -> gamma=1
 
     """
-    axis = -1 if backend_channels_last() else 1
-    shape = [1]*(ndim+2)
-    shape[axis] = len(weights)
-    weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
+    weights = _broadcast_to_last(weights, ndim)
 
-    print(gamma)
+    print(gamma, alpha)
     assert alpha>=0 and alpha<=1.
     
-    def weighted_dice(y_true, y_pred):
+    def weighted_tversky(y_true, y_pred):
         inter = y_true*y_pred
         over  = alpha*y_true+(1-alpha)*y_pred
         loss = (inter + eps) / (over + eps)
-        loss = K.clip(loss, eps, 1-eps)
-        loss = K.pow(1-loss, gamma) 
+        loss = K.clip(loss, K.epsilon(), 1-K.epsilon())
+        loss = K.pow(1-loss, gamma)
         loss = weights*loss
         return loss
     
-    return weighted_dice
+    return weighted_tversky
 
 
 def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
@@ -212,9 +209,11 @@ class StarDistDataBase(RollingSequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
                  n_classes=None, classes=None,
-                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+                 use_gpu=False, sample_ind_cache=True,
+                 shuffle=True,
+                 maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
 
-        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=shuffle)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]

@@ -34,11 +34,15 @@ class StarDistData2D(StarDistDataBase):
 
     def __init__(self, X, Y, batch_size, n_rays, length,
                  n_classes=None, classes=None,
-                 patch_size=(256,256), b=32, grid=(1,1), shape_completion=False, augmenter=None, foreground_prob=0, **kwargs):
+                 shuffle=True,
+                 patch_size=(256,256), b=32, grid=(1,1),
+                 shape_completion=False, augmenter=None,
+                 foreground_prob=0, **kwargs):
 
         super().__init__(X=X, Y=Y, n_rays=n_rays, grid=grid,
                          n_classes=n_classes, classes=classes,
-                         batch_size=batch_size, patch_size=patch_size, length=length,
+                         batch_size=batch_size, patch_size=patch_size,
+                         length=length, shuffle=shuffle,
                          augmenter=augmenter, foreground_prob=foreground_prob, **kwargs)
 
         self.shape_completion = bool(shape_completion)
@@ -518,7 +522,7 @@ class StarDist2D(StarDistBase):
         n_data_val = len(validation_data[0])
         classes_val = self._parse_classes_arg(validation_data[2], n_data_val) if self._is_multiclass() else None
         n_take = self.config.train_n_val_patches if self.config.train_n_val_patches is not None else n_data_val
-        _data_val = StarDistData2D(validation_data[0],validation_data[1], classes=classes_val, batch_size=n_take, length=1, **data_kwargs)
+        _data_val = StarDistData2D(validation_data[0],validation_data[1], classes=classes_val, batch_size=n_take, length=1, shuffle=False, **data_kwargs)
         data_val = _data_val[0]
 
         # expose data generator as member for general diagnostics

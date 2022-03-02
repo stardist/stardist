@@ -24,10 +24,8 @@ def wrap_stardistdata_as_tfdata(data, shuffle=True, num_parallel_calls=1, verbos
     if shuffle:
         data_tf = data_tf.shuffle(data.data_size)
 
-<<<<<<< HEAD
-=======
     print(f'{num_parallel_calls=}')
->>>>>>> feature
+
     data_tf = data_tf.map(_id_map, num_parallel_calls=num_parallel_calls)
     
     data_tf = data_tf.map(_post_map)
