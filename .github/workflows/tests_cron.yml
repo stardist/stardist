@@ -55,4 +55,10 @@ jobs:
       #     pip uninstall -y stardist
       #     pip install --no-cache-dir --only-binary stardist "stardist>0"
 
+      - name: Install bioimage.io dependencies
+        if: |
+          matrix.python-version >= 3.7 &&
+          matrix.tensorflow != 'tensorflow'
+        run: pip install --no-binary stardist "stardist[bioimageio]"
+
       - run: pytest -v --durations=50 -m "not gpu"
