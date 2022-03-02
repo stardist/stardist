@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
-      - run: pip install ${{ matrix.tensorflow }}
+      # - run: pip install ${{ matrix.tensorflow }}
       - uses: actions/checkout@v2
 
       # - name: Install edt
@@ -54,9 +54,9 @@ jobs:
 
       - name: Install package (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
-        run: pip install ".[test]"
+        run: pip install ".[test]" ${{ matrix.tensorflow }}
 
-      - run: pip install ${{ matrix.tensorflow }}
+      # - run: pip install ${{ matrix.tensorflow }}
 
       # - name: Install bioimage.io dependencies
       #   if: |
@@ -64,4 +64,4 @@ jobs:
       #     matrix.tensorflow != 'tensorflow'
       #   run: pip install ".[bioimageio]"
 
-      - run: pytest -v --durations=50 -m "not gpu"
+      - run: pytest -v --durations=50 -m "not gpu" -k scales
