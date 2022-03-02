@@ -38,9 +38,9 @@ jobs:
       - run: pip install ${{ matrix.tensorflow }}
       - uses: actions/checkout@v2
 
-      - name: Install edt
-        if: matrix.python-version == 3.9
-        run: pip install edt "numpy>=1.20"
+      # - name: Install edt
+      #   if: matrix.python-version == 3.9
+      #   run: pip install edt "numpy>=1.20"
 
       - name: Install package (macOS)
         if: startsWith(matrix.os, 'macos')
@@ -56,10 +56,12 @@ jobs:
         if: startsWith(matrix.os, 'macos') == false
         run: pip install ".[test]"
 
-      - name: Install bioimage.io dependencies
-        if: |
-          matrix.python-version >= 3.7 &&
-          matrix.tensorflow != 'tensorflow'
-        run: pip install ".[bioimageio]"
+      - run: pip install ${{ matrix.tensorflow }}
+
+      # - name: Install bioimage.io dependencies
+      #   if: |
+      #     matrix.python-version >= 3.7 &&
+      #     matrix.tensorflow != 'tensorflow'
+      #   run: pip install ".[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
