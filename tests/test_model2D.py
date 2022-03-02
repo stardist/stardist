@@ -208,14 +208,9 @@ def test_pretrained_scales():
     mask = zoom(mask, (.25,.25), order=0)
 
     def pred_scale(scale=2):
-        print("-------------------------------")
-        print(f">>> {scale=},   shape={x.shape}")
         x2 = zoom(x, scale, order=1)
-        print(f">>> zoomed pre,  shape={x2.shape}")
         labels2, _ = model.predict_instances(x2)
-        print(f">>> predicted,   shape={labels2.shape}")
         labels = zoom(labels2, tuple(_s1/_s2 for _s1, _s2 in zip(mask.shape, labels2.shape)), order=0)
-        print(f">>> zoomed post, shape={labels.shape}")
         return labels
 
     scales = [0.5, 2.0, 3.0, 4.0]
