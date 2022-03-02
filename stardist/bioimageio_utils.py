@@ -1,10 +1,9 @@
 from pathlib import Path
 from pkg_resources import get_distribution
-from itertools import chain
 from zipfile import ZipFile
 import numpy as np
 import tempfile
-from csbdeep.utils import axes_check_and_normalize, move_image_axes, normalize, _raise
+from csbdeep.utils import axes_check_and_normalize, normalize, _raise
 
 
 DEEPIMAGEJ_MACRO = \
@@ -91,7 +90,7 @@ def _create_stardist_doc(outdir):
     return doc_path
 
 
-def _get_stardist_metadata(outdir):
+def _get_stardist_metadata(outdir, model):
     metadata, *_ = _import()
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
@@ -106,12 +105,12 @@ def _get_stardist_metadata(outdir):
               {"text": "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy", "doi": doi_3d}],
         tags=[
             'fluorescence-light-microscopy', 'whole-slide-imaging', 'other', # modality
-            '2d', '2d-t', # dims
+            f'{model.config.n_dim}d', # dims
             'cells', 'nuclei', # content
             'tensorflow', # framework
             'fiji', # software
             'unet', # network
-            'instance-segmentation', 'object-detection', 'semantic-segmentation', # task
+            'instance-segmentation', 'object-detection', # task
             'stardist',
         ],
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
@@ -240,7 +239,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
-            thresholds=dict(nms=model.thresholds.nms, prob=model.thresholds.prob),
+            thresholds=dict(model.thresholds._asdict()),
             weights=weights_file.name,
             config=vars(model.config),
         )
@@ -368,7 +367,7 @@ def export_bioimageio(
 
     with tempfile.TemporaryDirectory() as _tmp_dir:
         tmp_dir = Path(_tmp_dir)
-        kwargs = _get_stardist_metadata(tmp_dir)
+        kwargs = _get_stardist_metadata(tmp_dir, model)
         model_kwargs = _get_weights_and_model_metadata(tmp_dir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                        min_percentile=min_percentile, max_percentile=max_percentile)
         kwargs.update(model_kwargs)
