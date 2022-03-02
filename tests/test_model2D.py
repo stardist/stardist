@@ -408,7 +408,7 @@ def test_speed(model2d):
     model = model2d
     img, mask = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(6,6))
+    x = np.tile(x,(4,4))
     print(x.shape)
 
     stats = []
