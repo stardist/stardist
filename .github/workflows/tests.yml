@@ -64,4 +64,4 @@ jobs:
       #     matrix.tensorflow != 'tensorflow'
       #   run: pip install ".[bioimageio]"
 
-      - run: pytest -v --durations=50 -m "not gpu" -k scales
+      - run: pytest -vs --durations=50 -m "not gpu" -k scales
