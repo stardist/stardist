@@ -9,7 +9,7 @@ from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
-from utils import circle_image, path_model2d, NumpySequence, Timer
+from utils import circle_image, path_model2d, crop, NumpySequence, Timer
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 1, False), (4, (8, 2), 2, 1, True)])
@@ -92,7 +92,7 @@ def test_load_and_predict_big():
     model_path = path_model2d()
     model = StarDist2D(None, name=model_path.name,
                        basedir=str(model_path.parent))
-    img = test_image_nuclei_2d()
+    img = crop(test_image_nuclei_2d())
     x = normalize(img, 1, 99.8)
     x = np.tile(x,(4,4))
     labels1, polygons1 = model.predict_instances(x)
@@ -121,7 +121,7 @@ def test_optimize_thresholds(model2d):
 def test_stardistdata(shape_completion, n_classes, classes):
     np.random.seed(42)
     from stardist.models import StarDistData2D
-    img, mask = test_image_nuclei_2d(return_mask=True)
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     s = StarDistData2D([img, img], [mask, mask],
                        grid = (2,2),
                        n_classes = n_classes, classes = classes,
@@ -146,7 +146,7 @@ def test_edt_prob(anisotropy):
         import edt
         from stardist.utils import _edt_prob_edt, _edt_prob_scipy
 
-        masks = (np.tile(test_image_nuclei_2d(return_mask=True)[1],(2,2)),
+        masks = (np.tile(crop(test_image_nuclei_2d(return_mask=True))[1],(2,2)),
                  np.zeros((117,92)),
                  np.ones((153,112)))
         dtypes = (np.uint16, np.int32)
@@ -166,7 +166,7 @@ def test_edt_prob(anisotropy):
 
 def render_label_example(model2d):
     model = model2d
-    img, y_gt = test_image_nuclei_2d(return_mask=True)
+    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
     # im =  render_label(y,img = x, alpha = 0.3, alpha_boundary=1, cmap = (.3,.4,0))
@@ -180,7 +180,7 @@ def render_label_example(model2d):
 
 def render_label_pred_example(model2d):
     model = model2d
-    img, y_gt = test_image_nuclei_2d(return_mask=True)
+    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
@@ -202,10 +202,10 @@ def test_pretrained_scales():
     from skimage.measure import regionprops
 
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
-    img, mask = test_image_nuclei_2d(return_mask=True)
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
-    x = zoom(x, (.25,.25), order=1)
-    mask = zoom(mask, (.25,.25), order=0)
+    x    = zoom(x,    (0.5,0.5), order=1)
+    mask = zoom(mask, (0.5,0.5), order=0)
 
     def pred_scale(scale=2):
         x2 = zoom(x, scale, order=1)
@@ -252,7 +252,7 @@ def test_stardistdata_multithreaded(workers=5):
 
     n_samples = 4
 
-    _ , mask = test_image_nuclei_2d(return_mask=True)
+    _ , mask = crop(test_image_nuclei_2d(return_mask=True))
     Y = np.stack([mask+i for i in range(n_samples)])
     s = StarDistData2D(Y.astype(np.float32), Y,
                        grid = (1,1),
@@ -272,7 +272,7 @@ def test_stardistdata_multithreaded(workers=5):
 
 
 def test_imagej_rois_export(tmpdir, model2d):
-    img = normalize(test_image_nuclei_2d(), 1, 99.8)
+    img = normalize(crop(test_image_nuclei_2d()), 1, 99.8)
     labels, polys = model2d.predict_instances(img)
     export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
 
@@ -281,7 +281,7 @@ def test_imagej_rois_export(tmpdir, model2d):
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
     from skimage.measure import regionprops
-    img, mask = test_image_nuclei_2d(return_mask=True)
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     img = normalize(img,1,99.8)
 
     if n_channel is not None:
@@ -355,7 +355,7 @@ def test_classes():
         return classes
 
     def _check_single_val(n_classes, classes=1):
-        img, y_gt = test_image_nuclei_2d(return_mask=True)
+        img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
         labels_gt = set(np.unique(y_gt[y_gt>0]))
         p, cls_dict = mask_to_categorical(y_gt,
                                           n_classes=n_classes,
@@ -388,7 +388,7 @@ def print_receptive_fields():
 
 def test_predict_dense_sparse(model2d):
     model = model2d
-    img, mask = test_image_nuclei_2d(return_mask=True)
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
     labels1, res1 = model.predict_instances(x, n_tiles=(2, 2), sparse = False)
     labels2, res2 = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
@@ -401,9 +401,9 @@ def test_speed(model2d):
     from time import time
 
     model = model2d
-    img, mask = test_image_nuclei_2d(return_mask=True)
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(4,4))
+    x = np.tile(x,(5,5))
     print(x.shape)
 
     stats = []
@@ -414,7 +414,7 @@ def test_speed(model2d):
                labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
            else:
                labels, res = model.predict_instances_big(x,axes = "YX",
-                                                         block_size = 1024+256,
+                                                         block_size = 768,
                                                          context = 64, min_overlap = 64,
                                                          n_tiles=n_tiles, sparse = sparse)
 
@@ -429,7 +429,7 @@ def test_speed(model2d):
 
 def render_label_pred_example2(model2d):
     model = model2d
-    img, y_gt = test_image_nuclei_2d(return_mask=True)
+    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
@@ -447,7 +447,7 @@ def render_label_pred_example2(model2d):
 
 def test_pretrained_integration():
     from stardist.models import StarDist2D
-    img = normalize(test_image_nuclei_2d())
+    img = normalize(crop(test_image_nuclei_2d()))
 
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
     prob,dist = model.predict(img)
@@ -478,17 +478,17 @@ def test_predict_with_scale(scale, mode):
         scale = (scale,scale)
     if mode=='fluo':
         model = StarDist2D.from_pretrained('2D_versatile_fluo')
-        x = test_image_nuclei_2d()
+        x = crop(test_image_nuclei_2d())
         _scale = tuple(scale)
     elif mode=='he':
         model = StarDist2D.from_pretrained('2D_versatile_he')
-        x = test_image_he_2d()
+        x = crop(test_image_he_2d())
         _scale = tuple(scale) + (1,)
     else:
         raise ValueError(mode)
 
     x = normalize(x)
-    x = zoom(x, (0.5,0.5) if x.ndim==2 else (0.5,0.5,1), order=1) # to speed test up
+    # x = zoom(x, (0.5,0.5) if x.ndim==2 else (0.5,0.5,1), order=1) # to speed test up
     x_scaled = zoom(x, _scale, order=1)
     
     labels,        res        = model.predict_instances(x, scale=_scale)
