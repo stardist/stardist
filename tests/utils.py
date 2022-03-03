@@ -31,6 +31,14 @@ class Timer(object):
         self.t = t
 
 
+def crop(*images, shape=(256,256)):
+    """Crop central region of given shape"""
+    if isinstance(images,(tuple,list)) and len(images) == 1 and isinstance(images[0],(tuple,list)):
+        images = images[0]
+    assert all(all(s>=m for s,m in zip(u.shape,shape)) for u in images)
+    res = tuple(u[tuple(slice((s-m)//2,(s-m)//2+m) for s,m in zip(u.shape,shape))] for u in images)
+    return res[0] if len(res) == 1 else res
+
 
 def random_image(shape=(128, 128)):
     img = gaussian_filter(np.random.normal(size=shape), min(shape) / 20)
