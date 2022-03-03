@@ -198,7 +198,7 @@ class StarDistDataBase(RollingSequence):
             inds = _ind_cache[k]
         else:
             patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
-            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
+            inds = get_valid_inds(self.Y[k], self.patch_size, patch_filter=patch_filter)
             if self.sample_ind_cache:
                 with self.lock:
                     _ind_cache[k] = inds
