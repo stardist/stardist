@@ -166,7 +166,7 @@ def test_edt_prob(anisotropy):
 
 def render_label_example(model2d):
     model = model2d
-    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
     # im =  render_label(y,img = x, alpha = 0.3, alpha_boundary=1, cmap = (.3,.4,0))
@@ -180,7 +180,7 @@ def render_label_example(model2d):
 
 def render_label_pred_example(model2d):
     model = model2d
-    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
@@ -429,7 +429,7 @@ def test_speed(model2d):
 
 def render_label_pred_example2(model2d):
     model = model2d
-    img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
