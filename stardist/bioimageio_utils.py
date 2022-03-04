@@ -316,7 +316,7 @@ def export_bioimageio(
     test_input,
     test_input_axes=None,
     test_input_norm_axes='ZYX',
-    name="bioimageio_model",
+    name=None,
     mode="tensorflow_saved_model_bundle",
     min_percentile=1.0,
     max_percentile=99.8,
@@ -333,13 +333,14 @@ def export_bioimageio(
     test_input: np.ndarray
         input image for generating test data
     test_input_axes: str or None
-         the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
-         using None assumes that axes of test_input are the same as those of model
+        the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
+        using None assumes that axes of test_input are the same as those of model
     test_input_norm_axes: str
-         the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
-         use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
+        the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
+        use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
     name: str
-        the name of this model (default: "bioimageio_model")
+        the name of this model (default: None)
+        if None, uses the (folder) name of the model (i.e. `model.name`)
     mode: str
         the export type for this model (default: "tensorflow_saved_model_bundle")
     min_percentile: float
@@ -353,6 +354,10 @@ def export_bioimageio(
     from .models import StarDist2D, StarDist3D
     isinstance(model, (StarDist2D, StarDist3D)) or _raise(ValueError("not a valid model"))
     0 <= min_percentile < max_percentile <= 100 or _raise(ValueError("invalid percentile values"))
+
+    if name is None:
+        name = model.name
+    name = str(name)
 
     outpath = Path(outpath)
     if outpath.suffix == "":
@@ -375,7 +380,7 @@ def export_bioimageio(
             kwargs.update(overwrite_spec_kwargs)
 
         build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), root=tmp_dir, **kwargs)
-        print(f"\nbioimage.io model exported to '{zip_path}'")
+        print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
 
 
 def import_bioimageio(source, outpath):
