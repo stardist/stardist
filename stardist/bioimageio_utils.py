@@ -3,6 +3,7 @@ from pkg_resources import get_distribution
 from zipfile import ZipFile
 import numpy as np
 import tempfile
+from distutils.version import LooseVersion
 from csbdeep.utils import axes_check_and_normalize, normalize, _raise
 
 
@@ -70,8 +71,11 @@ def _import(error=True):
 
 
 def _create_stardist_dependencies(outdir):
+    from tensorflow import __version__ as tf_version
+    tf_major, tf_minor = LooseVersion(tf_version).version[:2]
+    tf_req = f"tensorflow>={tf_major}.{tf_minor},<{tf_major}.{tf_minor+1}"
     pkg_info = get_distribution("stardist")
-    reqs = ("tensorflow",) + tuple(map(str, pkg_info.requires()))
+    reqs = (tf_req,) + tuple(map(str, pkg_info.requires()))
     path = outdir / "requirements.txt"
     with open(path, "w") as f:
         f.write("\n".join(reqs))
