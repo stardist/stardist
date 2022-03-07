@@ -55,9 +55,9 @@ run("Command From Macro", "command=[de.csbdresden.stardist.StarDist2DNMS], args=
 def _import(error=True):
     try:
         from importlib_metadata import metadata
-        from bioimageio.core.build_spec import build_model
+        from bioimageio.core.build_spec import build_model # type: ignore
         import xarray as xr
-        import bioimageio.core
+        import bioimageio.core # type: ignore
     except ImportError:
         if error:
             raise RuntimeError(
@@ -71,15 +71,30 @@ def _import(error=True):
 
 
 def _create_stardist_dependencies(outdir):
+    from ruamel.yaml import YAML
     from tensorflow import __version__ as tf_version
-    tf_major, tf_minor = LooseVersion(tf_version).version[:2]
-    tf_req = f"tensorflow>={tf_major}.{tf_minor},<{tf_major}.{tf_minor+1}"
+    from . import __version__ as stardist_version
     pkg_info = get_distribution("stardist")
-    reqs = (tf_req,) + tuple(map(str, pkg_info.requires()))
-    path = outdir / "requirements.txt"
+    # dependencies that start with the name "bioimageio" will be added as conda dependencies
+    reqs_conda = [str(req) for req in pkg_info.requires(extras=['bioimageio']) if str(req).startswith('bioimageio')]
+    # only stardist and tensorflow as pip dependencies
+    tf_major, tf_minor = LooseVersion(tf_version).version[:2]
+    reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={tf_major}.{tf_minor},<{tf_major+1}")
+    # conda environment
+    env = dict(
+        name = 'stardist',
+        channels = ['defaults', 'conda-forge'],
+        dependencies = [
+            ('python>=3.7,<3.8' if tf_major == 1 else 'python>=3.7'),
+            *reqs_conda,
+            'pip', {'pip': reqs_pip},
+        ],
+    )
+    yaml = YAML(typ='safe')
+    path = outdir / "environment.yaml"
     with open(path, "w") as f:
-        f.write("\n".join(reqs))
-    return f"pip:{path}"
+        yaml.dump(env, f)
+    return f"conda:{path}"
 
 
 def _create_stardist_doc(outdir):
