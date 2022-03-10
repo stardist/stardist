@@ -114,9 +114,13 @@ def _get_stardist_metadata(outdir, model):
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
     doi_3d = "https://doi.org/10.1109/WACV45572.2020.9093435"
+    authors = {
+        'Martin Weigert': dict(name='Martin Weigert', github_user='maweigert'),
+        'Uwe Schmidt': dict(name='Uwe Schmidt', github_user='uschmidt83'),
+    }
     data = dict(
         description=package_data["Summary"],
-        authors=list(dict(name=name.strip()) for name in package_data["Author"].split(",")),
+        authors=list(authors.get(name.strip(),dict(name=name.strip())) for name in package_data["Author"].split(",")),
         git_repo=package_data["Home-Page"],
         license=package_data["License"],
         dependencies=_create_stardist_dependencies(outdir),
