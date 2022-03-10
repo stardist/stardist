@@ -36,7 +36,7 @@ def test_grouping():
 
     y0 = test_image_nuclei_2d(return_mask=True)[1]
     y1 = _shuffle_labels(y0)
-    assert not np.allclose(y0,y1) and np.allclose(y0>0,y1>0)
+    assert np.allclose(y0>0,y1>0)
     assert all(np.allclose(sorted(u),sorted(v)) for u,v in
                zip(np.unique(y0,return_counts=True),np.unique(y1,return_counts=True)))
     assert matching(y0,y1, thresh=1).accuracy == 1

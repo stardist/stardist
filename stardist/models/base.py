@@ -296,7 +296,7 @@ class StarDistBase(BaseModel):
 
         """
         if optimizer is None:
-            optimizer = Adam(lr=self.config.train_learning_rate)
+            optimizer = Adam(self.config.train_learning_rate)
 
         masked_dist_loss = {'mse': masked_loss_mse,
                             'mae': masked_loss_mae,
