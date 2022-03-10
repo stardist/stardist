@@ -469,3 +469,15 @@ def group_matching_labels(ys, thresh=1e-10, criterion='iou'):
     for i in range(len(ys)-1):
         ys_grouped[i+1], next_id = _match_single(ys_grouped[i], ys[i+1], next_id)
     return ys_grouped
+
+
+
+def _shuffle_labels(y):
+    _check_label_array(y, 'y')
+    y2 = np.zeros_like(y)
+    ids = tuple(set(np.unique(y)) - {0})
+    relabel = dict(zip(ids,np.random.permutation(ids)))
+    for r in regionprops(y):
+        m = (y[r.slice] == r.label)
+        y2[r.slice][m] = relabel[r.label]
+    return y2
