@@ -3,6 +3,7 @@ import json
 import numpy as np
 from stardist.models import StarDist2D, StarDist3D
 from stardist.data import test_image_nuclei_2d as _test_image_2d
+from stardist.data import test_image_he_2d     as _test_image_2d_rgb
 from stardist.data import test_image_nuclei_3d as _test_image_3d
 
 from stardist.bioimageio_utils import export_bioimageio, import_bioimageio, _import
@@ -43,8 +44,7 @@ def test_pretrained_fluo(tmp_path):
 @pytest.mark.skipif(missing, reason="Requires bioimageio dependencies")
 @pytest.mark.parametrize('test_image_norm_axes', ['YX', 'YXC'])
 def test_pretrained_he(tmp_path, test_image_norm_axes):
-    test_image = _test_image_2d()
-    test_image = np.stack([test_image, test_image+5, test_image+10], axis=-1)
+    test_image = _test_image_2d_rgb()
     model_name = "2D_versatile_he"
     _test_pretrained(tmp_path, model_name, test_image, test_image_norm_axes=test_image_norm_axes)
 

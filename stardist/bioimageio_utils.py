@@ -3,6 +3,7 @@ from pkg_resources import get_distribution
 from zipfile import ZipFile
 import numpy as np
 import tempfile
+from distutils.version import LooseVersion
 from csbdeep.utils import axes_check_and_normalize, normalize, _raise
 
 
@@ -54,9 +55,9 @@ run("Command From Macro", "command=[de.csbdresden.stardist.StarDist2DNMS], args=
 def _import(error=True):
     try:
         from importlib_metadata import metadata
-        from bioimageio.core.build_spec import build_model
+        from bioimageio.core.build_spec import build_model # type: ignore
         import xarray as xr
-        import bioimageio.core
+        import bioimageio.core # type: ignore
     except ImportError:
         if error:
             raise RuntimeError(
@@ -70,12 +71,30 @@ def _import(error=True):
 
 
 def _create_stardist_dependencies(outdir):
+    from ruamel.yaml import YAML
+    from tensorflow import __version__ as tf_version
+    from . import __version__ as stardist_version
     pkg_info = get_distribution("stardist")
-    reqs = ("tensorflow",) + tuple(map(str, pkg_info.requires()))
-    path = outdir / "requirements.txt"
+    # dependencies that start with the name "bioimageio" will be added as conda dependencies
+    reqs_conda = [str(req) for req in pkg_info.requires(extras=['bioimageio']) if str(req).startswith('bioimageio')]
+    # only stardist and tensorflow as pip dependencies
+    tf_major, tf_minor = LooseVersion(tf_version).version[:2]
+    reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={tf_major}.{tf_minor},<{tf_major+1}")
+    # conda environment
+    env = dict(
+        name = 'stardist',
+        channels = ['defaults', 'conda-forge'],
+        dependencies = [
+            ('python>=3.7,<3.8' if tf_major == 1 else 'python>=3.7'),
+            *reqs_conda,
+            'pip', {'pip': reqs_pip},
+        ],
+    )
+    yaml = YAML(typ='safe')
+    path = outdir / "environment.yaml"
     with open(path, "w") as f:
-        f.write("\n".join(reqs))
-    return f"pip:{path}"
+        yaml.dump(env, f)
+    return f"conda:{path}"
 
 
 def _create_stardist_doc(outdir):
@@ -95,9 +114,13 @@ def _get_stardist_metadata(outdir, model):
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
     doi_3d = "https://doi.org/10.1109/WACV45572.2020.9093435"
+    authors = {
+        'Martin Weigert': dict(name='Martin Weigert', github_user='maweigert'),
+        'Uwe Schmidt': dict(name='Uwe Schmidt', github_user='uschmidt83'),
+    }
     data = dict(
         description=package_data["Summary"],
-        authors=list(dict(name=name.strip()) for name in package_data["Author"].split(",")),
+        authors=list(authors.get(name.strip(),dict(name=name.strip())) for name in package_data["Author"].split(",")),
         git_repo=package_data["Home-Page"],
         license=package_data["License"],
         dependencies=_create_stardist_dependencies(outdir),
@@ -316,7 +339,7 @@ def export_bioimageio(
     test_input,
     test_input_axes=None,
     test_input_norm_axes='ZYX',
-    name="bioimageio_model",
+    name=None,
     mode="tensorflow_saved_model_bundle",
     min_percentile=1.0,
     max_percentile=99.8,
@@ -333,13 +356,14 @@ def export_bioimageio(
     test_input: np.ndarray
         input image for generating test data
     test_input_axes: str or None
-         the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
-         using None assumes that axes of test_input are the same as those of model
+        the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
+        using None assumes that axes of test_input are the same as those of model
     test_input_norm_axes: str
-         the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
-         use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
+        the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
+        use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
     name: str
-        the name of this model (default: "bioimageio_model")
+        the name of this model (default: None)
+        if None, uses the (folder) name of the model (i.e. `model.name`)
     mode: str
         the export type for this model (default: "tensorflow_saved_model_bundle")
     min_percentile: float
@@ -353,6 +377,10 @@ def export_bioimageio(
     from .models import StarDist2D, StarDist3D
     isinstance(model, (StarDist2D, StarDist3D)) or _raise(ValueError("not a valid model"))
     0 <= min_percentile < max_percentile <= 100 or _raise(ValueError("invalid percentile values"))
+
+    if name is None:
+        name = model.name
+    name = str(name)
 
     outpath = Path(outpath)
     if outpath.suffix == "":
@@ -375,7 +403,7 @@ def export_bioimageio(
             kwargs.update(overwrite_spec_kwargs)
 
         build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), root=tmp_dir, **kwargs)
-        print(f"\nbioimage.io model exported to '{zip_path}'")
+        print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
 
 
 def import_bioimageio(source, outpath):
