@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-        py: ['cp36','cp37','cp38','cp39']
+        py: [cp36, cp37, cp38, cp39]
         # os: [ubuntu-20.04, windows-latest, macos-10.15]
         # os: [ubuntu-latest, windows-latest, macos-latest]
 
@@ -64,7 +64,7 @@ jobs:
           python -m cibuildwheel --output-dir dist
         env:
           # only build for platforms where tensorflow is available
-          CIBW_BUILD: "${{ py }}-*x86_64 ${{ py }}-*win_amd64"
+          CIBW_BUILD: "${{ matrix.py }}-*x86_64 ${{ matrix.py }}-*win_amd64"
           # CIBW_SKIP: "cp35-*"
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
