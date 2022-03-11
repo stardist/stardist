@@ -3,12 +3,13 @@ import numpy as np
 import pytest
 from pathlib import Path
 from itertools import product
+from stardist.data import test_image_nuclei_2d, test_image_he_2d
 from stardist.models import Config2D, StarDist2D, StarDistData2D
 from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
-from utils import circle_image, real_image2d, path_model2d, NumpySequence, Timer
+from utils import circle_image, path_model2d, crop, NumpySequence, Timer
 
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 1, False), (4, (8, 2), 2, 1, True)])
@@ -73,7 +74,7 @@ def test_foreground_warning():
 
 def test_load_and_predict(model2d):
     model = model2d
-    img, mask = real_image2d()
+    img, mask = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     prob, dist = model.predict(x, n_tiles=(2, 3))
     assert prob.shape == dist.shape[:2]
@@ -84,23 +85,25 @@ def test_load_and_predict(model2d):
     assert len(polygons['coord']) == len(
         polygons['points']) == len(polygons['prob'])
     stats = matching(mask, labels, thresh=0.5)
-    assert (stats.fp, stats.tp, stats.fn) == (1, 48, 17)
+    assert (stats.fp, stats.tp, stats.fn) == (5, 114, 11)
     return labels
 
 def test_load_and_predict_big():
     model_path = path_model2d()
     model = StarDist2D(None, name=model_path.name,
                        basedir=str(model_path.parent))
-    img, _ = real_image2d()
+    img = crop(test_image_nuclei_2d())
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(8,8))
-    labels, polygons = model.predict_instances(x)
-    return labels
+    x = np.tile(x,(4,4))
+    labels1, polygons1 = model.predict_instances(x)
+    labels2, polygons2 = model.predict_instances(x, n_tiles=(4,4))
+    assert np.allclose(labels1>0, labels2>0)
+    return labels1
 
 
 def test_optimize_thresholds(model2d):
     model = model2d
-    img, mask = real_image2d()
+    img, mask = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
 
     res = model.optimize_thresholds([x], [mask],
@@ -109,8 +112,8 @@ def test_optimize_thresholds(model2d):
                               optimize_kwargs=dict(tol=1e-1),
                               save_to_json=False)
 
-    np.testing.assert_almost_equal(res["prob"], 0.454617141955, decimal=3)
-    np.testing.assert_almost_equal(res["nms"] , 0.3, decimal=3)
+    np.testing.assert_almost_equal(res["prob"], 0.549501654040, decimal=3)
+    np.testing.assert_almost_equal(res["nms"] , 0.5, decimal=3)
 
 
 @pytest.mark.parametrize('n_classes, classes', [(None,(1,1)),(2,(1,2))])
@@ -118,7 +121,7 @@ def test_optimize_thresholds(model2d):
 def test_stardistdata(shape_completion, n_classes, classes):
     np.random.seed(42)
     from stardist.models import StarDistData2D
-    img, mask = real_image2d()
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     s = StarDistData2D([img, img], [mask, mask],
                        grid = (2,2),
                        n_classes = n_classes, classes = classes,
@@ -143,7 +146,7 @@ def test_edt_prob(anisotropy):
         import edt
         from stardist.utils import _edt_prob_edt, _edt_prob_scipy
 
-        masks = (np.tile(real_image2d()[1],(2,2)),
+        masks = (np.tile(crop(test_image_nuclei_2d(return_mask=True))[1],(2,2)),
                  np.zeros((117,92)),
                  np.ones((153,112)))
         dtypes = (np.uint16, np.int32)
@@ -163,7 +166,7 @@ def test_edt_prob(anisotropy):
 
 def render_label_example(model2d):
     model = model2d
-    img, y_gt = real_image2d()
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
     # im =  render_label(y,img = x, alpha = 0.3, alpha_boundary=1, cmap = (.3,.4,0))
@@ -177,7 +180,7 @@ def render_label_example(model2d):
 
 def render_label_pred_example(model2d):
     model = model2d
-    img, y_gt = real_image2d()
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
@@ -199,8 +202,10 @@ def test_pretrained_scales():
     from skimage.measure import regionprops
 
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
-    img, mask = real_image2d()
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
+    x    = zoom(x,    (0.5,0.5), order=1)
+    mask = zoom(mask, (0.5,0.5), order=0)
 
     def pred_scale(scale=2):
         x2 = zoom(x, scale, order=1)
@@ -208,7 +213,7 @@ def test_pretrained_scales():
         labels = zoom(labels2, tuple(_s1/_s2 for _s1, _s2 in zip(mask.shape, labels2.shape)), order=0)
         return labels
 
-    scales = np.linspace(.5,5,10)
+    scales = [0.5, 2.0, 3.0, 4.0]
     accs = tuple(matching(mask, pred_scale(s)).accuracy for s in scales)
     print("scales   ", np.round(scales,2))
     print("accuracy ", np.round(accs,2))
@@ -247,7 +252,7 @@ def test_stardistdata_multithreaded(workers=5):
 
     n_samples = 4
 
-    _ , mask = real_image2d()
+    _ , mask = crop(test_image_nuclei_2d(return_mask=True))
     Y = np.stack([mask+i for i in range(n_samples)])
     s = StarDistData2D(Y.astype(np.float32), Y,
                        grid = (1,1),
@@ -267,7 +272,7 @@ def test_stardistdata_multithreaded(workers=5):
 
 
 def test_imagej_rois_export(tmpdir, model2d):
-    img = normalize(real_image2d()[0], 1, 99.8)
+    img = normalize(crop(test_image_nuclei_2d()), 1, 99.8)
     labels, polys = model2d.predict_instances(img)
     export_imagej_rois(str(Path(tmpdir)/'img_rois.zip'), polys['coord'])
 
@@ -276,7 +281,7 @@ def test_imagej_rois_export(tmpdir, model2d):
 
 def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None):
     from skimage.measure import regionprops
-    img, mask = real_image2d()
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     img = normalize(img,1,99.8)
 
     if n_channel is not None:
@@ -350,7 +355,7 @@ def test_classes():
         return classes
 
     def _check_single_val(n_classes, classes=1):
-        img, y_gt = real_image2d()
+        img, y_gt = crop(test_image_nuclei_2d(return_mask=True))
         labels_gt = set(np.unique(y_gt[y_gt>0]))
         p, cls_dict = mask_to_categorical(y_gt,
                                           n_classes=n_classes,
@@ -383,7 +388,7 @@ def print_receptive_fields():
 
 def test_predict_dense_sparse(model2d):
     model = model2d
-    img, mask = real_image2d()
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
     labels1, res1 = model.predict_instances(x, n_tiles=(2, 2), sparse = False)
     labels2, res2 = model.predict_instances(x, n_tiles=(2, 2), sparse = True)
@@ -396,9 +401,9 @@ def test_speed(model2d):
     from time import time
 
     model = model2d
-    img, mask = real_image2d()
+    img, mask = crop(test_image_nuclei_2d(return_mask=True))
     x = normalize(img, 1, 99.8)
-    x = np.tile(x,(6,6))
+    x = np.tile(x,(5,5))
     print(x.shape)
 
     stats = []
@@ -409,7 +414,7 @@ def test_speed(model2d):
                labels, res = model.predict_instances(x, n_tiles=n_tiles, sparse = sparse)
            else:
                labels, res = model.predict_instances_big(x,axes = "YX",
-                                                         block_size = 1024+256,
+                                                         block_size = 768,
                                                          context = 64, min_overlap = 64,
                                                          n_tiles=n_tiles, sparse = sparse)
 
@@ -424,7 +429,7 @@ def test_speed(model2d):
 
 def render_label_pred_example2(model2d):
     model = model2d
-    img, y_gt = real_image2d()
+    img, y_gt = test_image_nuclei_2d(return_mask=True)
     x = normalize(img, 1, 99.8)
     y, _ = model.predict_instances(x)
 
@@ -442,7 +447,7 @@ def render_label_pred_example2(model2d):
 
 def test_pretrained_integration():
     from stardist.models import StarDist2D
-    img = normalize(real_image2d()[0])
+    img = normalize(crop(test_image_nuclei_2d()))
 
     model = StarDist2D.from_pretrained("2D_versatile_fluo")
     prob,dist = model.predict(img)
@@ -465,6 +470,37 @@ def test_pretrained_integration():
     # return y1, res1, y2, res2
 
 
+@pytest.mark.parametrize('scale', (0.5, 2.0, (0.34, 1.47)))
+@pytest.mark.parametrize('mode', ('fluo', 'he'))
+def test_predict_with_scale(scale, mode):
+    from scipy.ndimage import zoom
+    if np.isscalar(scale):
+        scale = (scale,scale)
+    if mode=='fluo':
+        model = StarDist2D.from_pretrained('2D_versatile_fluo')
+        x = crop(test_image_nuclei_2d())
+        _scale = tuple(scale)
+    elif mode=='he':
+        model = StarDist2D.from_pretrained('2D_versatile_he')
+        x = crop(test_image_he_2d())
+        _scale = tuple(scale) + (1,)
+    else:
+        raise ValueError(mode)
+
+    x = normalize(x)
+    # x = zoom(x, (0.5,0.5) if x.ndim==2 else (0.5,0.5,1), order=1) # to speed test up
+    x_scaled = zoom(x, _scale, order=1)
+    
+    labels,        res        = model.predict_instances(x, scale=_scale)
+    labels_scaled, res_scaled = model.predict_instances(x_scaled)
+
+    assert x.shape[:2] == labels.shape
+    assert np.allclose(res['points'] * np.asarray(scale).reshape(1,2),   res_scaled['points'])
+    assert np.allclose(res['coord']  * np.asarray(scale).reshape(1,2,1), res_scaled['coord'])
+    assert np.allclose(res['prob'], res_scaled['prob'])
+
+    return x, labels
+
 
 # this test has to be at the end of the model
 def test_load_and_export_TF(model2d):
@@ -474,6 +510,7 @@ def test_load_and_export_TF(model2d):
     # model.export_TF(single_output=False, upsample_grid=True)
     model.export_TF(single_output=True, upsample_grid=False)
     model.export_TF(single_output=True, upsample_grid=True)
+    
 
 if __name__ == '__main__':
     from conftest import _model2d
@@ -484,6 +521,8 @@ if __name__ == '__main__':
 
     # test_foreground_warning()
 
-    model = test_model("tmpdir", 32, (2, 2), 1, False, 1)
+    # model = test_model("tmpdir", 32, (2, 2), 1, False, 1)
 
-    test_load_and_export_TF(model)
+    # test_load_and_export_TF(model)
+
+    # test_predict_dense_sparse(_model2d())

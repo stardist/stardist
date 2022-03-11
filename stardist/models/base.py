@@ -8,6 +8,8 @@ from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
 import threading
+import scipy.ndimage as ndi
+import numbers
 
 from csbdeep.models.base_model import BaseModel
 from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
@@ -196,7 +198,7 @@ class StarDistDataBase(RollingSequence):
             inds = _ind_cache[k]
         else:
             patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
-            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
+            inds = get_valid_inds(self.Y[k], self.patch_size, patch_filter=patch_filter)
             if self.sample_ind_cache:
                 with self.lock:
                     _ind_cache[k] = inds
@@ -294,7 +296,7 @@ class StarDistBase(BaseModel):
 
         """
         if optimizer is None:
-            optimizer = Adam(lr=self.config.train_learning_rate)
+            optimizer = Adam(self.config.train_learning_rate)
 
         masked_dist_loss = {'mse': masked_loss_mse,
                             'mae': masked_loss_mae,
@@ -401,7 +403,7 @@ class StarDistBase(BaseModel):
             x_tiling_axis = tuple(axes_dict(axes_net)[a] for a in tiling_axes) # numerical axis ids for x
             axes_net_tile_overlaps = self._axes_tile_overlap(axes_net)
             # hack: permute tiling axis in the same way as img -> x was permuted
-            _n_tiles = _permute_axes(np.empty(n_tiles,np.bool)).shape
+            _n_tiles = _permute_axes(np.empty(n_tiles,bool)).shape
             (all(_n_tiles[i] == 1 for i in range(x.ndim) if i not in x_tiling_axis) or
                 _raise(ValueError("entry of n_tiles > 1 only allowed for axes '%s'" % tiling_axes)))
 
@@ -590,8 +592,14 @@ class StarDistBase(BaseModel):
         dista = np.asarray(dista).reshape((-1,self.config.n_rays))
         pointsa = np.asarray(pointsa).reshape((-1,self.config.n_dim))
 
+        idx = resizer.filter_points(x.ndim, pointsa, axes_net)
+        proba = proba[idx]
+        dista = dista[idx]
+        pointsa = pointsa[idx]
+        
         if self._is_multiclass():
             prob_classa = np.asarray(prob_classa).reshape((-1,self.config.n_classes+1))
+            prob_classa = prob_classa[idx]
             return proba, dista, prob_classa, pointsa
         else:
             prob_classa = None
@@ -601,6 +609,7 @@ class StarDistBase(BaseModel):
     def predict_instances(self, img, axes=None, normalizer=None,
                           sparse=True,
                           prob_thresh=None, nms_thresh=None,
+                          scale=None,
                           n_tiles=None, show_tile_progress=True,
                           verbose=False,
                           return_labels=True,
@@ -627,6 +636,11 @@ class StarDistBase(BaseModel):
         nms_thresh : float or None
             Perform non-maximum suppression that considers two objects to be the same
             when their area/surface overlap exceeds this threshold (also see `optimize_thresholds`).
+        scale: None or float or iterable
+            Scale the input image internally by this factor and rescale the output accordingly. 
+            All spatial axes (X,Y,Z) will be scaled if a scalar value is provided.
+            Alternatively, multiple scale values (compatible with input `axes`) can be used
+            for more fine-grained control (scale values for non-spatial axes must be 1).
         n_tiles : iterable or None
             Out of memory (OOM) errors can occur if the input image is too large.
             To avoid this problem, the input image is broken up into (overlapping) tiles
@@ -672,6 +686,18 @@ class StarDistBase(BaseModel):
         _permute_axes = self._make_permute_axes(_axes, _axes_net)
         _shape_inst   = tuple(s for s,a in zip(_permute_axes(img).shape, _axes_net) if a != 'C')
 
+        if scale is not None:
+            if isinstance(scale, numbers.Number):
+                scale = tuple(scale if a in 'XYZ' else 1 for a in _axes)
+            scale = tuple(scale)
+            len(scale) == len(_axes) or _raise(ValueError(f"scale {scale} must be of length {len(_axes)}, i.e. one value for each of the axes {_axes}"))
+            for s,a in zip(scale,_axes):
+                s > 0 or _raise(ValueError("scale values must be greater than 0"))
+                (s in (1,None) or a in 'XYZ') or warnings.warn(f"replacing scale value {s} for non-spatial axis {a} with 1")
+            scale = tuple(s if a in 'XYZ' else 1 for s,a in zip(scale,_axes))
+            verbose and print(f"scaling image by factors {scale} for axes {_axes}")
+            img = ndi.zoom(img, scale, order=1)
+
         if sparse:
             res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
                                       prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs)
@@ -691,6 +717,7 @@ class StarDistBase(BaseModel):
                                                         prob_class=prob_class,
                                                         prob_thresh=prob_thresh,
                                                         nms_thresh=nms_thresh,
+                                                        scale=(None if scale is None else dict(zip(_axes,scale))),
                                                         return_labels=return_labels,
                                                         overlap_label=overlap_label,
                                                         **nms_kwargs)
@@ -1102,6 +1129,18 @@ class StarDistPadAndCropResizer(Resizer):
         )
         # print(crop)
         return x[crop]
+
+
+    def filter_points(self, ndim, points, axes):
+        """ returns indices of points inside crop region """
+        assert points.ndim==2
+        axes = axes_check_and_normalize(axes,ndim)
+
+        bounds = np.array(tuple(self.padded_shape[a]-self.pad[a][1] for a in axes if a.lower() in ('z','y','x')))
+        idx = np.where(np.all(points< bounds, 1))
+        return idx
+
+    
 
 def _tf_version_at_least(version_string="1.0.0"):
     from packaging import version
