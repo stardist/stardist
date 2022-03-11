@@ -20,7 +20,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: [ubuntu-20.04]
         os: [ubuntu-20.04, windows-latest, macos-10.15]
         py: [cp36, cp37, cp38, cp39]
         # os: [ubuntu-latest, windows-latest, macos-latest]
@@ -52,8 +51,8 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: 10.15
           # CIBW_ARCHS_MACOS: x86_64 arm64 universal2
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: pytest tensorflow
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # use gcc instead of clang
           CC: /usr/local/bin/gcc-9
           CXX: /usr/local/bin/g++-9
@@ -69,8 +68,8 @@ jobs:
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: pytest tensorflow
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # CIBW_TEST_SKIP: "*musllinux*"
 
       - uses: actions/upload-artifact@v2
