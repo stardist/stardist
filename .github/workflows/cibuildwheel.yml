@@ -13,16 +13,16 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
         SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        # os: [ubuntu-20.04]
+        os: [ubuntu-20.04, windows-latest, macos-10.15]
         py: [cp36, cp37, cp38, cp39]
-        # os: [ubuntu-20.04, windows-latest, macos-10.15]
         # os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
@@ -44,8 +44,8 @@ jobs:
           brew install gcc@9
           python -m cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp3?-*"
-          CIBW_SKIP: "cp35-*"
+          CIBW_BUILD: "${{ matrix.py }}-*"
+          # CIBW_SKIP: ""
           # install fork of 'delocate' to work around bug
           # CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
            # TODO: make it work for 10.9 (required libstdc++.dylib and libgomp.dylib from gcc compiled for 10.15)
@@ -64,8 +64,8 @@ jobs:
           python -m cibuildwheel --output-dir dist
         env:
           # only build for platforms where tensorflow is available
-          CIBW_BUILD: "${{ matrix.py }}-*x86_64 ${{ matrix.py }}-*win_amd64"
-          # CIBW_SKIP: "cp35-*"
+          CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
+          CIBW_SKIP: "*musllinux*"
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
