@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-      os: [ubuntu-20.04]
-      py: ['cp36','cp37','cp38','cp39']
+        os: [ubuntu-20.04]
+        py: ['cp36','cp37','cp38','cp39']
         # os: [ubuntu-20.04, windows-latest, macos-10.15]
         # os: [ubuntu-latest, windows-latest, macos-latest]
 
