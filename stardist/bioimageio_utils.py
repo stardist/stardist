@@ -453,4 +453,13 @@ def import_bioimageio(source, outpath):
 
     model_class = (StarDist2D if config['n_dim'] == 2 else StarDist3D)
     model = model_class(None, outpath.name, basedir=str(outpath.parent))
+
+    # update the location of the stardist specific files, since they are the ones being used by the model
+    biomodel.config['stardist']['config'] = outpath / 'config.json'
+    biomodel.config['stardist']['thresholds'] = outpath / 'thresholds.json'
+    biomodel.config['stardist']['weights'] = outpath / weights
+    # add the resource description as an attribute to the model,
+    # so that additional information stored in there does not get lost
+    model.bioimageio_resource_description = biomodel
+
     return model
