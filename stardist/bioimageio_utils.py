@@ -425,20 +425,30 @@ def import_bioimageio(source, outpath):
         stardist model loaded from `outpath`
 
     """
-    import shutil
     from csbdeep.utils import save_json
     from .models import StarDist2D, StarDist3D
     *_, bioimageio_core, _ = _import()
 
-    biomodel = bioimageio_core.load_resource_description(source)
     outpath = Path(outpath)
     not outpath.exists() or _raise(FileExistsError(f"'{outpath}' already exists"))
 
+    outpath.mkdir(parents=True, exist_ok=True)
+    # download the full model content to the output folder
+    zip_path = outpath / "model.zip"
+    bioimageio_core.export_resource_package(source, output_path=zip_path)
+    with ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall(outpath)
+    zip_path.unlink()
+    rdf_path = outpath / "rdf.yaml"
+    biomodel = bioimageio_core.load_resource_description(rdf_path)
+
+    # read the stardist specific content
     'stardist' in biomodel.config or _raise(RuntimeError("bioimage.io model not compatible"))
     config = biomodel.config['stardist']['config']
     thresholds = biomodel.config['stardist']['thresholds']
     weights = biomodel.config['stardist']['weights']
 
+    # make sure that the keras weights are in the attachments
     weights_file = None
     for f in biomodel.attachments.files:
         if f.name == weights and f.exists():
@@ -446,20 +456,11 @@ def import_bioimageio(source, outpath):
             break
     weights_file is not None or _raise(FileNotFoundError(f"couldn't find weights file '{weights}'"))
 
-    outpath.mkdir(parents=True, exist_ok=True)
+    # save the config and threshold to json, to enable loading as stardist model
     save_json(config, str(outpath / 'config.json'))
     save_json(thresholds, str(outpath / 'thresholds.json'))
-    shutil.copy(str(weights_file), str(outpath / weights))
 
     model_class = (StarDist2D if config['n_dim'] == 2 else StarDist3D)
     model = model_class(None, outpath.name, basedir=str(outpath.parent))
-
-    # update the location of the stardist specific files, since they are the ones being used by the model
-    biomodel.config['stardist']['config'] = outpath / 'config.json'
-    biomodel.config['stardist']['thresholds'] = outpath / 'thresholds.json'
-    biomodel.config['stardist']['weights'] = outpath / weights
-    # add the resource description as an attribute to the model,
-    # so that additional information stored in there does not get lost
-    model.bioimageio_resource_description = biomodel
 
     return model
