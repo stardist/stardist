@@ -171,7 +171,7 @@ Please see the [multi-class example notebook](https://nbviewer.jupyter.org/githu
 
 ## Instance segmentation metrics 
 
-StarDist contains the `stardist.matching` submodule that provides function to compute common segmentation metrics between ground-truth label masks and predictions (not necessarily from StarDist). Currently available metrics are
+StarDist contains the `stardist.matching` submodule that provides functions to compute common instance segmentation metrics between ground-truth label masks and predictions (not necessarily from StarDist) by matching corresponding objects once their IoU exceeds a threshold (default 50%). Currently available metrics are
 
 * `tp, fp, fn`
 * `precision, recall, accuracy, F1-score`
