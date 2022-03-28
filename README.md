@@ -169,6 +169,52 @@ StarDist also supports multi-class prediction, i.e. each found object instance c
 
 Please see the [multi-class example notebook](https://nbviewer.jupyter.org/github/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) if you're interested in this.
 
+## Instance segmentation metrics 
+
+StarDist contains the `stardist.matching` submodule that provides function to compute common segmentation metrics between ground-truth label masks and predictions (not necessarily from StarDist). Currently available metrics are
+
+* `tp, fp, fn`
+* `precision, recall, accuracy, F1-score`
+* `panoptic quality`
+* `mean_true_score, mean_matched_score` 
+
+See the documentation of `stardist.matching.matching` for a detailed explanation.
+
+Here is an example how to use it:
+
+```python
+
+from stardist.data import test_image_nuclei_2d
+from scipy.ndimage import rotate
+
+# example groundtruth and dummy prediction 
+_, y_true = test_image_nuclei_2d(return_mask=True)
+y_pred = rotate(y_true, 2, order=0, reshape=False)
+
+# compute metrics between ground-truth and prediction 
+from stardist.matching import matching
+
+matching(y_true, y_pred)
+
+>>> Matching(criterion='iou', thresh=0.5, fp=88, tp=37, fn=88, precision=0.296, 
+    recall=0.296, accuracy=0.1737, f1=0.296, n_true=125, n_pred=125, 
+    mean_true_score=0.19490, mean_matched_score=0.65847, panoptic_quality=0.19490)
+```
+
+If you want to compare a list of images you can use `stardist.matching.matching_dataset`
+
+```python
+
+from stardist.matching import matching_dataset
+
+matching_dataset([y_true, y_true], [y_pred, y_pred])
+
+>>> DatasetMatching(criterion='iou', thresh=0.5, fp=176, tp=74, fn=176, precision=0.296, 
+    recall=0.296, accuracy=0.1737, f1=0.296, n_true=250, n_pred=250, 
+    mean_true_score=0.19490, mean_matched_score=0.6584, panoptic_quality=0.1949, by_image=False)
+```
+
+
 
 ## Troubleshooting & Support
 
