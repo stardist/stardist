@@ -171,37 +171,36 @@ Please see the [multi-class example notebook](https://nbviewer.jupyter.org/githu
 
 ## Instance segmentation metrics 
 
-StarDist contains the `stardist.matching` submodule that provides functions to compute common instance segmentation metrics between ground-truth label masks and predictions (not necessarily from StarDist) by matching corresponding objects once their IoU exceeds a threshold (default 50%). Currently available metrics are
+StarDist contains the `stardist.matching` submodule that provides functions to compute common instance segmentation metrics between ground-truth label masks and predictions (not necessarily from StarDist). Currently available metrics are
 
 * `tp, fp, fn`
 * `precision, recall, accuracy, F1-score`
 * `panoptic quality`
 * `mean_true_score, mean_matched_score` 
 
-See the documentation of `stardist.matching.matching` for a detailed explanation.
+which are computed by matching ground-truth/prediction objects if their IoU exceeds a threshold (by default 50%). See the documentation of `stardist.matching.matching` for a detailed explanation.
 
 Here is an example how to use it:
 
 ```python
 
 # create some example groundtruth and dummy prediction data
-
 from stardist.data import test_image_nuclei_2d
 from scipy.ndimage import rotate
-
 _, y_true = test_image_nuclei_2d(return_mask=True)
 y_pred = rotate(y_true, 2, order=0, reshape=False)
 
-
 # compute metrics between ground-truth and prediction 
-
 from stardist.matching import matching
 
-matching(y_true, y_pred)
+metrics =  matching(y_true, y_pred)
 
-# Matching(criterion='iou', thresh=0.5, fp=88, tp=37, fn=88, precision=0.296, 
-#         recall=0.296, accuracy=0.1737, f1=0.296, n_true=125, n_pred=125, 
-#         mean_true_score=0.19490, mean_matched_score=0.65847, panoptic_quality=0.19490)
+print(metrics)
+```
+```
+Matching(criterion='iou', thresh=0.5, fp=88, tp=37, fn=88, precision=0.296, 
+       recall=0.296, accuracy=0.1737, f1=0.296, n_true=125, n_pred=125, 
+       mean_true_score=0.19490, mean_matched_score=0.65847, panoptic_quality=0.19490)
 ```
 
 If you want to compare a list of images you can use `stardist.matching.matching_dataset`
@@ -210,11 +209,14 @@ If you want to compare a list of images you can use `stardist.matching.matching_
 
 from stardist.matching import matching_dataset
 
-matching_dataset([y_true, y_true], [y_pred, y_pred])
+metrics = matching_dataset([y_true, y_true], [y_pred, y_pred])
 
-# DatasetMatching(criterion='iou', thresh=0.5, fp=176, tp=74, fn=176, precision=0.296, 
-#                 recall=0.296, accuracy=0.1737, f1=0.296, n_true=250, n_pred=250, 
-#                 mean_true_score=0.19490, mean_matched_score=0.6584, panoptic_quality=0.1949, by_image=False)
+print(metrics)
+```
+```
+DatasetMatching(criterion='iou', thresh=0.5, fp=176, tp=74, fn=176, precision=0.296, 
+    recall=0.296, accuracy=0.1737, f1=0.296, n_true=250, n_pred=250, 
+    mean_true_score=0.19490, mean_matched_score=0.6584, panoptic_quality=0.1949, by_image=False)
 ```
 
 
