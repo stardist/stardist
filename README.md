@@ -184,14 +184,16 @@ Here is an example how to use it:
 
 ```python
 
+# create some example groundtruth and dummy prediction data
+
 from stardist.data import test_image_nuclei_2d
 from scipy.ndimage import rotate
 
-# example groundtruth and dummy prediction 
 _, y_true = test_image_nuclei_2d(return_mask=True)
 y_pred = rotate(y_true, 2, order=0, reshape=False)
 
 # compute metrics between ground-truth and prediction 
+
 from stardist.matching import matching
 
 matching(y_true, y_pred)
