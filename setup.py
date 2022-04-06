@@ -11,12 +11,18 @@ class build_ext_openmp(build_ext):
     openmp_compile_args = {
         'msvc':  ['/openmp'],
         'intel': ['-qopenmp'],
-        '*':     ['-Xpreprocessor -fopenmp'] # todo: only for mac right now
+        '*':     ['-fopenmp'] # todo: only for mac right now
     }
     openmp_link_args = openmp_compile_args # ?
 
     def build_extension(self, ext):
         compiler = self.compiler.compiler_type.lower()
+        # import sysconfig
+        # print(self.compiler)
+        # print(self.compiler.compiler_type)
+        # print(sysconfig.get_config_var("CC"))
+        # print(dir(self.compiler))
+        # assert 0
         if compiler.startswith('intel'):
             compiler = 'intel'
         if compiler not in self.openmp_compile_args:
