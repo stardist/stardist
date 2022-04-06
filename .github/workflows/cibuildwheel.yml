@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v2
         name: Checkout repository
 
-      - name: Build wheels for CPython (macOS)
+      - name: Setup (macOS)
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
@@ -47,12 +47,18 @@ jobs:
           eval `brew shellenv`
           brew install libomp
           brew info libomp
-          ls -l "${HOMEBREW_PREFIX}/include"
-          ls -l "${HOMEBREW_PREFIX}/include"
-          ls -l "${HOMEBREW_PREFIX}/lib"
+          # ls -l "${HOMEBREW_PREFIX}/include"
+          # ls -l "${HOMEBREW_PREFIX}/lib"
           export CFLAGS="${CFLAGS} -I${HOMEBREW_PREFIX}/include"
           export CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include"
           export LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp"
+
+      - name: Build wheels for CPython (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          echo $CFLAGS
+          echo $CXXFLAGS
+          echo $LDFLAGS
           python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
