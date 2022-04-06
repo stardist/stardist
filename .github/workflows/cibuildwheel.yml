@@ -52,11 +52,11 @@ jobs:
           # echo CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include" >> $GITHUB_ENV
           # echo LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp" >> $GITHUB_ENV
           tee -a $GITHUB_ENV << END
-          CC="/usr/bin/clang"
-          CXX="/usr/bin/clang++"
-          CFLAGS="${CFLAGS} -I${HOMEBREW_PREFIX}/include"
-          CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include"
-          LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp"
+          CC=/usr/bin/clang
+          CXX=/usr/bin/clang++
+          CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/include
+          CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/include
+          LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp
           END
           # (exit 1)
 
