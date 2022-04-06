@@ -42,8 +42,8 @@ jobs:
           brew config
           brew install libomp
           brew info libomp
-          ll /opt/homebrew/include
-          ll /opt/homebrew/lib
+          ls -l /opt/homebrew/include
+          ls -l /opt/homebrew/lib
           export CFLAGS="$CFLAGS -I/opt/homebrew/include"
           export CXXFLAGS="$CXXFLAGS -I/opt/homebrew/include"
           export LDFLAGS="$LDFLAGS -Wl,-rpath,/opt/homebrew/lib -L/opt/homebrew/lib -lomp"
