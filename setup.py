@@ -11,7 +11,7 @@ class build_ext_openmp(build_ext):
     openmp_compile_args = {
         'msvc':  ['/openmp'],
         'intel': ['-qopenmp'],
-        '*':     ['-Xpreprocessor', '-fopenmp'] # todo: only for mac right now
+        '*':     ['-Xpreprocessor -fopenmp'] # todo: only for mac right now
     }
     openmp_link_args = openmp_compile_args # ?
 
