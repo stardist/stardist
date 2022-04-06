@@ -43,23 +43,22 @@ jobs:
         shell: bash
         run: |
           brew config
-          # brew shellenv
           eval `brew shellenv`
           brew install libomp
-          # ls -l "${HOMEBREW_PREFIX}/include"
-          # ls -l "${HOMEBREW_PREFIX}/lib"
-          echo "CFLAGS=\"${CFLAGS} -I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
-          echo "CXXFLAGS=\"${CXXFLAGS} -I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
-          echo "LDFLAGS=\"${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp\"" >> $GITHUB_ENV
+          echo "CFLAGS=\"-I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
+          echo "CXXFLAGS=\"-I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
+          echo "LDFLAGS=\"-Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp\"" >> $GITHUB_ENV
+          # echo "CFLAGS=\"${CFLAGS} -I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
+          # echo "CXXFLAGS=\"${CXXFLAGS} -I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
+          # echo "LDFLAGS=\"${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp\"" >> $GITHUB_ENV
           # (exit 1)
 
       - name: Check (macOS)
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
-          echo $CFLAGS
-          echo $CXXFLAGS
-          echo $LDFLAGS
+          ls -l "${HOMEBREW_PREFIX}/include"
+          ls -l "${HOMEBREW_PREFIX}/lib"
           # (exit 1)
 
       - name: Build wheels for CPython (macOS)
