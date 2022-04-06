@@ -44,6 +44,7 @@ jobs:
         run: |
           brew config
           brew shellenv
+          eval `brew shellenv`
           brew install libomp
           brew info libomp
           ls -l "${HOMEBREW_PREFIX}/include"
