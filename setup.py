@@ -11,7 +11,7 @@ class build_ext_openmp(build_ext):
     openmp_compile_args = {
         'msvc':  ['/openmp'],
         'intel': ['-qopenmp'],
-        '*':     ['-fopenmp'] # todo: only for mac right now
+        '*':     ['-Xpreprocessor', '-fopenmp'] # todo: only for mac right now
     }
     openmp_link_args = openmp_compile_args # ?
 
@@ -45,7 +45,7 @@ class build_ext_openmp(build_ext):
         try:
             # assert False
             ext.extra_compile_args += self.openmp_compile_args[compiler]
-            # ext.extra_link_args    += self.openmp_link_args[compiler]
+            ext.extra_link_args    += self.openmp_link_args[compiler]
             super(build_ext_openmp, self).build_extension(ext)
         except:
             print('compiling with OpenMP support failed, re-trying without')
