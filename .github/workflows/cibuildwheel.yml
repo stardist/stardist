@@ -45,6 +45,7 @@ jobs:
           brew config
           eval `brew shellenv`
           brew install libomp
+          echo "HOMEBREW_PREFIX=\"${HOMEBREW_PREFIX}\"" >> $GITHUB_ENV
           echo "CFLAGS=\"-I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
           echo "CXXFLAGS=\"-I${HOMEBREW_PREFIX}/include\"" >> $GITHUB_ENV
           echo "LDFLAGS=\"-Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp\"" >> $GITHUB_ENV
