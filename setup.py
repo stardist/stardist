@@ -37,6 +37,7 @@ class build_ext_openmp(build_ext):
         _extra_compile_args = list(ext.extra_compile_args)
         _extra_link_args    = list(ext.extra_link_args)
         try:
+            assert False
             ext.extra_compile_args += self.openmp_compile_args[compiler]
             ext.extra_link_args    += self.openmp_link_args[compiler]
             super(build_ext_openmp, self).build_extension(ext)
