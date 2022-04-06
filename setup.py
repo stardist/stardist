@@ -9,20 +9,14 @@ class build_ext_openmp(build_ext):
     # https://www.openmp.org/resources/openmp-compilers-tools/
     # python setup.py build_ext --help-compiler
     openmp_compile_args = {
-        'msvc':  ['/openmp'],
-        'intel': ['-qopenmp'],
-        '*':     ['-Xpreprocessor', '-fopenmp'] # todo: only for mac right now
+        'msvc':  [['/openmp']],
+        'intel': [['-qopenmp']],
+        '*':     [['-fopenmp'], ['-Xpreprocessor','-fopenmp']],
     }
     openmp_link_args = openmp_compile_args # ?
 
     def build_extension(self, ext):
         compiler = self.compiler.compiler_type.lower()
-        # import sysconfig
-        # print(self.compiler)
-        # print(self.compiler.compiler_type)
-        # print(sysconfig.get_config_var("CC"))
-        # print(dir(self.compiler))
-        # assert 0
         if compiler.startswith('intel'):
             compiler = 'intel'
         if compiler not in self.openmp_compile_args:
@@ -40,21 +34,24 @@ class build_ext_openmp(build_ext):
         # monkey patch the _compile method
         self.compiler._compile = compile_patched
 
+        # store original args
         _extra_compile_args = list(ext.extra_compile_args)
         _extra_link_args    = list(ext.extra_link_args)
-        try:
-            # assert False
-            ext.extra_compile_args += self.openmp_compile_args[compiler]
-            ext.extra_link_args    += self.openmp_link_args[compiler]
-            super(build_ext_openmp, self).build_extension(ext)
-        except:
-            print('compiling with OpenMP support failed, re-trying without')
-            ext.extra_compile_args = _extra_compile_args
-            ext.extra_link_args    = _extra_link_args
-            super(build_ext_openmp, self).build_extension(ext)
-        finally:
-            # restore original _compile, just in case
-            self.compiler._compile = compile_original
+
+        for compile_args, link_args in zip(self.openmp_compile_args[compiler], self.openmp_link_args[compiler]):
+            try:
+                ext.extra_compile_args = _extra_compile_args + compile_args
+                ext.extra_link_args    = _extra_link_args    + link_args
+                super(build_ext_openmp, self).build_extension(ext)
+                return
+            except:
+                print(f"compiling with '{compile_args}' failed")
+                pass
+
+        print('compiling with OpenMP support failed, re-trying without')
+        ext.extra_compile_args = _extra_compile_args
+        ext.extra_link_args    = _extra_link_args
+        super(build_ext_openmp, self).build_extension(ext)
 
 
 #------------------------------------------------------------------------------------
