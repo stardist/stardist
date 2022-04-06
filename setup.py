@@ -45,10 +45,9 @@ class build_ext_openmp(build_ext):
                 super(build_ext_openmp, self).build_extension(ext)
                 return
             except:
-                print(f"compiling with '{compile_args}' failed")
-                pass
+                print(f">>> compiling with '{' '.join(compile_args)}' failed")
 
-        print('compiling with OpenMP support failed, re-trying without')
+        print('>>> compiling with OpenMP support failed, re-trying without')
         ext.extra_compile_args = _extra_compile_args
         ext.extra_link_args    = _extra_link_args
         super(build_ext_openmp, self).build_extension(ext)
