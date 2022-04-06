@@ -22,6 +22,18 @@ class build_ext_openmp(build_ext):
         if compiler not in self.openmp_compile_args:
             compiler = '*'
 
+        # thanks to @jaimergp (https://github.com/conda-forge/staged-recipes/pull/17766)
+        # issue: qhull has a mix of c and c++ source files
+        #        gcc warns about passing -std=c++11 for c files, but clang errors out
+        compile_original = self.compiler._compile
+        def compile_patched(obj, src, ext, cc_args, extra_postargs, pp_opts):
+            # remove c++ specific (extra) options for c files
+            if src.lower().endswith('.c'):
+                extra_postargs = [arg for arg in extra_postargs if not arg.lower().startswith('-std')]
+            return compile_original(obj, src, ext, cc_args, extra_postargs, pp_opts)
+        # monkey patch the _compile method
+        self.compiler._compile = compile_patched
+
         _extra_compile_args = list(ext.extra_compile_args)
         _extra_link_args    = list(ext.extra_link_args)
         try:
@@ -33,6 +45,9 @@ class build_ext_openmp(build_ext):
             ext.extra_compile_args = _extra_compile_args
             ext.extra_link_args    = _extra_link_args
             super(build_ext_openmp, self).build_extension(ext)
+        finally:
+            # restore original _compile, just in case
+            self.compiler._compile = compile_original
 
 
 #------------------------------------------------------------------------------------
