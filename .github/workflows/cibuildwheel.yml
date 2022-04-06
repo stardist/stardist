@@ -46,12 +46,12 @@ jobs:
           brew shellenv
           eval `brew shellenv`
           brew install libomp
-          brew info libomp
           # ls -l "${HOMEBREW_PREFIX}/include"
           # ls -l "${HOMEBREW_PREFIX}/lib"
-          export CFLAGS="${CFLAGS} -I${HOMEBREW_PREFIX}/include"
-          export CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include"
-          export LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp"
+          echo CFLAGS="${CFLAGS} -I${HOMEBREW_PREFIX}/include"
+          echo CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include"
+          echo LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp"
+          (exit 1)
 
       - name: Build wheels for CPython (macOS)
         if: startsWith(matrix.os, 'macos')
