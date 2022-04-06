@@ -9,7 +9,7 @@ on:
     branches:
       - wheels
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]+\.[0-9]+\.[0-9]+.*'
 
 jobs:
   build_wheels:
@@ -20,8 +20,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-10.15]
-        py: [cp36, cp37, cp38, cp39]
+        os: [macos-10.15]
+        py: [cp39]
+        # os: [ubuntu-20.04, windows-latest, macos-10.15]
+        # py: [cp36, cp37, cp38, cp39]
         # os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
@@ -41,13 +43,15 @@ jobs:
         shell: bash
         run: |
           brew config
+          brew shellenv
           brew install libomp
           brew info libomp
-          ls -l /opt/homebrew/include
-          ls -l /opt/homebrew/lib
-          export CFLAGS="$CFLAGS -I/opt/homebrew/include"
-          export CXXFLAGS="$CXXFLAGS -I/opt/homebrew/include"
-          export LDFLAGS="$LDFLAGS -Wl,-rpath,/opt/homebrew/lib -L/opt/homebrew/lib -lomp"
+          ls -l "${HOMEBREW_PREFIX}/include"
+          ls -l "${HOMEBREW_PREFIX}/include"
+          ls -l "${HOMEBREW_PREFIX}/lib"
+          export CFLAGS="${CFLAGS} -I${HOMEBREW_PREFIX}/include"
+          export CXXFLAGS="${CXXFLAGS} -I${HOMEBREW_PREFIX}/include"
+          export LDFLAGS="${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp"
           python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
