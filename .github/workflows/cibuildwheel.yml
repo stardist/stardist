@@ -117,10 +117,6 @@ jobs:
     runs-on: ubuntu-latest
     # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - run: |
-          echo "${{ github.event_name }}"
-          echo "${{ github.event.action }}"
-
       - uses: actions/download-artifact@v2
         name: Download wheels and sdist
         with:
@@ -131,6 +127,6 @@ jobs:
         name: Publish to PyPI
         with:
           user: __token__
-          password: ${{ secrets.pypi_password }}
+          password: ${{ secrets.TESTPYPI_API_TOKEN }}
           verbose: true
           repository_url: https://test.pypi.org/legacy/
