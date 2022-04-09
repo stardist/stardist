@@ -22,11 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: [macos-10.15]
-        # py: [cp39]
-        os: [ubuntu-20.04, windows-latest, macos-10.15]
+        os: [ubuntu-20.04, windows-2019, macos-10.15]
         py: [cp36, cp37, cp38, cp39, cp310]
-        # os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v2
@@ -61,15 +58,10 @@ jobs:
           python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
-          # CIBW_SKIP: ""
-          # install fork of 'delocate' to work around bug
-          # CIBW_BEFORE_BUILD: python -m pip install git+https://github.com/uschmidt83/delocate.git@patch-1
-           # TODO: make it work for 10.9 (required libstdc++.dylib and libgomp.dylib from gcc compiled for 10.15)
-          # MACOSX_DEPLOYMENT_TARGET: 10.15
           CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: pytest tensorflow
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
 
       - name: Build wheels for CPython (Linux and Windows)
@@ -83,9 +75,9 @@ jobs:
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: pytest tensorflow
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # # CIBW_TEST_SKIP: "*musllinux*"
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          # CIBW_TEST_SKIP: "*musllinux*"
 
       - uses: actions/upload-artifact@v2
         name: Upload wheels
@@ -115,7 +107,7 @@ jobs:
     name: Upload to PyPI
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    # if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v2
         name: Download wheels and sdist
@@ -123,10 +115,17 @@ jobs:
           name: dist
           path: dist
 
+      - name: Check that package version matches git tag ${{ github.ref_name }}
+        shell: bash
+        run: |
+          ls -l dist
+          test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+
       - uses: pypa/gh-action-pypi-publish@release/v1
         name: Publish to PyPI
         with:
           user: __token__
-          password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
-          repository_url: https://test.pypi.org/legacy/
+          # password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          # repository_url: https://test.pypi.org/legacy/
