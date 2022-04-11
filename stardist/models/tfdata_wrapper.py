@@ -2,13 +2,18 @@ import tensorflow as tf
 
 
 def wrap_stardistdata_as_tfdata(
-    data, shuffle=True, num_parallel_calls=1, verbose=False
+    data, 
+    shuffle=True, 
+    num_parallel_calls=1, 
+    verbose=False
 ):
     """
-    wrap a stardist data generator into a tf dataset
+    wrap a stardist data generator (whose batchsize needs to be 1) into a tf dataset 
+
     """
 
-    assert data.batch_size == 1
+    if not data.batch_size == 1:
+        raise ValueError("Can only convert stardist data generator with batchsize 1 to tf data!")
 
     def _gen_idx():
         for i in range(len(data)):
@@ -34,13 +39,15 @@ def wrap_stardistdata_as_tfdata(
     data_tf = tf.data.Dataset.from_generator(
         _gen_idx, output_types=tf.int32, output_shapes=()
     )
+
+    # shuffle if necessary
     if shuffle:
         data_tf = data_tf.shuffle(data.data_size)
 
-    print(f"{num_parallel_calls=}")
-
+    # map ids to data elements
     data_tf = data_tf.map(_id_map, num_parallel_calls=num_parallel_calls)
 
+    # reformat tuple output
     data_tf = data_tf.map(_post_map)
 
     return data_tf
