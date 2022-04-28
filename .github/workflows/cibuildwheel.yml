@@ -9,9 +9,9 @@ on:
   push:
     branches:
       - wheels
-    release:
-      types:
-        - published
+  release:
+    types:
+      - published
 
 jobs:
   build_wheels:
