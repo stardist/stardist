@@ -39,7 +39,7 @@ jobs:
         run: pip install edt "numpy>=1.20"
 
       - name: Install package from source (just to test wheel building)
-          pip install --no-binary stardist "stardist[test]"
+        run: pip install --no-binary stardist "stardist[test]"
 
       - name: Install package from wheel
         run: |
