@@ -38,29 +38,18 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
-      - name: Install package from source (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew config
-          brew install gcc@9
+      - name: Install package from source (just to test wheel building)
           pip install --no-binary stardist "stardist[test]"
-        env:
-          CC: /usr/local/bin/gcc-9
-          CXX: /usr/local/bin/g++-9
 
-      - name: Install package from source (Linux and Windows)
-        if: startsWith(matrix.os, 'macos') == false
-        run: pip install --no-binary stardist "stardist[test]"
-
-      # - name: Install package from wheel
-      #   run: |
-      #     pip uninstall -y stardist
-      #     pip install --no-cache-dir --only-binary stardist "stardist>0"
+      - name: Install package from wheel
+        run: |
+          pip uninstall -y stardist
+          pip install --no-cache-dir --only-binary stardist "stardist[test]>0"
 
       - name: Install bioimage.io dependencies
         if: |
           matrix.python-version >= 3.7 &&
           matrix.tensorflow != 'tensorflow'
-        run: pip install --no-binary stardist "stardist[bioimageio]"
+        run: pip install "stardist[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
