@@ -1,0 +1,13 @@
+name: stardist_cuda_10_1
+channels:
+  - defaults
+  - nvidia
+dependencies:
+  - python=3.7
+  - cudatoolkit=10.1.*
+  - cudnn=7.6.*
+  - ipython
+  - pip
+  - pip:
+    - tensorflow==2.3.*
+    - stardist
