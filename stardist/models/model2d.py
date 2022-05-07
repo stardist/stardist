@@ -276,6 +276,7 @@ class Config2D(BaseConfig):
         self.train_sample_cache        = True
 
         self.train_dist_loss           = 'mae'
+        self.train_class_loss          = 'cce_tversky'
         self.train_loss_weights        = (1,0.2) if self.n_classes is None else (1,0.2,1)
         self.train_class_weights       = (1,1) if self.n_classes is None else (1,)*(self.n_classes+1)
         self.train_epochs              = 400
@@ -313,6 +314,7 @@ class Config2D(BaseConfig):
         # backward-compatible defaults if new parameters are not present
         conf.setdefault('head_blocks', 0)
         conf.setdefault('n_classes',None)
+        conf.setdefault('train_class_loss', 'cce')
         return conf        
 
 
@@ -377,18 +379,6 @@ class StarDist2D(StarDistBase):
         if self.config.backbone=='unet':
             unet_base = unet_block(**unet_kwargs)(pooled_img)
         elif self.config.backbone=='unetplus':
-            print(unet_kwargs)
-            # unet_base = unetplus_block(n_depth=unet_kwargs['n_depth'],
-            #                            n_filter_base=unet_kwargs['n_filter_base'],
-            #                            kernel_size=(3,3),
-            #                            strides = unet_kwargs['pool'],
-            #                            block='conv_bottleneck',
-            #                            n_blocks=2,
-            #                            expansion=1.5,
-            #                            multi_heads = True,
-            #                            activation="elu",
-            #                            batch_norm=True)(pooled_img)
-
             unet_base = unet_block_v2(n_depth=unet_kwargs['n_depth'],
                                    n_filter_base=unet_kwargs['n_filter_base'],
                                    kernel_size=(3,3),
@@ -401,7 +391,6 @@ class StarDist2D(StarDistBase):
                                    batch_norm=True)(pooled_img)
             unet_base = tuple(UpSampling2D(tuple(p**i for p in unet_kwargs['pool']), interpolation='bilinear')(x) for i,x in enumerate(unet_base))
             unet_base = Concatenate()(unet_base)
-            
         elif self.config.backbone=='mrunet':
             unet_base = mrunet_block(unet_kwargs['n_filter_base'])(pooled_img)
         elif self.config.backbone=='fpn':

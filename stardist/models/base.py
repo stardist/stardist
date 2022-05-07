@@ -149,6 +149,14 @@ def weighted_dice_loss(weights, ndim):
     return weighted_dice
 
 
+def dice_loss(y_true, y_pred):
+    inter = y_true*y_pred
+    over  = y_true+y_pred
+    score  = (2*inter+K.epsilon())/(over+K.epsilon())
+    return 1-score
+    
+
+
 def compound_dice_cce(weights, ndim, gamma):
     """ sum of weighted cce and dice loss """
     _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
@@ -414,21 +422,31 @@ class StarDistBase(BaseModel):
             dist_true, dist_mask = split_dist_true_mask(dist_true_mask)
             return masked_metric_mse(dist_mask)(dist_true, dist_pred)
 
+        loss = [prob_loss, dist_loss]
+        metrics = {'prob': kld,
+                   'dist': [relevant_mae, relevant_mse, dist_iou_metric]}
+
         if self._is_multiclass():
-            # prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
-            prob_class_loss = compound_tversky_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            if self.config.train_class_loss=='cce':
+                prob_class_loss = weighted_categorical_crossentropy(self.config.train_class_weights, ndim=self.config.n_dim)
+            elif self.config.train_class_loss=='cce_dice':             
+                prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            elif self.config.train_class_loss=='cce_tversky':             
+                prob_class_loss = compound_tversky_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
+            else:
+                raise KeyError(f'unknown class loss {self.config.train_class_loss}')        
             
+            print(f'class_loss:    {self.config.train_class_loss}')
             print(f'class_weights: {self.config.train_class_weights}')
             print(f'focal_gamma:   {self.config.train_focal_gamma}')
             
-            loss = [prob_loss, dist_loss, prob_class_loss]
-        else:
-            loss = [prob_loss, dist_loss]
+            loss = loss + [prob_class_loss]
+            metrics['prob_class'] = dice_loss
+    
 
         self.keras_model.compile(optimizer, loss         = loss,
                                             loss_weights = list(self.config.train_loss_weights),
-                                            metrics      = {'prob': kld,
-                                                            'dist': [relevant_mae, relevant_mse, dist_iou_metric]})
+                                            metrics      = metrics)
 
         self.callbacks = []
         if self.basedir is not None:
