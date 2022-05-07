@@ -514,16 +514,10 @@ class StarDist2D(StarDistBase):
         _data_val = StarDistData2D(validation_data[0],validation_data[1], classes=classes_val, batch_size=n_take, length=1, shuffle=False, **data_kwargs)
         data_val = _data_val[0]
 
-        # expose data generator as member for general diagnostics
-        # self.data_train = StarDistData2D(X, Y, classes=classes,
-        #                             batch_size=self.config.train_batch_size,
-        #                             augmenter=augmenter,
-        #                             length=epochs*steps_per_epoch, **data_kwargs)
-
         data_train_stardist = StarDistData2D(X, Y, classes=classes,
-                                    batch_size=1,
-                augmenter=augmenter,
-                length=self.config.train_batch_size*epochs*steps_per_epoch,
+                                batch_size=1,
+                                augmenter=augmenter,
+                                length=self.config.train_batch_size*epochs*steps_per_epoch,
                                           **data_kwargs)
 
         self.data_train = wrap_stardistdata_as_tfdata(data_train_stardist,
