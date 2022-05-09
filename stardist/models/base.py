@@ -295,7 +295,7 @@ class StarDistDataBase(RollingSequence):
             inds = _ind_cache[k]
         else:
             patch_filter = (lambda y,p: self.max_filter(y, self.maxfilter_patch_size) > 0) if foreground_only else None
-            inds = get_valid_inds((self.Y[k],)+self.channels_as_tuple(self.X[k]), self.patch_size, patch_filter=patch_filter)
+            inds = get_valid_inds(self.Y[k], self.patch_size, patch_filter=patch_filter)
             if self.sample_ind_cache:
                 with self.lock:
                     _ind_cache[k] = inds
@@ -394,7 +394,7 @@ class StarDistBase(BaseModel):
 
         """
         if optimizer is None:
-            optimizer = Adam(lr=self.config.train_learning_rate)
+            optimizer = Adam(self.config.train_learning_rate)
 
         masked_dist_loss = {'mse': masked_loss_mse,
                             'mae': masked_loss_mae,
