@@ -441,7 +441,7 @@ class StarDistBase(BaseModel):
             print(f'focal_gamma:   {self.config.train_focal_gamma}')
             
             loss = loss + [prob_class_loss]
-            metrics['prob_class'] = dice_loss
+            metrics['prob_class'] = [dice_loss, tf.keras.losses.categorical_crossentropy]
     
 
         self.keras_model.compile(optimizer, loss         = loss,
