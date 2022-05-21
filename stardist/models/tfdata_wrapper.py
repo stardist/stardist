@@ -44,7 +44,7 @@ def wrap_stardistdata_as_tfdata(
     if shuffle:
         data_tf = data_tf.shuffle(data.data_size)
 
-    # map ids to data elements
+    print(f'{num_parallel_calls=}')
     data_tf = data_tf.map(_id_map, num_parallel_calls=num_parallel_calls)
 
     # reformat tuple output

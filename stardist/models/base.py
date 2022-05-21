@@ -149,13 +149,12 @@ def weighted_dice_loss(weights, ndim):
     return weighted_dice
 
 
+
 def dice_loss(y_true, y_pred):
     inter = y_true*y_pred
     over  = y_true+y_pred
     score  = (2*inter+K.epsilon())/(over+K.epsilon())
     return 1-score
-    
-
 
 def compound_dice_cce(weights, ndim, gamma):
     """ sum of weighted cce and dice loss """
@@ -166,7 +165,6 @@ def compound_dice_cce(weights, ndim, gamma):
         return K.mean(_cce(y_true, y_pred)) + K.mean(_dice(y_true, y_pred))
     
     return dice_cce
-
 
 def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-4):
     """ focal tversky loss
