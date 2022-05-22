@@ -43,14 +43,18 @@ def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
         train_sample_cache = not use_sequence
     )
 
+    def augmenter(x, y):
+        x = x + .1*np.random.normal(0,1,x.shape)
+        return x, y
+
     model = StarDist2D(conf, name='stardist', basedir=str(tmpdir))
-    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers)
+    model.train(X, Y, validation_data=(X[:2], Y[:2]), workers=workers, augmenter=augmenter)
     ref = model.predict(X[0])
     res = model.predict(X[0], n_tiles=(
         (2, 3) if X[0].ndim == 2 else (2, 3, 1)))
 
     # deactivate as order of labels might not be the same
-    # assert all(np.allclose(u,v) for u,v in zip(ref,res))
+    assert all(np.allclose(u,v) for u,v in zip(ref,res))
 
     return model
 
@@ -541,7 +545,8 @@ if __name__ == '__main__':
     # test_speed(_model2d())
     # _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, basedir = None)
     # a,b,s = test_stardistdata_multithreaded()
-    # test_model("foo", 32, (1,1), None, 4)
+
+    test_model("foo", 32, (1,1), None, 4, use_sequence=False)
 
     # test_foreground_warning()
 
@@ -551,5 +556,5 @@ if __name__ == '__main__':
 
     # test_predict_dense_sparse(_model2d())
 
-    data = test_tfdata()
+    # data = test_tfdata()
     

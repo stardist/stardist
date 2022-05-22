@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 
@@ -10,6 +11,16 @@ def wrap_stardistdata_as_tfdata(
     """
     wrap a stardist data generator (whose batchsize needs to be 1) into a tf dataset 
 
+    Stardist data generator data return values: 
+    
+    single-class:
+
+        img, (prob, dist) = data[i] 
+
+    multiclass: 
+        
+        img, (prob, dist, prob_class) = data[i] 
+
     """
 
     if not data.batch_size == 1:
@@ -20,12 +31,14 @@ def wrap_stardistdata_as_tfdata(
             yield i
 
     def _pre_map(idx):
+        """ for a given idx, return data[idx] as flattened list"""
         if verbose:
             print(f"fetching stardist item {idx:4d}   ({data.data_size})")
         a, b = data[idx]
-        return tuple(_x[0] for _x in a) + tuple(_x[0] for _x in b)
+        return tuple(_x[0].astype(np.float32, copy=False) for _x in a) + tuple(_x[0].astype(np.float32, copy=False) for _x in b)
 
     def _id_map(idx):
+        """ defines the input and outputs tensors (4 outputs if multiclass else 3)"""
         return tf.numpy_function(
             func=_pre_map,
             inp=[idx],
@@ -33,6 +46,7 @@ def wrap_stardistdata_as_tfdata(
         )
 
     def _post_map(*args):
+        """ reformat tuples such that they get accepted by model.fit"""
         return (args[0],), args[1:]
 
     # generate ids
@@ -44,7 +58,7 @@ def wrap_stardistdata_as_tfdata(
     if shuffle:
         data_tf = data_tf.shuffle(data.data_size)
 
-    print(f'{num_parallel_calls=}')
+    # parallelize  
     data_tf = data_tf.map(_id_map, num_parallel_calls=num_parallel_calls)
 
     # reformat tuple output
