@@ -248,9 +248,15 @@ If you use `conda` on macOS and after `import stardist` see errors similar to `S
 
 ##### Apple Silicon
 
-As of StarDist 0.8.2, we provide `arm64` wheels that should work with macOS on Apple M1.
-For more details about installing TensorFlow and other important packages on the Apple M1 architecture, please see [this excellent post](https://forum.image.sc/t/napari-tensorflow-aicsimageio-stardist-care-n2v-pyclesperanto-running-native-on-apple-silicon-m1/55051/3) by Peter Sobolewski.
-
+As of StarDist 0.8.2, we provide `arm64` wheels that should work with macOS on Apple M1. 
+We recommend setting up an `arm64` `conda` environment with GPU-accelerated TensorFlow following [Apple's instructions](https://developer.apple.com/metal/tensorflow-plugin/) using [conda-forge miniforge3 or mambaforge](https://github.com/conda-forge/miniforge). Then install `stardist` using `pip`.
+```
+conda create -y -n stardist-env python=3.9   
+conda activate stardist-env
+conda install -c apple tensorflow-deps
+pip install tensorflow-macos tensorflow-metal
+pip install stardist
+```
 
 #### Windows
 Please install the [Build Tools for Visual Studio 2019](https://www.visualstudio.com/downloads/#build-tools-for-visual-studio-2019) (or newer) from Microsoft to compile extensions for Python 3.6+ (see [this](https://wiki.python.org/moin/WindowsCompilers) for further information). During installation, make sure to select the *C++ build tools*. Note that the compiler comes with OpenMP support.
