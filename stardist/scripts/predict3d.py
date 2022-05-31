@@ -40,7 +40,7 @@ Prediction script for a 3D stardist model, usage: stardist-predict -i input.tif 
     from csbdeep.utils import normalize
     from csbdeep.models.base_model import get_registered_models
     from stardist.models import StarDist3D
-    from tifffile import imsave, imread
+    from tifffile import imwrite, imread
 
     get_registered_models(StarDist3D, verbose=True)
 
@@ -86,7 +86,7 @@ Prediction script for a 3D stardist model, usage: stardist-predict -i input.tif 
         out = pathlib.Path(args.outdir)
         out.mkdir(parents=True,exist_ok=True)
 
-        imsave(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels, compress=3)
+        imwrite(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels)
         
 
 if __name__ == '__main__':
