@@ -8,6 +8,7 @@ from tqdm import tqdm
 from collections import namedtuple
 from pathlib import Path
 import threading
+import functools
 import scipy.ndimage as ndi
 import numbers
 
@@ -431,7 +432,7 @@ class StarDistBase(BaseModel):
         return x, axes, axes_net, axes_net_div_by, _permute_axes, resizer, n_tiles, grid, grid_dict, channel, predict_direct, tiling_setup
 
 
-    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
+    def _predict_generator(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -493,6 +494,7 @@ class StarDistBase(BaseModel):
                 # print(s_src,s_dst)
                 for part, part_tile in zip(result, result_tile):
                     part[s_dst] = part_tile[s_src]
+                yield
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
             result = predict_direct(x)
@@ -511,10 +513,18 @@ class StarDistBase(BaseModel):
             # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
 
-        return tuple(result)
+        yield tuple(result)
 
 
-    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, **predict_kwargs):
+    @functools.wraps(_predict_generator)
+    def predict(self, *args, **kwargs):
+        r = None
+        for r in self._predict_generator(*args, **kwargs):
+            pass
+        return r
+
+
+    def _predict_sparse_generator(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, **predict_kwargs):
         """ Sparse version of model.predict()
         Returns
         -------
@@ -571,6 +581,7 @@ class StarDistBase(BaseModel):
                     p = results_tile[2][s_src].copy()
                     p = np.moveaxis(p,channel,-1)
                     prob_classa.extend(p[inds])
+                yield
 
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
@@ -596,25 +607,33 @@ class StarDistBase(BaseModel):
         proba = proba[idx]
         dista = dista[idx]
         pointsa = pointsa[idx]
-        
+
         if self._is_multiclass():
             prob_classa = np.asarray(prob_classa).reshape((-1,self.config.n_classes+1))
             prob_classa = prob_classa[idx]
-            return proba, dista, prob_classa, pointsa
+            yield proba, dista, prob_classa, pointsa
         else:
             prob_classa = None
-            return proba, dista, pointsa
+            yield proba, dista, pointsa
 
 
-    def predict_instances(self, img, axes=None, normalizer=None,
-                          sparse=True,
-                          prob_thresh=None, nms_thresh=None,
-                          scale=None,
-                          n_tiles=None, show_tile_progress=True,
-                          verbose=False,
-                          return_labels=True,
-                          predict_kwargs=None, nms_kwargs=None,
-                          overlap_label=None, return_predict=False):
+    @functools.wraps(_predict_sparse_generator)
+    def predict_sparse(self, *args, **kwargs):
+        r = None
+        for r in self._predict_sparse_generator(*args, **kwargs):
+            pass
+        return r
+
+
+    def _predict_instances_generator(self, img, axes=None, normalizer=None,
+                                     sparse=True,
+                                     prob_thresh=None, nms_thresh=None,
+                                     scale=None,
+                                     n_tiles=None, show_tile_progress=True,
+                                     verbose=False,
+                                     return_labels=True,
+                                     predict_kwargs=None, nms_kwargs=None,
+                                     overlap_label=None, return_predict=False):
         """Predict instance segmentation from input image.
 
         Parameters
@@ -637,7 +656,7 @@ class StarDistBase(BaseModel):
             Perform non-maximum suppression that considers two objects to be the same
             when their area/surface overlap exceeds this threshold (also see `optimize_thresholds`).
         scale: None or float or iterable
-            Scale the input image internally by this factor and rescale the output accordingly. 
+            Scale the input image internally by this factor and rescale the output accordingly.
             All spatial axes (X,Y,Z) will be scaled if a scalar value is provided.
             Alternatively, multiple scale values (compatible with input `axes`) can be used
             for more fine-grained control (scale values for non-spatial axes must be 1).
@@ -698,12 +717,18 @@ class StarDistBase(BaseModel):
             verbose and print(f"scaling image by factors {scale} for axes {_axes}")
             img = ndi.zoom(img, scale, order=1)
 
+        yield 'predict'
+        res = None
         if sparse:
-            res = self.predict_sparse(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
-                                      prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs)
+            for res in self._predict_sparse_generator(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
+                                                      prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs):
+                if res is None:
+                    yield 'tile'
         else:
-            res = self.predict(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
-                               show_tile_progress=show_tile_progress, **predict_kwargs)
+            for res in self._predict_generator(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
+                                               show_tile_progress=show_tile_progress, **predict_kwargs):
+                if res is None:
+                    yield 'tile'
             res = tuple(res) + (None,)
 
         if self._is_multiclass():
@@ -712,6 +737,7 @@ class StarDistBase(BaseModel):
             prob, dist, points = res
             prob_class = None
 
+        yield 'nms'
         res_instances = self._instances_from_prediction(_shape_inst, prob, dist,
                                                         points=points,
                                                         prob_class=prob_class,
@@ -723,9 +749,17 @@ class StarDistBase(BaseModel):
                                                         **nms_kwargs)
 
         if return_predict:
-            return res_instances, tuple(res[:-1])
+            yield res_instances, tuple(res[:-1])
         else:
-            return res_instances
+            yield res_instances
+
+
+    @functools.wraps(_predict_instances_generator)
+    def predict_instances(self, *args, **kwargs):
+        r = None
+        for r in self._predict_instances_generator(*args, **kwargs):
+            pass
+        return r
 
 
     # def _predict_instances_old(self, img, axes=None, normalizer=None,
@@ -1140,7 +1174,7 @@ class StarDistPadAndCropResizer(Resizer):
         idx = np.where(np.all(points< bounds, 1))
         return idx
 
-    
+
 
 def _tf_version_at_least(version_string="1.0.0"):
     from packaging import version
