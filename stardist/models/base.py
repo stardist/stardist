@@ -494,7 +494,7 @@ class StarDistBase(BaseModel):
                 # print(s_src,s_dst)
                 for part, part_tile in zip(result, result_tile):
                     part[s_dst] = part_tile[s_src]
-                yield
+                yield  # yield None after each processed tile
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
             result = predict_direct(x)
@@ -513,11 +513,13 @@ class StarDistBase(BaseModel):
             # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
 
+        # last "yield" is the actual output that would have been "return"ed if this was a regular function
         yield tuple(result)
 
 
     @functools.wraps(_predict_generator)
     def predict(self, *args, **kwargs):
+        # return last "yield"ed value of generator
         r = None
         for r in self._predict_generator(*args, **kwargs):
             pass
@@ -581,7 +583,7 @@ class StarDistBase(BaseModel):
                     p = results_tile[2][s_src].copy()
                     p = np.moveaxis(p,channel,-1)
                     prob_classa.extend(p[inds])
-                yield
+                yield  # yield None after each processed tile
 
         else:
             # predict_direct -> prob, dist, [prob_class if multi_class]
@@ -608,6 +610,7 @@ class StarDistBase(BaseModel):
         dista = dista[idx]
         pointsa = pointsa[idx]
 
+        # last "yield" is the actual output that would have been "return"ed if this was a regular function
         if self._is_multiclass():
             prob_classa = np.asarray(prob_classa).reshape((-1,self.config.n_classes+1))
             prob_classa = prob_classa[idx]
@@ -619,6 +622,7 @@ class StarDistBase(BaseModel):
 
     @functools.wraps(_predict_sparse_generator)
     def predict_sparse(self, *args, **kwargs):
+        # return last "yield"ed value of generator
         r = None
         for r in self._predict_sparse_generator(*args, **kwargs):
             pass
@@ -717,18 +721,18 @@ class StarDistBase(BaseModel):
             verbose and print(f"scaling image by factors {scale} for axes {_axes}")
             img = ndi.zoom(img, scale, order=1)
 
-        yield 'predict'
+        yield 'predict'  # indicate that prediction is starting
         res = None
         if sparse:
             for res in self._predict_sparse_generator(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
                                                       prob_thresh=prob_thresh, show_tile_progress=show_tile_progress, **predict_kwargs):
                 if res is None:
-                    yield 'tile'
+                    yield 'tile'  # yield 'tile' each time a tile has been processed
         else:
             for res in self._predict_generator(img, axes=axes, normalizer=normalizer, n_tiles=n_tiles,
                                                show_tile_progress=show_tile_progress, **predict_kwargs):
                 if res is None:
-                    yield 'tile'
+                    yield 'tile'  # yield 'tile' each time a tile has been processed
             res = tuple(res) + (None,)
 
         if self._is_multiclass():
@@ -737,7 +741,7 @@ class StarDistBase(BaseModel):
             prob, dist, points = res
             prob_class = None
 
-        yield 'nms'
+        yield 'nms'  # indicate that non-maximum suppression is starting
         res_instances = self._instances_from_prediction(_shape_inst, prob, dist,
                                                         points=points,
                                                         prob_class=prob_class,
@@ -748,6 +752,7 @@ class StarDistBase(BaseModel):
                                                         overlap_label=overlap_label,
                                                         **nms_kwargs)
 
+        # last "yield" is the actual output that would have been "return"ed if this was a regular function
         if return_predict:
             yield res_instances, tuple(res[:-1])
         else:
@@ -756,6 +761,7 @@ class StarDistBase(BaseModel):
 
     @functools.wraps(_predict_instances_generator)
     def predict_instances(self, *args, **kwargs):
+        # return last "yield"ed value of generator
         r = None
         for r in self._predict_instances_generator(*args, **kwargs):
             pass
