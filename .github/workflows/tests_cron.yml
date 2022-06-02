@@ -37,8 +37,10 @@ jobs:
 
       - if: matrix.tensorflow == 1
         run: echo "package_extras=test,tf1" >> $GITHUB_ENV
+        shell: bash
       - if: matrix.tensorflow == 2
         run: echo "package_extras=test" >> $GITHUB_ENV
+        shell: bash
 
       - name: Install edt
         if: matrix.python-version == 3.9
