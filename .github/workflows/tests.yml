@@ -11,6 +11,7 @@ on:
 
 jobs:
   test:
+    name: Test (${{ matrix.os }}, py${{ matrix.python-version }}, tf${{ matrix.tensorflow }})
     runs-on: ${{ matrix.os }}
     env:
         SETUPTOOLS_USE_DISTUTILS: stdlib
@@ -19,37 +20,42 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
-        tensorflow: ["tensorflow", "'tensorflow<2' 'keras<2.4'"]
+        tensorflow: [1, 2]
         exclude:
             # https://www.tensorflow.org/install/pip#system-requirements
           - python-version: '3.8'
-            tensorflow: "'tensorflow<2' 'keras<2.4'"
+            tensorflow: 1
           - python-version: '3.9'
-            tensorflow: "'tensorflow<2' 'keras<2.4'"
+            tensorflow: 1
           - python-version: '3.10'
-            tensorflow: "'tensorflow<2' 'keras<2.4'"
+            tensorflow: 1
           - os: windows-latest
-            tensorflow: "'tensorflow<2' 'keras<2.4'"
+            tensorflow: 1
 
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
-      - run: pip install ${{ matrix.tensorflow }}
+      - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
       - uses: actions/checkout@v2
+
+      - if: matrix.tensorflow == 1
+        run: echo "package_extras=test,tf1" >> $GITHUB_ENV
+      - if: matrix.tensorflow == 2
+        run: echo "package_extras=test" >> $GITHUB_ENV
 
       - name: Install edt
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
       - name: Install package
-        run: pip install ".[test]"
+        run: pip install ".[${{env.package_extras}}]"
 
       - name: Install bioimage.io dependencies
         if: |
           matrix.python-version >= 3.7 &&
-          matrix.tensorflow != 'tensorflow'
+          matrix.tensorflow == 1
         run: pip install ".[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
