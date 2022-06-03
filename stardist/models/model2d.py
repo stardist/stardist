@@ -435,7 +435,7 @@ class StarDist2D(StarDistBase):
             if self._is_multiclass():
                 _n = min(3, self.config.n_classes)
                 output_slices += [[slice(None)]*4]
-                output_slices[2][1+channel] = slice(1,1+((self.config.n_classes+1)//_n)*_n, self.config.n_classes//_n)
+                output_slices[2][1+channel] = slice(1,1+(self.config.n_classes//_n)*_n, self.config.n_classes//_n)
 
             if IS_TF_1:
                 for cb in self.callbacks:
@@ -486,7 +486,7 @@ class StarDist2D(StarDistBase):
     #     return labels, res_dict
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points=None, prob_class=None, prob_thresh=None, nms_thresh=None, overlap_label=None, return_labels=True, scale=None, **nms_kwargs):
         """
         if points is None     -> dense prediction
         if points is not None -> sparse prediction
@@ -512,12 +512,23 @@ class StarDist2D(StarDistBase):
                 inds = tuple(p//g for p,g in zip(points.T, self.config.grid))
                 prob_class = prob_class[inds]
 
+        if scale is not None:
+            # need to undo the scaling given by the scale dict, e.g. scale = dict(X=0.5,Y=0.5):
+            #   1. re-scale points (origins of polygons)
+            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons 
+            if not (isinstance(scale,dict) and 'X' in scale and 'Y' in scale):
+                raise ValueError("scale must be a dictionary with entries for 'X' and 'Y'")
+            rescale = (1/scale['Y'],1/scale['X'])
+            points = points * np.array(rescale).reshape(1,2)
+        else:
+            rescale = (1,1)
+
         if return_labels:
-            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape)
+            labels = polygons_to_label(disti, points, prob=probi, shape=img_shape, scale_dist=rescale)
         else:
             labels = None
 
-        coord = dist_to_coord(disti, points)
+        coord = dist_to_coord(disti, points, scale_dist=rescale)
         res_dict = dict(coord=coord, points=points, prob=probi)
 
         # multi class prediction

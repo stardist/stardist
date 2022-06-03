@@ -7,17 +7,21 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+        SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
         tensorflow: ["tensorflow", "'tensorflow<2' 'keras<2.4'"]
         exclude:
             # https://www.tensorflow.org/install/pip#system-requirements
-          - python-version: 3.8
+          - python-version: '3.8'
             tensorflow: "'tensorflow<2' 'keras<2.4'"
-          - python-version: 3.9
+          - python-version: '3.9'
+            tensorflow: "'tensorflow<2' 'keras<2.4'"
+          - python-version: '3.10'
             tensorflow: "'tensorflow<2' 'keras<2.4'"
           - os: windows-latest
             tensorflow: "'tensorflow<2' 'keras<2.4'"
@@ -34,23 +38,18 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
-      - name: Install package from source (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew config
-          brew install gcc@9
-          pip install --no-binary stardist "stardist[test]"
-        env:
-          CC: /usr/local/bin/gcc-9
-          CXX: /usr/local/bin/g++-9
-
-      - name: Install package from source (Linux and Windows)
-        if: startsWith(matrix.os, 'macos') == false
+      - name: Install package from source (just to test wheel building)
         run: pip install --no-binary stardist "stardist[test]"
 
-      # - name: Install package from wheel
-      #   run: |
-      #     pip uninstall -y stardist
-      #     pip install --no-cache-dir --only-binary stardist "stardist>0"
+      - name: Install package from wheel
+        run: |
+          pip uninstall -y stardist
+          pip install --no-cache-dir --only-binary stardist "stardist[test]>0"
+
+      - name: Install bioimage.io dependencies
+        if: |
+          matrix.python-version >= 3.7 &&
+          matrix.tensorflow != 'tensorflow'
+        run: pip install "stardist[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"

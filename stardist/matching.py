@@ -9,6 +9,7 @@ from csbdeep.utils import _raise
 
 matching_criteria = dict()
 
+
 def label_are_sequential(y):
     """ returns true if y has only sequential labels from 1... """
     labels = np.unique(y)
@@ -49,6 +50,7 @@ def _label_overlap(x, y):
     for i in range(len(x)):
         overlap[x[i],y[i]] += 1
     return overlap
+
 
 def _safe_divide(x,y, eps=1e-10):
     """computes a safe divide which returns 0 if y is zero"""
@@ -124,6 +126,7 @@ def matching(y_true, y_pred, thresh=0.5, criterion='iou', report_matches=False):
     ----------
     y_true: ndarray
         ground truth label image (integer valued)
+    y_pred: ndarray
         predicted label image (integer valued)
     thresh: float
         threshold for matching criterion (default 0.5)
@@ -403,63 +406,78 @@ def relabel_sequential(label_field, offset=1):
 
 
 
-def match_labels(ys, iou_threshold=0):
+def group_matching_labels(ys, thresh=1e-10, criterion='iou'):
     """
-    Matches object ids in a list of label images based on a matching criterion.
+    Group matching objects (i.e. assign the same label id) in a
+    list of label images (e.g. consecutive frames of a time-lapse).
 
-    For i=0..len(ys)-1 consecutively matches ys[i+1] with ys[i], 
-    matching objects retain their id, non matched objects will be assigned a new id 
+    Uses function `matching` (with provided `criterion` and `thresh`) to
+    iteratively/greedily match and group objects/labels in consecutive images of `ys`.
+    To that end, matching objects are grouped together by assigning the same label id,
+    whereas unmatched objects are assigned a new label id.
+    At the end of this process, each label group will have been assigned a unique id.
+
+    Note that the label images `ys` will not be modified. Instead, they will initially
+    be duplicated and converted to data type `np.int32` before objects are grouped and the result
+    is returned. (Note that `np.int32` limits the number of label groups to at most 2147483647.)
 
     Example
     -------
-    
     import numpy as np
     from stardist.data import test_image_nuclei_2d
-    from stardist.matching import match_labels
+    from stardist.matching import group_matching_labels
 
     _y = test_image_nuclei_2d(return_mask=True)[1]
     labels = np.stack([_y, 2*np.roll(_y,10)], axis=0)
 
-    labels_new = match_labels(labels)
+    labels_new = group_matching_labels(labels)
 
     Parameters
     ----------
-    ys : np.ndarray, tuple of np.ndarray
-          list/array of integer labels (2D or 3D)
+    ys : np.ndarray or list/tuple of np.ndarray
+        list/array of integer labels (2D or 3D)
+    
     """
-   
-    from stardist.matching import matching
+    # check 'ys' without making a copy
+    len(ys) > 1 or _raise(ValueError("'ys' must have 2 or more entries"))
+    if isinstance(ys, np.ndarray):
+        _check_label_array(ys, 'ys')
+        ys.ndim > 1 or _raise(ValueError("'ys' must be at least 2-dimensional"))
+        ys_grouped = np.empty_like(ys, dtype=np.int32)
+    else:
+        all(_check_label_array(y, 'ys') for y in ys) or _raise(ValueError("'ys' must be a list of label images"))
+        all(y.shape==ys[0].shape for y in ys) or _raise(ValueError("all label images must have the same shape"))
+        ys_grouped = np.empty((len(ys),)+ys[0].shape, dtype=np.int32)
 
-    ys = np.asarray(ys)
-    if not ys.ndim in (3,4):
-        raise ValueError('label image y should be 3 or 4 dimensional!')
-
-    def _match_single(x, y):
-        res = matching(x,y, report_matches=True, thresh=0)
-
-        pairs = tuple(p for p,s in zip(res.matched_pairs, res.matched_scores) if s>= iou_threshold)
-        map_dict = dict((i2,i1) for i1,i2 in pairs)
-
-        y2 = np.zeros_like(y)
-        y_labels = set(np.unique(y)) - {0}
-
-        # labels that can be used for non-matched objects
-        label_reservoir = list(set(np.arange(1,len(y_labels)+1)) - set(map_dict.values()))
+    def _match_single(y_prev, y, next_id):
+        y = y.astype(np.int32, copy=False)
+        res = matching(y_prev, y, report_matches=True, thresh=thresh, criterion=criterion)
+        # relabel dict (for matching labels) that maps label ids from y -> y_prev 
+        relabel = dict(reversed(res.matched_pairs[i]) for i in res.matched_tps)
+        y_grouped = np.zeros_like(y)
         for r in regionprops(y):
             m = (y[r.slice] == r.label)
-            if r.label in map_dict:
-                y2[r.slice][m] = map_dict[r.label]
+            if r.label in relabel:
+                y_grouped[r.slice][m] = relabel[r.label]
             else:
-                y2[r.slice][m] = label_reservoir.pop(0)
+                y_grouped[r.slice][m] = next_id
+                next_id += 1
+        return y_grouped, next_id
 
-        return y2
-
-    ys_new = ys.copy()
-
+    ys_grouped[0] = ys[0]
+    next_id = ys_grouped[0].max() + 1
     for i in range(len(ys)-1):
-        ys_new[i+1] = _match_single(ys_new[i], ys[i+1])
+        ys_grouped[i+1], next_id = _match_single(ys_grouped[i], ys[i+1], next_id)
+    return ys_grouped
 
-    return ys_new
 
-    
-    
+
+def _shuffle_labels(y):
+    _check_label_array(y, 'y')
+    y2 = np.zeros_like(y)
+    ids = tuple(set(np.unique(y)) - {0})
+    relabel = dict(zip(ids,np.random.permutation(ids)))
+    for r in regionprops(y):
+        m = (y[r.slice] == r.label)
+        y2[r.slice][m] = relabel[r.label]
+    return y2
