@@ -1,6 +1,6 @@
 """
 
-Command line script to perform prediction in 2D
+Command line script to perform prediction in 3D
 
 """
 

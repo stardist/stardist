@@ -28,7 +28,7 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
     group.add_argument('-m', '--model', type=str, default=None, help = "model folder / pretrained model to use")
     parser.add_argument("--axes", type=str, default = None, help = "axes to use for the input, e.g. 'XYC'")
     parser.add_argument("--n_tiles", type=int, nargs=2, default = None, help = "number of tiles to use for prediction")
-    parser.add_argument("--pnorm", type=float, nargs=2, default = [3,99.8], help = "pmin/pmax to use for normalization")
+    parser.add_argument("--pnorm", type=float, nargs=2, default = [1,99.8], help = "pmin/pmax to use for normalization")
     parser.add_argument("--prob_thresh", type=float, default=None, help = "prob_thresh for model (if not given use model default)")
     parser.add_argument("--nms_thresh", type=float, default=None, help = "nms_thresh for model (if not given use model default)")
     
@@ -41,7 +41,7 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
     from csbdeep.models.base_model import get_registered_models
     from stardist.models import StarDist2D
     from imageio import imread
-    from tifffile import imsave
+    from tifffile import imwrite
 
     get_registered_models(StarDist2D, verbose=True)
 
@@ -83,7 +83,7 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
         out = pathlib.Path(args.outdir)
         out.mkdir(parents=True,exist_ok=True)
 
-        imsave(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels, compress=3)
+        imwrite(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels, compress=3)
         
 
 if __name__ == '__main__':
