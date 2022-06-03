@@ -137,4 +137,11 @@ setup(
         "bioimageio": ["bioimageio.core>=0.5.0","importlib-metadata"],
     },
 
+    entry_points = {
+        'console_scripts': [
+            'stardist-predict2d = stardist.scripts.predict2d:main',
+            'stardist-predict3d = stardist.scripts.predict3d:main',
+        ],
+    }
+
 )
