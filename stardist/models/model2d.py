@@ -309,8 +309,8 @@ class Config2D(BaseConfig):
 
 
     @classmethod
-    def parse_loaded_config(cls, conf):
-        conf = super().parse_loaded_config(conf)
+    def update_loaded_config(cls, conf):
+        conf = super().update_loaded_config(conf)
         # backward-compatible defaults if new parameters are not present
         conf.setdefault('head_blocks', 0)
         conf.setdefault('n_classes',None)
