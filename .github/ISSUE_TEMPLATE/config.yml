@@ -3,7 +3,7 @@ blank_issues_enabled: true  # default
 contact_links:
 - name: 🙋 Question/Help/Support
   url: https://forum.image.sc/tag/stardist
-  about: The image.sc forum is the best place to get help in general (use tag `stardist`).
-- name: '❓❗StarDist Docs & FAQ'
+  about: The image.sc forum is the best place to get help in general (use tag "stardist")
+- name: '❗StarDist Docs & FAQ'
   url: https://stardist.net
-  about: Please check the documentation and frequently asked questions first.
+  about: Please check the documentation and frequently asked questions first
