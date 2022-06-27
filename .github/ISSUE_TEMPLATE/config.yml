@@ -1,0 +1,10 @@
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository#configuring-the-template-chooser
+blank_issues_enabled: true  # default
+contact_links:
+- name: StarDist forum
+  url: https://forum.image.sc/tag/stardist
+  about: |
+    The place to get help in general
+- name: 'StarDist FAQ'
+  url: https://stardist.net
+  about: Frequently Asked Questions
