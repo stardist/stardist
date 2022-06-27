@@ -226,7 +226,7 @@ DatasetMatching(criterion='iou', thresh=0.5, fp=176, tp=74, fn=176, precision=0.
 ## Troubleshooting & Support
 
 1. Please first take a look at the [frequently asked questions (FAQ)]( https://stardist.net/docs/faq.html).
-2. If you need further help, please go to the [image.sc forum](https://forum.image.sc) and try to find out if the issue you're having has already been discussed or solved by other people. If not, feel free to create a new topic there and make sure to use the tag `stardist` (we are monitoring all questions with this tag).
+2. If you need further help, please go to the [image.sc forum](https://forum.image.sc) and try to find out if the issue you're having has already been discussed or solved by other people. If not, feel free to create a new topic there and make sure to use the tag `stardist` (we are monitoring all questions with this tag). When opening a new topic, please provide a clear and concise description to understand and ideally reproduce the issue you're having (e.g. including a code snippet, Python script, or Jupyter notebook).
 3. If you have a technical question related to the source code or believe to have found a bug, feel free to [open an issue](https://github.com/stardist/stardist/issues), but please check first if someone already created a similar issue.
 
 ### Installation
