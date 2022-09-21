@@ -21,7 +21,8 @@ def _test_pretrained(tmp_path, model_name, test_image, model_type=StarDist2D, te
     assert export_path.exists()
     # test exported model
     res = _test_model(export_path)
-    assert not res["error"]
+    failed = [r for r in res if r["status"] != "passed"]
+    assert len(failed) == 0, failed
     # import exported model
     import_path = tmp_path / f"{model_name}_imported"
     model_imported = import_bioimageio(export_path, import_path)
