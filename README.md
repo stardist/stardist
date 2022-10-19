@@ -248,8 +248,8 @@ If you use `conda` on macOS and after `import stardist` see errors similar to `S
 
 ##### Apple Silicon
 
-As of StarDist 0.8.2, we provide `arm64` wheels that should work with macOS on Apple M1. 
-We recommend setting up an `arm64` `conda` environment with GPU-accelerated TensorFlow following [Apple's instructions](https://developer.apple.com/metal/tensorflow-plugin/) (ensure you are using macOS 12 Monterrey or newer) using [conda-forge miniforge3 or mambaforge](https://github.com/conda-forge/miniforge). Then install `stardist` using `pip`.
+As of StarDist 0.8.2, we provide `arm64` wheels that should work with [macOS on Apple Silicon](https://support.apple.com/en-us/HT211814) (M1 chip or newer). 
+We recommend setting up an `arm64` `conda` environment with GPU-accelerated TensorFlow following [Apple's instructions](https://developer.apple.com/metal/tensorflow-plugin/) (ensure you are using macOS 12 Monterey or newer) using [conda-forge miniforge3 or mambaforge](https://github.com/conda-forge/miniforge). Then install `stardist` using `pip`.
 ```
 conda create -y -n stardist-env python=3.9   
 conda activate stardist-env
