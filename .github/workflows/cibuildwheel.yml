@@ -26,10 +26,10 @@ jobs:
         py: [cp36, cp37, cp38, cp39, cp310]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         name: Checkout repository
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.x'
@@ -79,7 +79,7 @@ jobs:
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # CIBW_TEST_SKIP: "*musllinux*"
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         name: Upload wheels
         with:
           name: dist
@@ -90,13 +90,13 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         name: Checkout repository
 
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         name: Upload sdist
         with:
           name: dist
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         name: Download wheels and sdist
         with:
           name: dist
