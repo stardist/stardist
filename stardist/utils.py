@@ -365,9 +365,9 @@ def mask_to_categorical(y, n_classes, classes, return_cls_dict=False):
     for cls, labels in cls_dict.items():
         if cls is None:
             # prob == -1 will be used in the loss to ignore object
-            y_mask[np.isin(y, labels)] = -1
+            y_mask[np.isin(y, labels), :] = -1
         elif np.issubdtype(type(cls), np.integer) and 0 <= cls <= n_classes:
-            y_mask[...,cls] = np.isin(y, labels)
+            y_mask[np.isin(y, labels), cls] = 1
         else:
             raise ValueError(f"Wrong class id '{cls}' (for n_classes={n_classes})")
 
