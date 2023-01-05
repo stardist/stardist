@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-20.04, windows-latest, macos-latest]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
         tensorflow: [1, 2]
         exclude:
@@ -33,12 +33,12 @@ jobs:
             tensorflow: 1
 
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
       - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - if: matrix.tensorflow == 1
         run: echo "package_extras=test,tf1" >> $GITHUB_ENV
@@ -51,15 +51,15 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
-      # should also work with clang, but there are
-      # openmp-related symbol issues just when using Python 3.6?
-      - name: Use GCC on macOS
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew config
-          brew install gcc@9
-          echo "CC=/usr/local/bin/gcc-9" >> $GITHUB_ENV
-          echo "CXX=/usr/local/bin/g++-9" >> $GITHUB_ENV
+      # # should also work with clang, but there are
+      # # openmp-related symbol issues just when using Python 3.6?
+      # - name: Use GCC on macOS
+      #   if: startsWith(matrix.os, 'macos')
+      #   run: |
+      #     brew config
+      #     brew install gcc@9
+      #     echo "CC=/usr/local/bin/gcc-9" >> $GITHUB_ENV
+      #     echo "CXX=/usr/local/bin/g++-9" >> $GITHUB_ENV
 
       - name: Install package
         run: pip install ".[${{env.package_extras}}]"
