@@ -60,11 +60,9 @@ jobs:
 
       - name: foo
         run: |
-          pwd
-          # mkdir -p /tmp1
-          # mkdir -p /tmp2
-          # mkdir -p /tmp3
-          ls -la /
+          # pwd
+          # mkdir -p /tmp
+          ls -la /tmp
         shell: bash
 
       # - run: pip download --dest . --no-binary stardist stardist
@@ -81,7 +79,7 @@ jobs:
         env:
           # TEMP: "/tmp1"
           # TMPDIR: "/tmp2"
-          TMP: "/tmp3" # <-- only this is used on windows
+          TMP: "/tmp" # <-- only this is used on windows
 
 
 
