@@ -53,5 +53,8 @@ jobs:
       #   if: matrix.python-version == 3.9
       #   run: pip install edt "numpy>=1.20"
 
-      - name: Install package from source (just to test wheel building)
-        run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
+      - name: build wheel directly
+        run: pip wheel --no-binary stardist stardist
+
+      # - name: Install package from source (just to test wheel building)
+      #   run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
