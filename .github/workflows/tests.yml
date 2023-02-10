@@ -71,4 +71,3 @@ jobs:
         run: pip install ".[bioimageio]"
 
       - run: pytest -v --durations=50 -m "not gpu"
-      
