@@ -63,7 +63,7 @@ jobs:
           TMPDIR: "/d/a/stardist/stardist/tmp"
 
       - name: build wheel directly
-        run: pip wheel -v --build-option "bdist-dir=/d/a/stardist/stardist/tmp" stardist
+        run: pip wheel -v --config-settings "bdist-dir=/d/a/stardist/stardist/tmp" stardist
         # env:
         #   TMPDIR: "/d/a/stardist/stardist/tmp"
 
