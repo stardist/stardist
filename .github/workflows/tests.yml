@@ -53,17 +53,21 @@ jobs:
       #   if: matrix.python-version == 3.9
       #   run: pip install edt "numpy>=1.20"
 
-      - name: foo
-        run: |
-          mkdir tmp
-          ls -la
-          echo $TMPDIR
-        shell: bash
-        env:
-          TMPDIR: "/d/a/stardist/stardist/tmp"
+      # - name: foo
+      #   run: |
+      #     mkdir tmp
+      #     ls -la
+      #     echo $TMPDIR
+      #   shell: bash
+      #   env:
+      #     TMPDIR: "/d/a/stardist/stardist/tmp"
 
-      - run: pip download -v --dest . --no-binary stardist stardist
-      - run: pip install -v ./stardist-0.8.3.tar.gz
+      # - run: pip download -v --dest . --no-binary stardist stardist
+      # - run: pip install -v ./stardist-0.8.3.tar.gz
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - run: pip install -v --no-binary stardist stardist
 
 
       # - name: build wheel
