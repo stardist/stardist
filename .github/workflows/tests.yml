@@ -62,10 +62,8 @@ jobs:
         env:
           TMPDIR: "/d/a/stardist/stardist/tmp"
 
-      - name: build wheel
-        run: |
-          pip download -v --dest . --no-binary stardist stardist
-          pip install -v ./stardist.tar.gz
+      - run: pip download -v --dest . --no-binary stardist stardist
+      - run: pip install -v ./stardist-0.8.3.tar.gz
 
 
       # - name: build wheel
