@@ -57,8 +57,8 @@ jobs:
       - name: foo
         run: |
           pwd
-          mkdir tmp
-          ls -la
+          mkdir -p /tmp
+          ls -la /
         shell: bash
 
       # - run: pip download --dest . --no-binary stardist stardist
@@ -73,9 +73,9 @@ jobs:
 
       - run: pip install -v --no-binary stardist stardist
         env:
-          TEMP: "/d/a/stardist/stardist/tmp"
-          TMPDIR: "/d/a/stardist/stardist/tmp"
-          TMP: "/d/a/stardist/stardist/tmp"
+          TEMP: "/tmp"
+          TMPDIR: "/tmp"
+          TMP: "/tmp"
 
 
 
