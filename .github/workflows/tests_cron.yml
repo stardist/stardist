@@ -48,6 +48,10 @@ jobs:
 
       - name: Install package from source (just to test wheel building)
         run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
+        env:  # cf. https://github.com/pypa/pip/issues/11231
+          TEMP: "/tmp"    # notes:
+          TMPDIR: "/tmp"  # - /tmp should already exist on runner image
+          TMP: "/tmp"     # - set all temp-related env variables (had issues with when omitting some)
 
       - name: Install package from wheel
         run: |
