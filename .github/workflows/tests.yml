@@ -63,9 +63,9 @@ jobs:
           TMPDIR: "/d/a/stardist/stardist/tmp"
 
       - name: build wheel directly
-        run: pip wheel --no-binary stardist stardist
-        env:
-          TMPDIR: "/d/a/stardist/stardist/tmp"
+        run: pip wheel --build-option "bdist-dir=/d/a/stardist/stardist/tmp" --no-binary stardist stardist
+        # env:
+        #   TMPDIR: "/d/a/stardist/stardist/tmp"
 
       # - name: Install package from source (just to test wheel building)
       #   run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
