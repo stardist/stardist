@@ -3,9 +3,6 @@ name: Test (PyPI)
 on:
   schedule:
     - cron: "0 18 * * 1,3,5"
-  push:
-    branches-ignore:
-      - wheels
 
 jobs:
   test:
@@ -17,8 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-latest, macos-latest]
-        # python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
-        python-version: ['3.10']
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
         tensorflow: [1, 2]
         exclude:
             # https://www.tensorflow.org/install/pip#system-requirements
