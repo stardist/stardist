@@ -57,7 +57,9 @@ jobs:
       - name: foo
         run: |
           pwd
-          mkdir -p /tmp
+          mkdir -p /tmp1
+          mkdir -p /tmp2
+          mkdir -p /tmp3
           ls -la /
         shell: bash
 
@@ -73,9 +75,9 @@ jobs:
 
       - run: pip install -v --no-binary stardist stardist
         env:
-          TEMP: "/tmp"
-          TMPDIR: "/tmp"
-          TMP: "/tmp"
+          TEMP: "/tmp1"
+          TMPDIR: "/tmp2"
+          TMP: "/tmp3"
 
 
 
