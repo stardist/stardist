@@ -3,6 +3,9 @@ name: Test (PyPI)
 on:
   schedule:
     - cron: "0 18 * * 1,3,5"
+  push:
+    branches-ignore:
+      - wheels
 
 jobs:
   test:
@@ -46,12 +49,19 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
+      - name: Set temp dir on Windows
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          echo "TEMP=/tmp" >> $GITHUB_ENV
+          echo "TMPDIR=/tmp" >> $GITHUB_ENV
+          echo "TMP=/tmp" >> $GITHUB_ENV
+
       - name: Install package from source (just to test wheel building)
         run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
-        env:  # cf. https://github.com/pypa/pip/issues/11231
-          TEMP: "/tmp"    # notes:
-          TMPDIR: "/tmp"  # - /tmp should already exist on runner image
-          TMP: "/tmp"     # - set all temp-related env variables (had issues with when omitting some)
+        # env:  # cf. https://github.com/pypa/pip/issues/11231
+        #   TEMP: "/tmp"    # notes:
+        #   TMPDIR: "/tmp"  # - /tmp should already exist on runner image
+        #   TMP: "/tmp"     # - set all temp-related env variables (had issues with when omitting some)
 
       - name: Install package from wheel
         run: |
