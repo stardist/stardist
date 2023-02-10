@@ -61,13 +61,13 @@ jobs:
           ls -la
         shell: bash
 
-      - run: pip download --dest . --no-binary stardist stardist
-      - run: pip install -v ./stardist-0.8.3.tar.gz
-        # env:
-        #   TEMP: "/d/a/stardist/stardist/tmp"
-        #   TMPDIR: "/d/a/stardist/stardist/tmp"
-        #   TMP: "/d/a/stardist/stardist/tmp"
-      - run: pip uninstall --yes stardist
+      # - run: pip download --dest . --no-binary stardist stardist
+      # - run: pip install -v ./stardist-0.8.3.tar.gz
+      #   # env:
+      #   #   TEMP: "/d/a/stardist/stardist/tmp"
+      #   #   TMPDIR: "/d/a/stardist/stardist/tmp"
+      #   #   TMP: "/d/a/stardist/stardist/tmp"
+      # - run: pip uninstall --yes stardist
 
       # - uses: ilammy/msvc-dev-cmd@v1
 
