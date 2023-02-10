@@ -40,7 +40,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
       # - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-      - uses: actions/checkout@v3
+      # - uses: actions/checkout@v3
 
       # - if: matrix.tensorflow == 1
       #   run: echo "package_extras=test,tf1" >> $GITHUB_ENV
@@ -63,7 +63,7 @@ jobs:
           TMPDIR: "/d/a/stardist/stardist/tmp"
 
       - name: build wheel directly
-        run: pip wheel --build-option "bdist-dir=/d/a/stardist/stardist/tmp" --no-binary stardist stardist
+        run: pip wheel -v --build-option "bdist-dir=/d/a/stardist/stardist/tmp" stardist
         # env:
         #   TMPDIR: "/d/a/stardist/stardist/tmp"
 
