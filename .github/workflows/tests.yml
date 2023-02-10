@@ -56,7 +56,7 @@ jobs:
 
       - name: foo
         run: |
-          mkdir /42
+          mkdir /tmp3
         shell: bash
 
       # - run: pip download --dest . --no-binary stardist stardist
@@ -73,7 +73,7 @@ jobs:
         env:
           # TEMP: "/tmp1"
           # TMPDIR: "/tmp2"
-          TMP: "/42" # <-- only this is used on windows
+          TMP: "/tmp3" # <-- only this is used on windows
 
 
 
