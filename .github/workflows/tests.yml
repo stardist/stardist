@@ -35,26 +35,34 @@ jobs:
             tensorflow: 1
 
     steps:
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: python -m pip install --upgrade pip wheel setuptools
+      # - uses: actions/setup-python@v4
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
+      # - run: python -m pip install --upgrade pip wheel setuptools
       # - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-      - uses: actions/checkout@v3
+      # - uses: actions/checkout@v3
 
-      - if: matrix.tensorflow == 1
-        run: echo "package_extras=test,tf1" >> $GITHUB_ENV
-        shell: bash
-      - if: matrix.tensorflow == 2
-        run: echo "package_extras=test" >> $GITHUB_ENV
-        shell: bash
+      # - if: matrix.tensorflow == 1
+      #   run: echo "package_extras=test,tf1" >> $GITHUB_ENV
+      #   shell: bash
+      # - if: matrix.tensorflow == 2
+      #   run: echo "package_extras=test" >> $GITHUB_ENV
+      #   shell: bash
 
       # - name: Install edt
       #   if: matrix.python-version == 3.9
       #   run: pip install edt "numpy>=1.20"
 
-      - name: build wheel directly
-        run: pip wheel --no-binary stardist stardist
+      - name: foo
+        run: |
+          ls -la /
+          pwd
+          mkdir tmp
+          ls -la
+        shell: bash
+
+      # - name: build wheel directly
+      #   run: pip wheel --no-binary stardist stardist
 
       # - name: Install package from source (just to test wheel building)
       #   run: pip install --no-binary stardist "stardist[${{env.package_extras}}]"
