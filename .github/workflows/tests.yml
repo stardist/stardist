@@ -68,7 +68,7 @@ jobs:
 
       - run: pip install -v --no-binary stardist stardist
         env:
-          TMPDIR: "/d/a/stardist/stardist/tmp"
+          TEMP: "/d/a/stardist/stardist/tmp"
 
 
 
