@@ -73,7 +73,7 @@ jobs:
 
       - run: pip install -v --no-binary stardist stardist
         env:
-          TEMP: "/tmp1"
+          # TEMP: "/tmp1"
           TMPDIR: "/tmp2"
           TMP: "/tmp3" # <-- only this is used on windows
 
