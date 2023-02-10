@@ -54,15 +54,9 @@ jobs:
       #   if: matrix.python-version == 3.9
       #   run: pip install edt "numpy>=1.20"
 
-      - name: Check LongPathsEnabled
-        run: |
-          (Get-ItemProperty "HKLM:System\CurrentControlSet\Control\FileSystem").LongPathsEnabled
-
       - name: foo
         run: |
-          # pwd
-          # mkdir -p /tmp
-          ls -la /tmp
+          mkdir /42
         shell: bash
 
       # - run: pip download --dest . --no-binary stardist stardist
@@ -79,7 +73,7 @@ jobs:
         env:
           # TEMP: "/tmp1"
           # TMPDIR: "/tmp2"
-          TMP: "/tmp" # <-- only this is used on windows
+          TMP: "/42" # <-- only this is used on windows
 
 
 
