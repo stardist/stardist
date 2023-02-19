@@ -138,7 +138,7 @@ Although each of these provide decent annotation tools, we currently recommend u
 #### Annotating with LabKit (2D or 3D)
 
 1. Install [Fiji](https://fiji.sc) and the [Labkit](https://imagej.net/Labkit) plugin
-2. Open the (2D or 3D) image and start Labkit via `Plugins > Segmentation > Labkit`
+2. Open the (2D or 3D) image and start Labkit via `Plugins > Labkit > Open Current Image With Labkit`
 3. Successively add a new label and annotate a single cell instance with the brush tool until *all* cells are labeled.  
    (Always disable `allow overlapping labels` or – in older versions of LabKit – enable the `override` option.) 
 4. Export the label image via `Save Labeling...` and `File format > TIF Image`
