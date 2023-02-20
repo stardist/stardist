@@ -113,7 +113,7 @@ setup(
         'scikit-learn',
         'opencv-python',
         'pandas',
-        'git+https://github.com/stardist/augmend.git'
+        'augmend @ git+https://github.com/stardist/augmend.git'
     ],
 
     extras_require={
