@@ -1,3 +1,11 @@
+<h1 align="center">
+
+:trophy: [2022 CoNIC Challenge Code](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022) :trophy:
+
+</h1>
+
+---
+
 [![PyPI version](https://badge.fury.io/py/stardist.svg)](https://pypi.org/project/stardist)
 [![Test](https://github.com/stardist/stardist/workflows/Test/badge.svg)](https://github.com/stardist/stardist/actions?query=workflow%3ATest)
 [![Test (PyPI)](https://github.com/stardist/stardist/workflows/Test%20(PyPI)/badge.svg)](https://github.com/stardist/stardist/actions?query=workflow%3A%22Test+%28PyPI%29%22)
