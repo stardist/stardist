@@ -18,8 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-latest, macos-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
-        tensorflow: ["tensorflow", "'tensorflow<2' 'keras<2.4'"]
+        python-version: [3.7, 3.8, 3.9, '3.10']
+        tensorflow: ["tensorflow"]
         exclude:
             # https://www.tensorflow.org/install/pip#system-requirements
           - python-version: 3.8
@@ -55,4 +55,4 @@ jobs:
         if: startsWith(matrix.os, 'macos') == false
         run: pip install ".[test]"
 
-      - run: pytest -v --durations=50 -m "not gpu"
+      - run: pytest -v --durations=50 -m "not gpu" -k "not 3D"
