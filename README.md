@@ -1,6 +1,6 @@
 <h1 align="center">
 
-:trophy: [2022 CoNIC Challenge Code](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022) :trophy:
+:trophy: [CoNIC Challenge 2022](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022) :trophy:
 
 </h1>
 
