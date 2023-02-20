@@ -19,7 +19,7 @@ def create_random_suppressed(shape=(356, 299), grid = (1,1), radius=10, noise=.1
     prob, dist = create_random_data(shape, radius, noise, n_rays)
     prob = prob[::grid[0],::grid[1]]
     dist = dist[::grid[0],::grid[1]]
-    points, probi, disti = non_maximum_suppression(dist, prob, prob_thresh=0.9,
+    points, probi, disti, _ = non_maximum_suppression(dist, prob, prob_thresh=0.9,
                                   nms_thresh=nms_thresh,
                                   verbose=True)
     img = polygons_to_label(disti, points, prob=probi, shape=shape)
@@ -68,7 +68,7 @@ def test_acc_old(img, grid):
 def test_acc(img, grid):
     prob = edt_prob(img)[::grid[0],::grid[1]]
     dist = star_dist(img, n_rays=32, mode="cpp")[::grid[0],::grid[1]]
-    points, probi, disti = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.4)
+    points, probi, disti, _ = non_maximum_suppression(dist, prob, grid = grid, prob_thresh=0.4)
     img2 = polygons_to_label(disti, points, shape=img.shape)
     m = matching(img, img2)
     acc = m.accuracy
@@ -95,7 +95,7 @@ def test_old_new(shape, n_rays, grid, radius=10, noise=.1, nms_thresh=.3):
     sort_ind = np.argsort(prob[tuple(inds1.T)])[::-1]
     points1 = points1[sort_ind]
 
-    points2, probi2, disti2 = non_maximum_suppression(dist, prob,
+    points2, probi2, disti2, _ = non_maximum_suppression(dist, prob,
                                                       grid = grid, prob_thresh=0.9,
                                                       nms_thresh=nms_thresh,
                                                       verbose=True)
@@ -137,7 +137,7 @@ def test_speed(nms_thresh = 0.3, grid = (1,1)):
 
     t2 = time()
 
-    points2, probi2, disti2 = non_maximum_suppression(dist, prob,
+    points2, probi2, disti2, _ = non_maximum_suppression(dist, prob,
                                                       grid = grid, prob_thresh=0.9,
                                                       nms_thresh=nms_thresh,
                                                       use_kdtree = True,
@@ -177,7 +177,7 @@ def bench():
         _dist = np.tile(dist, (n,n,1))
 
         t = time()
-        points2, probi2, disti2 = non_maximum_suppression(_dist, _prob,
+        points2, probi2, disti2, _ = non_maximum_suppression(_dist, _prob,
                                                           prob_thresh=prob_thresh,
                                                           nms_thresh=.2,
                                                           use_kdtree = True,
