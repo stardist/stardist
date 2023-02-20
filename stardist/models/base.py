@@ -180,7 +180,7 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
     weights = np.broadcast_to(weights, shape)
     weights = K.constant(weights)
 
-    print(gamma)
+    # print(gamma)
     assert alpha>=0 and alpha<=1.
     
     def weighted_dice(y_true, y_pred):
@@ -387,7 +387,7 @@ class StarDistBase(BaseModel):
 
         """
         if optimizer is None:
-            optimizer = Adam(lr=self.config.train_learning_rate)
+            optimizer = Adam(self.config.train_learning_rate)
 
         masked_dist_loss = {'mse': masked_loss_mse,
                             'mae': masked_loss_mae,
@@ -418,9 +418,8 @@ class StarDistBase(BaseModel):
         if self._is_multiclass():
             # prob_class_loss = compound_dice_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
             prob_class_loss = compound_tversky_cce(self.config.train_class_weights, ndim=self.config.n_dim, gamma=self.config.train_focal_gamma)
-            
-            print(f'class_weights: {self.config.train_class_weights}')
-            print(f'focal_gamma:   {self.config.train_focal_gamma}')
+            # print(f'class_weights: {self.config.train_class_weights}')
+            # print(f'focal_gamma:   {self.config.train_focal_gamma}')
             
             loss = [prob_loss, dist_loss, prob_class_loss]
         else:

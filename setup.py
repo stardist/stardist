@@ -110,6 +110,10 @@ setup(
         'scikit-image',
         'numba',
         'imageio',
+        'scikit-learn',
+        'opencv-python',
+        'pandas',
+        'git+https://github.com/stardist/augmend.git'
     ],
 
     extras_require={
