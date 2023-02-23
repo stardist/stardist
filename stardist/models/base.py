@@ -1066,8 +1066,8 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict(x)[0][0,...,0]
-        y0 = self.keras_model.predict(z)[0][0,...,0]
+        y  = self.keras_model.predict(x, verbose=False)[0][0,...,0]
+        y0 = self.keras_model.predict(z, verbose=False)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
