@@ -1,8 +1,11 @@
 <h1 align="center">
 
-:trophy: [CoNIC Challenge 2022](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022) :trophy:
+:point_right: [CoNIC Challenge Code](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022)
 
 </h1>
+
+This is a custom branch of StarDist that we used for our submission to the 2022 *Colon Nuclei Identification and Counting (CoNIC)* challenge.
+Go [here](https://github.com/stardist/stardist/tree/conic-2022/examples/conic-2022) for more details and all the code.
 
 ---
 
