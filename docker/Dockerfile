@@ -1,8 +1,8 @@
-FROM tensorflow/tensorflow:1.15.4-gpu-py3-jupyter
+FROM tensorflow/tensorflow:2.11.0-gpu-jupyter
 
 LABEL maintainer="ko.sugawara@ens-lyon.fr"
 
-ARG NVIDIA_DRIVER_VERSION=455
+ARG NVIDIA_DRIVER_VERSION=470
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ocl-icd-dev \
