@@ -467,6 +467,7 @@ class StarDistBase(BaseModel):
 
         """
 
+        predict_kwargs.setdefault('verbose', 0)
         x, axes, axes_net, axes_net_div_by, _permute_axes, resizer, n_tiles, grid, grid_dict, channel, predict_direct, tiling_setup = \
             self._predict_setup(img, axes, normalizer, n_tiles, show_tile_progress, predict_kwargs)
 
@@ -534,6 +535,7 @@ class StarDistBase(BaseModel):
         """
         if prob_thresh is None: prob_thresh = self.thresholds.prob
 
+        predict_kwargs.setdefault('verbose', 0)
         x, axes, axes_net, axes_net_div_by, _permute_axes, resizer, n_tiles, grid, grid_dict, channel, predict_direct, tiling_setup = \
             self._predict_setup(img, axes, normalizer, n_tiles, show_tile_progress, predict_kwargs)
 
@@ -1066,8 +1068,8 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict(x, verbose=False)[0][0,...,0]
-        y0 = self.keras_model.predict(z, verbose=False)[0][0,...,0]
+        y  = self.keras_model.predict(x, verbose=0)[0][0,...,0]
+        y0 = self.keras_model.predict(z, verbose=0)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
