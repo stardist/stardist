@@ -226,7 +226,7 @@ class StarDistBase(BaseModel):
         self._model_prepared = True
 
 
-    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
+    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, verbose=False, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -289,7 +289,7 @@ class StarDistBase(BaseModel):
 
         def predict_direct(tile):
             sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], verbose=verbose,  **predict_kwargs)
             return prob[0], dist[0]
 
         if np.prod(n_tiles) > 1:
@@ -336,7 +336,7 @@ class StarDistBase(BaseModel):
         
         return prob, dist
 
-    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, **predict_kwargs):
+    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, verbose=False, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -403,7 +403,7 @@ class StarDistBase(BaseModel):
 
         def predict_direct(tile):
             sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], **predict_kwargs)
+            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]],verbose=verbose, **predict_kwargs)
             return prob[0], dist[0]
         
         def _prep(prob, dist):
@@ -547,6 +547,7 @@ class StarDistBase(BaseModel):
                                     axes=axes, normalizer=normalizer,
                                     n_tiles=n_tiles,
                                     show_tile_progress=show_tile_progress,
+                                    verbose=verbose, 
                                     **predict_kwargs)
             return self._instances_from_prediction(_shape_inst,
                                                    prob, dist,
@@ -561,6 +562,7 @@ class StarDistBase(BaseModel):
             prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
                                       n_tiles=n_tiles,
                                       show_tile_progress=show_tile_progress,
+                                      verbose=verbose, 
                                       **predict_kwargs)
             return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = None,
@@ -571,7 +573,138 @@ class StarDistBase(BaseModel):
                                                affinity_thresh=affinity_thresh,
                                                **nms_kwargs)
 
+    def predict_instances_big(self, img, axes=None, block_size=4096, min_overlap=128, context=None,
+                              affinity=False, affinity_thresh=None,n_tiles=None,
+                              labels_out=None, labels_out_dtype=np.int32, show_progress=True, **kwargs):
+        """Predict instance segmentation from very large input images.
+        Intended to be used when `predict_instances` cannot be used due to memory limitations.
+        This function will break the input image into blocks and process them individually
+        via `predict_instances` and assemble all the partial results. If used as intended, the result
+        should be the same as if `predict_instances` was used directly on the whole image.
+        **Important**: The crucial assumption is that all predicted object instances are smaller than
+                       the provided `min_overlap`. Also, it must hold that: min_overlap + 2*context < block_size.
+        Example
+        -------
+        >>> img.shape
+        (20000, 20000)
+        >>> labels, polys = model.predict_instances_big(img, axes='YX', block_size=4096,
+                                                        min_overlap=128, context=128, n_tiles=(4,4))
+        Parameters
+        ----------
+        img: :class:`numpy.ndarray` or similar
+            Input image
+        axes: str
+            Axes of the input ``img`` (such as 'YX', 'ZYX', 'YXC', etc.)
+        block_size: int or iterable of int
+            Process input image in blocks of the provided shape.
+            (If a scalar value is given, it is used for all spatial image dimensions.)
+        min_overlap: int or iterable of int
+            Amount of guaranteed overlap between blocks.
+            (If a scalar value is given, it is used for all spatial image dimensions.)
+        context: int or iterable of int, or None
+            Amount of image context on all sides of a block, which is discarded.
+            If None, uses an automatic estimate that should work in many cases.
+            (If a scalar value is given, it is used for all spatial image dimensions.)
+        labels_out: :class:`numpy.ndarray` or similar, or None, or False
+            numpy array or similar (must be of correct shape) to which the label image is written.
+            If None, will allocate a numpy array of the correct shape and data type ``labels_out_dtype``.
+            If False, will not write the label image (useful if only the dictionary is needed).
+        labels_out_dtype: str or dtype
+            Data type of returned label image if ``labels_out=None`` (has no effect otherwise).
+        show_progress: bool
+            Show progress bar for block processing.
+        kwargs: dict
+            Keyword arguments for ``predict_instances``.
+        Returns
+        -------
+        (:class:`numpy.ndarray` or False, dict)
+            Returns the label image and a dictionary with the details (coordinates, etc.) of the polygons/polyhedra.
+        """
+        from ..big import _grid_divisible, BlockND, OBJECT_KEYS#, repaint_labels
+        from ..matching import relabel_sequential
 
+        n = img.ndim
+        axes = self._normalize_axes(img, axes)
+        grid = self._axes_div_by(axes)
+        axes_out = self._axes_out.replace('C','')
+        shape_dict = dict(zip(axes,img.shape))
+        shape_out = tuple(shape_dict[a] for a in axes_out)
+
+        if context is None:
+            context = self._axes_tile_overlap(axes)
+
+        if np.isscalar(block_size):  block_size  = n*[block_size]
+        if np.isscalar(min_overlap): min_overlap = n*[min_overlap]
+        if np.isscalar(context):     context     = n*[context]
+        block_size, min_overlap, context = list(block_size), list(min_overlap), list(context)
+        assert n == len(block_size) == len(min_overlap) == len(context)
+
+        if 'C' in axes:
+            # single block for channel axis
+            i = axes_dict(axes)['C']
+            # if (block_size[i], min_overlap[i], context[i]) != (None, None, None):
+            #     print("Ignoring values of 'block_size', 'min_overlap', and 'context' for channel axis " +
+            #           "(set to 'None' to avoid this warning).", file=sys.stderr, flush=True)
+            block_size[i] = img.shape[i]
+            min_overlap[i] = context[i] = 0
+
+        block_size  = tuple(_grid_divisible(g, v, name='block_size',  verbose=False) for v,g,a in zip(block_size, grid,axes))
+        min_overlap = tuple(_grid_divisible(g, v, name='min_overlap', verbose=False) for v,g,a in zip(min_overlap,grid,axes))
+        context     = tuple(_grid_divisible(g, v, name='context',     verbose=False) for v,g,a in zip(context,    grid,axes))
+
+        # print(f"input: shape {img.shape} with axes {axes}")
+        print(f'effective: block_size={block_size}, min_overlap={min_overlap}, context={context}', flush=True)
+
+        for a,c,o in zip(axes,context,self._axes_tile_overlap(axes)):
+            if c < o:
+                print(f"{a}: context of {c} is small, recommended to use at least {o}", flush=True)
+
+        # create block cover
+        blocks = BlockND.cover(img.shape, axes, block_size, min_overlap, context, grid)
+
+        if np.isscalar(labels_out) and bool(labels_out) is False:
+            labels_out = None
+        else:
+            if labels_out is None:
+                labels_out = np.zeros(shape_out, dtype=labels_out_dtype)
+            else:
+                labels_out.shape == shape_out or _raise(ValueError(f"'labels_out' must have shape {shape_out} (axes {axes_out})."))
+
+        polys_all = {}
+        # problem_ids = []
+        label_offset = 1
+
+        kwargs_override = dict(axes=axes, overlap_label=None, n_tiles=n_tiles, affinity=affinity, affinity_thresh=affinity_thresh)
+        if show_progress:
+            kwargs_override['show_tile_progress'] = False # disable progress for predict_instances
+        for k,v in kwargs_override.items():
+            if k in kwargs: print(f"changing '{k}' from {kwargs[k]} to {v}", flush=True)
+            kwargs[k] = v
+
+        blocks = tqdm(blocks, disable=(not show_progress))
+        # actual computation
+        for block in blocks:
+            labels, polys = self.predict_instances(block.read(img, axes=axes), **kwargs)
+            labels = block.crop_context(labels, axes=axes_out)
+            labels, polys = block.filter_objects(labels, polys, axes=axes_out)
+            # TODO: relabel_sequential is not very memory-efficient (will allocate memory proportional to label_offset)
+            # this should not change the order of labels
+            labels = relabel_sequential(labels, label_offset)[0]
+
+            if labels_out is not None:
+                block.write(labels_out, labels, axes=axes_out)
+
+            for k,v in polys.items():
+                polys_all.setdefault(k,[]).append(v)
+
+            label_offset += len(polys['prob'])
+            del labels
+
+        polys_all = {k: (np.concatenate(v) if k in OBJECT_KEYS else v[0]) for k,v in polys_all.items()}
+
+        return labels_out, polys_all
+    
+    
     def optimize_thresholds(self, X_val, Y_val, nms_threshs=[0.3,0.4,0.5], iou_threshs=[0.3,0.5,0.7], affinity = False, measure = "accuracy", predict_kwargs=None, optimize_kwargs=None, save_to_json = True):
         """Optimize two thresholds (probability, NMS overlap) necessary for predicting object instances.
 
