@@ -357,8 +357,8 @@ class BlockND:
                 # shape_block_write = tuple(s.stop-s.start for s in self.slice_write(axes))
                 shape_object = tuple(s.stop-s.start for s in slices)
                 shape_min_overlap = tuple(t.min_overlap for t in self.blocks_for_axes(axes))
-                raise RuntimeError(f"Found object of shape {shape_object}, which violates the assumption of being smaller than 'min_overlap' {shape_min_overlap}. Increase 'min_overlap' to avoid this problem.")
-
+                print(f"WARNING: Found object of shape {shape_object}, which violates the assumption of being smaller than 'min_overlap' {shape_min_overlap}. Increase 'min_overlap' to avoid this problem.")
+                
                 # if e.args[0]: # object larger than block write region
                 #     assert any(o >= b for o,b in zip(shape_object,shape_block_write))
                 #     # problem, since this object will probably be saved by another block too

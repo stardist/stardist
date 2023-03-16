@@ -21,6 +21,7 @@ from .sample_patches import get_valid_inds
 
 from ..utils import _is_power_of_2, optimize_threshold
 from ..nms import _ind_prob_thresh
+from ..affinity import max_sparsify 
 
 # TODO: support (optional) classification of objects?
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
@@ -226,7 +227,7 @@ class StarDistBase(BaseModel):
         self._model_prepared = True
 
 
-    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, verbose=False, **predict_kwargs):
+    def predict(self, img, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -289,7 +290,7 @@ class StarDistBase(BaseModel):
 
         def predict_direct(tile):
             sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], verbose=verbose,  **predict_kwargs)
+            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]], verbose=False,  **predict_kwargs)
             return prob[0], dist[0]
 
         if np.prod(n_tiles) > 1:
@@ -336,7 +337,7 @@ class StarDistBase(BaseModel):
         
         return prob, dist
 
-    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, show_tile_progress=True, b=2, verbose=False, **predict_kwargs):
+    def predict_sparse(self, img, prob_thresh=None, axes=None, normalizer=None, n_tiles=None, candidate_grid=None, show_tile_progress=True, b=2, **predict_kwargs):
         """Predict.
 
         Parameters
@@ -403,7 +404,7 @@ class StarDistBase(BaseModel):
 
         def predict_direct(tile):
             sh = list(tile.shape); sh[channel] = 1; dummy = np.empty(sh,np.float32)
-            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]],verbose=verbose, **predict_kwargs)
+            prob, dist = self.keras_model.predict([tile[np.newaxis],dummy[np.newaxis]],verbose=False, **predict_kwargs)
             return prob[0], dist[0]
         
         def _prep(prob, dist):
@@ -449,6 +450,11 @@ class StarDistBase(BaseModel):
 
                 prob_tile, dist_tile = _prep(prob_tile[s_src], dist_tile[s_src])
 
+                if candidate_grid is not None:
+                    prob_tile_sparse = np.stack([np.expand_dims(max_sparsify(p[...,0], size=candidate_grid, cval=0),-1) for p in prob_tile], axis=0)
+                else: 
+                    prob_tile_sparse = prob_tile
+                    
                 bs = list((b if s.start==0 else -1, b if s.stop==_sh else -1) for s,_sh in zip(s_dst, sh))
                 bs.pop(channel)
                 inds   = _ind_prob_thresh(prob_tile, prob_thresh, b=bs)
@@ -481,6 +487,7 @@ class StarDistBase(BaseModel):
                           prob_thresh=None, nms_thresh=None,
                           sparse = False, affinity=False, affinity_thresh=None,
                           n_tiles=None, show_tile_progress=True,
+                          candidate_grid=None,
                           verbose = 0, predict_kwargs=None, nms_kwargs=None,
                           overlap_label = None):
         """Predict instance segmentation from input image.
@@ -546,15 +553,15 @@ class StarDistBase(BaseModel):
             prob, dist, points = self.predict_sparse(img, prob_thresh = prob_thresh,
                                     axes=axes, normalizer=normalizer,
                                     n_tiles=n_tiles,
+                                    candidate_grid=candidate_grid,
                                     show_tile_progress=show_tile_progress,
-                                    verbose=verbose, 
                                     **predict_kwargs)
             return self._instances_from_prediction(_shape_inst,
                                                    prob, dist,
                                                    points = points,
                                                 nms_thresh=nms_thresh,
                                                 overlap_label=overlap_label,
-                                                affinity=affinity,
+                                                affinity=affinity,                                                
                                                 affinity_thresh=affinity_thresh,
                                                 **nms_kwargs)
 
@@ -562,7 +569,6 @@ class StarDistBase(BaseModel):
             prob, dist = self.predict(img, axes=axes, normalizer=normalizer,
                                       n_tiles=n_tiles,
                                       show_tile_progress=show_tile_progress,
-                                      verbose=verbose, 
                                       **predict_kwargs)
             return self._instances_from_prediction(_shape_inst, prob, dist,
                                                points = None,
@@ -570,11 +576,13 @@ class StarDistBase(BaseModel):
                                                nms_thresh=nms_thresh,
                                                overlap_label=overlap_label,
                                                affinity=affinity,
+                                               candidate_grid=candidate_grid, 
                                                affinity_thresh=affinity_thresh,
                                                **nms_kwargs)
 
     def predict_instances_big(self, img, axes=None, block_size=4096, min_overlap=128, context=None,
                               affinity=False, affinity_thresh=None,n_tiles=None,
+                              candidate_grid=None,
                               labels_out=None, labels_out_dtype=np.int32, show_progress=True, **kwargs):
         """Predict instance segmentation from very large input images.
         Intended to be used when `predict_instances` cannot be used due to memory limitations.
@@ -674,7 +682,7 @@ class StarDistBase(BaseModel):
         # problem_ids = []
         label_offset = 1
 
-        kwargs_override = dict(axes=axes, overlap_label=None, n_tiles=n_tiles, affinity=affinity, affinity_thresh=affinity_thresh)
+        kwargs_override = dict(axes=axes, overlap_label=None, n_tiles=n_tiles, candidate_grid=candidate_grid, affinity=affinity, affinity_thresh=affinity_thresh)
         if show_progress:
             kwargs_override['show_tile_progress'] = False # disable progress for predict_instances
         for k,v in kwargs_override.items():
@@ -684,6 +692,7 @@ class StarDistBase(BaseModel):
         blocks = tqdm(blocks, disable=(not show_progress))
         # actual computation
         for block in blocks:
+            blocks.set_description(f"{block}")
             labels, polys = self.predict_instances(block.read(img, axes=axes), **kwargs)
             labels = block.crop_context(labels, axes=axes_out)
             labels, polys = block.filter_objects(labels, polys, axes=axes_out)
@@ -801,8 +810,8 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(1,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(0,)] = 1
-        y  = self.keras_model.predict([x,x])[0][0,...,0]
-        y0 = self.keras_model.predict([z,z])[0][0,...,0]
+        y  = self.keras_model.predict([x,x], verbose=False)[0][0,...,0]
+        y0 = self.keras_model.predict([z,z], verbose=False)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)

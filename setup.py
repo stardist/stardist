@@ -45,8 +45,18 @@ with open(path.join(_dir,'stardist','version.py'), encoding="utf-8") as f:
 with open(path.join(_dir,'README.md'), encoding="utf-8") as f:
     long_description = f.read()
 
-qhull_root = path.join(_dir, 'stardist', 'lib', 'qhull_src', 'src')
+
+external_root = path.join(_dir, 'stardist', 'lib', 'external')
+
+qhull_root = path.join(external_root, 'qhull_src', 'src')
 qhull_src = sorted(glob(path.join(qhull_root, '*', '*.c*')))[::-1]
+
+nanoflann_root = path.join(external_root, 'nanoflann')
+
+clipper_root = path.join(external_root, 'clipper')
+clipper_src = sorted(glob(path.join(clipper_root, '*.cpp*')))[::-1]
+
+
 
 
 setup(
@@ -66,16 +76,17 @@ setup(
     ext_modules=[
         Extension(
             'stardist.lib.stardist2d',
-            sources=['stardist/lib/stardist2d.cpp','stardist/lib/clipper.cpp'],
+            sources = ['stardist/lib/stardist2d.cpp', 'stardist/lib/utils.cpp'] + clipper_src,
             extra_compile_args = ['-std=c++11'],
-            include_dirs=get_numpy_include_dirs(),
+            include_dirs = get_numpy_include_dirs() + [clipper_root, nanoflann_root],
         ),
         Extension(
             'stardist.lib.stardist3d',
-            sources=['stardist/lib/stardist3d.cpp'] + qhull_src,
+            sources = ['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp'] + qhull_src,
             extra_compile_args = ['-std=c++11'],
-            include_dirs=get_numpy_include_dirs() + [qhull_root],
+            include_dirs = get_numpy_include_dirs() + [qhull_root, nanoflann_root],
         ),
+            
         Extension(
             'stardist.lib.starfinity',
             sources=['stardist/lib/starfinity.cpp'],

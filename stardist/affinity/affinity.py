@@ -1,5 +1,29 @@
 import numpy as np
+from numbers import Number
 
+def max_sparsify(x, size=2, cval=0):
+    # retains only the maximum value in a neighborhood of size, setting the rest with fill_value
+    # (inplace)
+    from ..lib.starfinity import c_filter_max_inplace3D, c_filter_max_inplace2D 
+    
+    x = np.ascontiguousarray(x, dtype=np.float32)
+    if not x.ndim in(2,3):
+        raise ValueError("x should be 2 or 3 dimensional") 
+    
+    if isinstance(size, Number):
+        size = (size,)*x.ndim
+    
+    if not len(size) == x.ndim:
+        raise ValueError(f"size should be a number or a tuple of length {x.ndim}")
+    
+    if x.ndim==2:
+        y = c_filter_max_inplace2D(x, np.int32(size[0]), np.int32(size[1]), np.float32(cval))
+    else:
+        y = c_filter_max_inplace3D(x, np.int32(size[0]), np.int32(size[1]), np.int32(size[2]), np.float32(cval))
+        
+    return y
+    
+    
 
 def dist_to_affinity2D(dist, weights = None, decay = 0, normed = False, grid = (1,1), verbose = True):
     """

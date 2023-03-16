@@ -16,7 +16,7 @@ from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import CARETensorBoard
 from csbdeep.data import sample_patches_from_multiple_stacks
-from skimage.morphology import watershed
+from skimage.segmentation import watershed
 from scipy.ndimage import zoom
 
 from .base import StarDistBase, StarDistDataBase
@@ -25,7 +25,7 @@ from ..matching import relabel_sequential
 from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
 from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
-from ..affinity import dist_to_affinity3D
+from ..affinity import dist_to_affinity3D, max_sparsify
 from .sample_patches import sample_patches
 
 class StarDistData3D(StarDistDataBase):
@@ -482,7 +482,7 @@ class StarDist3D(StarDistBase):
         return history
 
 
-    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, overlap_label=None, affinity=False, affinity_thresh=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, candidate_grid=None, overlap_label=None, affinity=False, affinity_thresh=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
@@ -492,7 +492,12 @@ class StarDist3D(StarDistBase):
 
         # if points is not given, assume dense prediction (else sparse)
         if points is None:
-            points, probi, disti = non_maximum_suppression_3d(dist, prob, rays,
+            if candidate_grid is not None:
+                prob_sparse = max_sparsify(prob, size=candidate_grid, cval=0)
+            else: 
+                prob_sparse = prob 
+
+            points, probi, disti = non_maximum_suppression_3d(dist, prob_sparse, rays,
                                                           grid=self.config.grid,
                                                           prob_thresh=prob_thresh,
                                                           nms_thresh=nms_thresh,

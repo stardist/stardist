@@ -15,6 +15,10 @@ inline int round_to_int(float r) {
 }
 
 
+inline int ceil(const int x, const int y){
+    return (x + y - 1)/y;
+}
+
 
 // ----------------------------------------------------------------------
 // Affinity functions
@@ -365,6 +369,127 @@ static PyObject* c_dist_to_affinity3D(PyObject *self, PyObject *args) {
 }
 
 
+// retain only maximum value in a 2d neighborhood, setting all others to a certain value (e.g. 0)
+static PyObject* c_filter_max_inplace2D(PyObject *self, PyObject *args) {
+    
+
+  PyArrayObject *arr=NULL, *result=NULL;
+
+  int verbose;
+  float fill_value = 0;
+  int gy, gx;
+
+   if (!PyArg_ParseTuple(args, "O!iif",
+						 &PyArray_Type, &arr,
+						 &gy,
+						 &gx,						 
+						 &fill_value))
+       return NULL;
+
+
+    const int ny = PyArray_DIMS(arr)[0];
+    const int nx = PyArray_DIMS(arr)[1];
+    float * data    = (float*) PyArray_DATA(arr);
+
+    result = (PyArrayObject*)PyArray_ZEROS(2,PyArray_DIMS(arr),NPY_FLOAT32,fill_value);   
+
+    // loop over all pixels
+#pragma omp parallel for schedule(dynamic)
+    for (int yy = 0; yy < ceil(ny,gy); ++yy) {
+        for (int xx = 0; xx < ceil(nx,gx); ++xx) {
+            // looping over neighborhood 
+            float max_val = -1e10;
+            int max_dy, max_dx;
+
+            for (int dy=0; dy<std::min(gy,ny-yy*gy); ++dy){
+                for (int dx=0; dx<std::min(gx,nx-xx*gx); ++dx){
+                    unsigned long offset = nx*(gy*yy+dy) + (gx*xx+dx); 
+                    if (data[offset]>max_val){
+                        max_val = data[offset];
+                        max_dy = dy;
+                        max_dx = dx;
+                    }
+                }
+            }
+
+            // set value to maximum
+            *(float *)PyArray_GETPTR2(result,gy*yy+max_dy,gx*xx+max_dx) = max_val;
+		    
+	    }
+    }
+
+    return PyArray_Return(result);
+            
+}
+
+
+// retain only maximum value in a 3d neighborhood, setting all others to a certain value (e.g. 0)
+
+static PyObject* c_filter_max_inplace3D(PyObject *self, PyObject *args) {
+    
+
+  PyArrayObject *arr=NULL, *result=NULL;
+
+  int verbose;
+  float fill_value = 0;
+  int gz, gy, gx;
+
+   if (!PyArg_ParseTuple(args, "O!iiif",
+						 &PyArray_Type, &arr,
+						 &gz,
+						 &gy,
+						 &gx,						 
+						 &fill_value))
+       return NULL;
+
+
+    const int nz = PyArray_DIMS(arr)[0];
+    const int ny = PyArray_DIMS(arr)[1];
+    const int nx = PyArray_DIMS(arr)[2];
+    float * data    = (float*) PyArray_DATA(arr);
+
+    result = (PyArrayObject*)PyArray_ZEROS(3,PyArray_DIMS(arr),NPY_FLOAT32,fill_value);
+     
+
+    // loop over all pixels
+#pragma omp parallel for schedule(dynamic)
+    for (int zz = 0; zz < ceil(nz,gz); ++zz) {
+        for (int yy = 0; yy < ceil(ny,gy); ++yy) {
+            for (int xx = 0; xx < ceil(nx,gx); ++xx) {
+                // looping over neighborhood 
+                float max_val = -1e10;
+                int max_dz, max_dy, max_dx;
+
+                for (int dz=0; dz<std::min(gz,nz-zz*gz); ++dz){
+                    for (int dy=0; dy<std::min(gy,ny-yy*gy); ++dy){
+                        for (int dx=0; dx<std::min(gx,nx-xx*gx); ++dx){
+                            unsigned long offset = nx*ny*(gz*zz+dz) + nx*(gy*yy+dy) + (gx*xx+dx); 
+                            // std::cout << "-   " << (gz*zz+dz) << " " << (gy*yy+dy) << " " << (gx*xx+dx) << std::endl;
+
+
+                            if (data[offset]>max_val){
+                                max_val = data[offset];
+                                max_dz = dz;
+                                max_dy = dy;
+                                max_dx = dx;
+                            }
+                        }
+                    }
+                }
+
+                // set value to maximum
+                *(float *)PyArray_GETPTR3(result,gz*zz+max_dz,gy*yy+max_dy,gx*xx+max_dx) = max_val;
+		    }
+	    }
+    }
+
+    return PyArray_Return(result);
+    
+   
+}
+
+
+
 //------------------------------------------------------------------------
 
 
@@ -376,6 +501,12 @@ static struct PyMethodDef methods[] = {
     {"c_dist_to_affinity3D",
 	 c_dist_to_affinity3D,
 	 METH_VARARGS, "star affinity calculation"},
+    {"c_filter_max_inplace2D",
+	 c_filter_max_inplace2D,
+	 METH_VARARGS, "filter max in 2d neighborhood"},
+    {"c_filter_max_inplace3D",
+	 c_filter_max_inplace3D,
+	 METH_VARARGS, "filter max in 3d neighborhood"},
     {NULL, NULL, 0, NULL}
 };
 

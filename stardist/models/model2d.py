@@ -26,7 +26,7 @@ from .sample_patches import sample_patches
 from ..utils import edt_prob, _normalize_grid
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression
-from ..affinity import dist_to_affinity2D
+from ..affinity import dist_to_affinity2D, max_sparsify
 
 
 class StarDistData2D(StarDistDataBase):
@@ -376,7 +376,7 @@ class StarDist2D(StarDistBase):
 
         return history
 
-    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, overlap_label=None, affinity=False, affinity_thresh=None, **nms_kwargs):
+    def _instances_from_prediction(self, img_shape, prob, dist, points = None, prob_thresh=None, nms_thresh=None, candidate_grid=None, overlap_label=None, affinity=False, affinity_thresh=None, **nms_kwargs):
         if prob_thresh is None: prob_thresh = self.thresholds.prob
         if nms_thresh  is None: nms_thresh  = self.thresholds.nms
         if affinity_thresh  is None: affinity_thresh  = self.thresholds.affinity
@@ -387,7 +387,13 @@ class StarDist2D(StarDistBase):
             raise NotImplementedError("Sparse prediction not yet implemented in 2D!")
             
         coord = dist_to_coord(dist, grid=self.config.grid)
-        points = non_maximum_suppression(coord, prob, grid=self.config.grid,
+        
+        if candidate_grid is not None:
+            prob_sparse = max_sparsify(prob, size=candidate_grid, cval=0)
+        else: 
+            prob_sparse = prob 
+        
+        points = non_maximum_suppression(coord, prob_sparse, grid=self.config.grid,
                                          prob_thresh=prob_thresh, nms_thresh=nms_thresh, **nms_kwargs)
         
         if affinity:
