@@ -53,7 +53,7 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
-      # # should also work with clang, but there are
+      # # should also work with clang, but there are 
       # # openmp-related symbol issues just when using Python 3.6?
       # - name: Use GCC on macOS
       #   if: startsWith(matrix.os, 'macos')
