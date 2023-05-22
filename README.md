@@ -141,7 +141,7 @@ Although each of these provide decent annotation tools, we currently recommend u
 2. Open the (2D or 3D) image and start Labkit via `Plugins > Labkit > Open Current Image With Labkit`
 3. Successively add a new label and annotate a single cell instance with the brush tool until *all* cells are labeled.  
    (Always disable `allow overlapping labels` or – in older versions of LabKit – enable the `override` option.) 
-4. Export the label image via `Save Labeling...` with `File format > TIF Image` making sure that the filename ends in a `.tif/tiff` format.
+4. Export the label image via `Labeling > Save Labeling ...` with `Files of Type > TIF Image` making sure that the file name ends with `.tif` or `.tiff`.
 
 ![](https://github.com/stardist/stardist/raw/master/images/labkit_2d_labkit.png)
 
