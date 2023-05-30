@@ -97,6 +97,54 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
         return loss
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
+# function to add certain channel predictions
+def add_pred_vals(y_pred, ann_list, rep_list):
+
+    added_preds = y_pred[:,:,:,ann_list[0]]
+    zero_tensor = K.zeros_like(y_pred[:,:,:,0])
+
+    for i in range(1, len(ann_list)):
+        added_preds += y_pred[:,:,:,ann_list[i]]
+
+    output_list = []
+
+    for i in range(13):
+
+        if i == ann_list[0]:
+            output_list.append(added_preds)
+            continue
+
+        if i in rep_list:
+            output_list.append(zero_tensor)
+            continue
+
+        output_list.append(y_pred[:,:,:,i])
+
+    return K.stack(output_list, axis=-1)
+
+def out_add_pred_vals(y_pred, ann_list, rep_list):
+
+    added_preds = y_pred[:,:,ann_list[0]]
+    zero_tensor = K.zeros_like(y_pred[:,:,0])
+
+    for i in range(1, len(ann_list)):
+        added_preds += y_pred[:,:,ann_list[i]]
+
+    output_list = []
+
+    for i in range(13):
+
+        if i == ann_list[0]:
+            output_list.append(added_preds)
+            continue
+
+        if i in rep_list:
+            output_list.append(zero_tensor)
+            continue
+
+        output_list.append(y_pred[:,:,i])
+
+    return K.stack(output_list, axis=-1)
 
 def weighted_categorical_crossentropy(weights, ndim, gamma=0):
     """ 
@@ -130,87 +178,6 @@ def weighted_categorical_crossentropy(weights, ndim, gamma=0):
         return loss
 
     return weighted_cce
-
-
-class_map = {0:	0,
-1:	5,	
-2:	1,	
-3:	3,	
-4:	6,	
-5:	7,	
-6:	9,	}
-
-
-# function to add certain channel predictions
-def add_pred_vals(y_pred, ann_list, rep_list):
-
-    added_preds = y_pred[:,:,:,ann_list[0]]
-    zero_tensor = K.zeros_like(y_pred[:,:,:,0])
-
-    for i in range(1, len(ann_list)):
-        added_preds += y_pred[:,:,:,ann_list[i]]
-
-    output_list = []
-
-    for i in range(13):
-
-        if i == ann_list[0]:
-            output_list.append(added_preds)
-            continue
-
-        if i in rep_list:
-            output_list.append(zero_tensor)
-            continue
-
-        output_list.append(y_pred[:,:,:,i])
-
-    return K.stack(output_list, axis=-1)
-
-
-
-def custom_weighted_categorical_crossentropy(weights, ndim, gamma=0):
-    """ 
-    weighted focal cce loss
-    ndim = (2,3) 
-
-    if gamma != 0 -> focal loss
-    """
-
-    axis = -1 if backend_channels_last() else 1
-    shape = [1]*(ndim+2)
-    shape[axis] = len(weights)
-    weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
-
-    def weighted_cce(y_true, y_pred):
-
-        rep_list = [2,4,8,10,11,12]
-        add_list = [9,10,11,12]
-        y_pred = add_pred_vals(y_pred, add_list, rep_list)
-        
-        
-        
-        # ignore pixels that have y_true (prob_class) < 0
-        mask = K.cast(y_true>=0, K.floatx())
-
-        #normalize
-        y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
-        y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
-
-        # cross entropy
-        loss = weights*mask*y_true*K.log(y_pred)
-        
-        #focal term if given
-        loss = K.pow(1 - y_pred, gamma) * loss
-        
-        loss = - K.sum(loss, axis = axis)
-        return loss
-
-    return weighted_cce
-
-
-
-
 
 def weighted_dice_loss(weights, ndim):
     axis = -1 if backend_channels_last() else 1
@@ -282,6 +249,17 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
     _tversky = weighted_tversky_loss(weights, ndim, alpha, 1+.2*gamma)
 
     def dice_cce(y_true, y_pred):
+
+        ######## FOR CONIC ########
+        # zero_tensor = K.zeros_like(mask[:,:,:,0])
+        rep_list = [2,4,8,10,11,12]
+        # mask = replace_channels(mask, zero_tensor, rep_list)
+        # y_true = mask*y_true
+        
+        add_list = [9,10,11,12]
+        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        ###########################
+
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
     
     return dice_cce
@@ -685,6 +663,14 @@ class StarDistBase(BaseModel):
         if self._is_multiclass():
             # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
+
+        ######## FOR CONIC ########
+        rep_list = [2,4,8,10,11,12]
+        add_list = [9,10,11,12]
+        result[2] = out_add_pred_vals(result[2], add_list, rep_list)
+        ###########################
+
+        # print(result[2].shape)
 
         return tuple(result)
 
