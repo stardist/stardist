@@ -251,12 +251,10 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
     def dice_cce(y_true, y_pred):
 
         ######## FOR CONIC ########
-        # zero_tensor = K.zeros_like(mask[:,:,:,0])
-        rep_list = [2,4,8,10,11,12]
-        # mask = replace_channels(mask, zero_tensor, rep_list)
-        # y_true = mask*y_true
-        
-        add_list = [9,10,11,12]
+#         rep_list = [2,4,8,10,11,12]
+#         add_list = [9,10,11,12]  
+        rep_list = [5,6,7]
+        add_list = [3,5,6,7]
         y_pred = add_pred_vals(y_pred, add_list, rep_list)
         ###########################
 
@@ -665,8 +663,10 @@ class StarDistBase(BaseModel):
             result[2] = np.moveaxis(result[2],channel,-1)
 
         ######## FOR CONIC ########
-        rep_list = [2,4,8,10,11,12]
-        add_list = [9,10,11,12]
+#         rep_list = [2,4,8,10,11,12]
+#         add_list = [9,10,11,12]
+        rep_list = [5,6,7]
+        add_list = [3,5,6,7]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
         ###########################
 
