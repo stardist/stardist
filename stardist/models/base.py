@@ -131,6 +131,87 @@ def weighted_categorical_crossentropy(weights, ndim, gamma=0):
 
     return weighted_cce
 
+
+class_map = {0:	0,
+1:	5,	
+2:	1,	
+3:	3,	
+4:	6,	
+5:	7,	
+6:	9,	}
+
+
+# function to add certain channel predictions
+def add_pred_vals(y_pred, ann_list, rep_list):
+
+    added_preds = y_pred[:,:,:,ann_list[0]]
+    zero_tensor = K.zeros_like(y_pred[:,:,:,0])
+
+    for i in range(1, len(ann_list)):
+        added_preds += y_pred[:,:,:,ann_list[i]]
+
+    output_list = []
+
+    for i in range(13):
+
+        if i == ann_list[0]:
+            output_list.append(added_preds)
+            continue
+
+        if i in rep_list:
+            output_list.append(zero_tensor)
+            continue
+
+        output_list.append(y_pred[:,:,:,i])
+
+    return K.stack(output_list, axis=-1)
+
+
+
+def custom_weighted_categorical_crossentropy(weights, ndim, gamma=0):
+    """ 
+    weighted focal cce loss
+    ndim = (2,3) 
+
+    if gamma != 0 -> focal loss
+    """
+
+    axis = -1 if backend_channels_last() else 1
+    shape = [1]*(ndim+2)
+    shape[axis] = len(weights)
+    weights = np.broadcast_to(weights, shape)
+    weights = K.constant(weights)
+
+    def weighted_cce(y_true, y_pred):
+
+        rep_list = [2,4,8,10,11,12]
+        add_list = [9,10,11,12]
+        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        
+        
+        
+        # ignore pixels that have y_true (prob_class) < 0
+        mask = K.cast(y_true>=0, K.floatx())
+
+        #normalize
+        y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
+        y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
+
+        # cross entropy
+        loss = weights*mask*y_true*K.log(y_pred)
+        
+        #focal term if given
+        loss = K.pow(1 - y_pred, gamma) * loss
+        
+        loss = - K.sum(loss, axis = axis)
+        return loss
+
+    return weighted_cce
+
+
+
+
+
 def weighted_dice_loss(weights, ndim):
     axis = -1 if backend_channels_last() else 1
     shape = [1]*(ndim+2)
