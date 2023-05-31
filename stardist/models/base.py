@@ -250,13 +250,19 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
 
     def dice_cce(y_true, y_pred):
 
-        ######## FOR CONIC ########
-#         rep_list = [2,4,8,10,11,12]
-#         add_list = [9,10,11,12]  
-        rep_list = [5,6,7]
-        add_list = [3,5,6,7]
+        ######## FOR PANNUKE ########
+        rep_list = [2]
+        add_list = [1,2]
         y_pred = add_pred_vals(y_pred, add_list, rep_list)
         ###########################
+        
+        
+        
+#         ######## FOR CONIC ########
+#         rep_list = [5,6,7]
+#         add_list = [3,5,6,7]
+#         y_pred = add_pred_vals(y_pred, add_list, rep_list)
+#         ###########################
 
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
     
@@ -662,12 +668,17 @@ class StarDistBase(BaseModel):
             # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
 
-        ######## FOR CONIC ########
-#         rep_list = [2,4,8,10,11,12]
-#         add_list = [9,10,11,12]
-        rep_list = [5,6,7]
-        add_list = [3,5,6,7]
-        result[2] = out_add_pred_vals(result[2], add_list, rep_list)
+#         ######## FOR CONIC ########
+#         rep_list = [5,6,7]
+#         add_list = [3,5,6,7]
+#         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
+#         ###########################
+        
+        
+        ######## FOR PANNUKE ########
+        rep_list = [2]
+        add_list = [1,2]
+        y_pred = add_pred_vals(y_pred, add_list, rep_list)
         ###########################
 
         # print(result[2].shape)
