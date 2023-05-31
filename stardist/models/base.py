@@ -244,16 +244,14 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
 
 
 def true_vals(data):
-    channel_1_max = K.max(data[:, :, :, 1:3], axis=-1)
-    K.set_value(data[:, :, :, 1], channel_1_max)
+    # Set channel 1 as the sum of channels 1 and 2
+    data[..., 1] = np.sum(data[..., 1:3], axis=-1)
 
-    # Set channel 3 to the maximum value greater than 0 from channel 3 to 7
-    channel_3_max = K.max(data[:, :, :, 3:8], axis=-1)
-    K.set_value(data[:, :, :, 3], channel_3_max)
+    # Set channel 3 as the sum of channels 3 to 7
+    data[..., 3] = np.sum(data[..., 3:8], axis=-1)
 
-    # Set channel 9 to the maximum value greater than 0 from channel 9 to 12
-    channel_9_max = K.max(data[:, :, :, 9:13], axis=-1)
-    K.set_value(data[:, :, :, 9], channel_9_max)
+    # Set channel 9 as the sum of channels 9 to 12
+    data[..., 9] = np.sum(data[..., 9:13], axis=-1)
     return data
 
 
