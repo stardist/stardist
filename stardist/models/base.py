@@ -243,6 +243,21 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
     return weighted_dice
 
 
+def true_vals(data):
+    channel_1_max = K.max(data[:, :, :, 1:3], axis=-1)
+    K.set_value(data[:, :, :, 1], channel_1_max)
+
+    # Set channel 3 to the maximum value greater than 0 from channel 3 to 7
+    channel_3_max = K.max(data[:, :, :, 3:8], axis=-1)
+    K.set_value(data[:, :, :, 3], channel_3_max)
+
+    # Set channel 9 to the maximum value greater than 0 from channel 9 to 12
+    channel_9_max = K.max(data[:, :, :, 9:13], axis=-1)
+    K.set_value(data[:, :, :, 9], channel_9_max)
+    return data
+
+
+
 def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
     """ sum of weighted cce and dice loss """
     _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
