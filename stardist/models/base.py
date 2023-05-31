@@ -691,7 +691,7 @@ class StarDistBase(BaseModel):
         ######## FOR PANNUKE ########
         rep_list = [2]
         add_list = [1,2]
-        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        y_pred = out_add_pred_vals(y_pred, add_list, rep_list)
         ###########################
 
         # print(result[2].shape)
