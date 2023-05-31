@@ -100,11 +100,11 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
 # function to add certain channel predictions
 def add_pred_vals(y_pred, ann_list, rep_list):
 
-    added_preds = y_pred[:,:,:,ann_list[0]]
-    zero_tensor = K.zeros_like(y_pred[:,:,:,0])
+    added_preds = y_pred[..., ann_list[0]]
+    zero_tensor = K.zeros_like(y_pred[..., 0])
 
     for i in range(1, len(ann_list)):
-        added_preds += y_pred[:,:,:,ann_list[i]]
+        added_preds = K.add(added_preds, y_pred[..., ann_list[i]])
 
     output_list = []
 
@@ -118,7 +118,7 @@ def add_pred_vals(y_pred, ann_list, rep_list):
             output_list.append(zero_tensor)
             continue
 
-        output_list.append(y_pred[:,:,:,i])
+        output_list.append(y_pred[..., i])
 
     return K.stack(output_list, axis=-1)
 
