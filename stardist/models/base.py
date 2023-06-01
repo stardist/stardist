@@ -271,7 +271,7 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
         ###########################
         
         
-        
+        y_true = true_vals(y_true)
 #         ######## FOR CONIC ########
         rep_list = [5,6,7]
         add_list = [3,5,6,7]
