@@ -1,3 +1,5 @@
+base.py
+
 from __future__ import print_function, unicode_literals, absolute_import, division
 
 import numpy as np
@@ -98,7 +100,7 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # function to add certain channel predictions
-def add_pred_vals(y_pred, ann_list, rep_list,y_true):
+def add_pred_vals(y_pred, ann_list, rep_list):
 
     added_preds = y_pred[:,:,:,ann_list[0]]
     zero_tensor = K.zeros_like(y_pred[:,:,:,0])
@@ -121,7 +123,6 @@ def add_pred_vals(y_pred, ann_list, rep_list,y_true):
         output_list.append(y_pred[:,:,:,i])
 
     return K.stack(output_list, axis=-1)
-
 
 def out_add_pred_vals(y_pred, ann_list, rep_list):
 
@@ -244,8 +245,6 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
     return weighted_dice
 
 
-
-
 def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
     """ sum of weighted cce and dice loss """
     _cce  = weighted_categorical_crossentropy(weights, ndim, gamma)
@@ -253,19 +252,15 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
 
     def dice_cce(y_true, y_pred):
 
-        ######## FOR PANNUKE ########
-#         rep_list = [2]
-#         add_list = [1,2]
-#         y_pred = add_pred_vals(y_pred, add_list, rep_list)
-        ###########################
-        
-        
-
-#         ######## FOR CONIC ########
+        ######## FOR CONIC ########
+        # zero_tensor = K.zeros_like(mask[:,:,:,0])
         rep_list = [2,4,8,10,11,12]
+        # mask = replace_channels(mask, zero_tensor, rep_list)
+        # y_true = mask*y_true
+        
         add_list = [9,10,11,12]
-        y_pred = add_pred_vals(y_pred, add_list, rep_list,y_true)
-#         ###########################
+        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        ###########################
 
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
     
@@ -671,17 +666,10 @@ class StarDistBase(BaseModel):
             # prob_class
             result[2] = np.moveaxis(result[2],channel,-1)
 
-#         ######## FOR CONIC ########
+        ######## FOR CONIC ########
         rep_list = [2,4,8,10,11,12]
         add_list = [9,10,11,12]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
-#         ###########################
-        
-        
-        ######## FOR PANNUKE ########
-#         rep_list = [2]
-#         add_list = [1,2]
-#         y_pred = out_add_pred_vals(y_pred, add_list, rep_list)
         ###########################
 
         # print(result[2].shape)
