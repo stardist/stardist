@@ -98,7 +98,7 @@ def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     return generic_masked_loss(mask, iou_metric, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # function to add certain channel predictions
-def add_pred_vals(y_pred, ann_list, rep_list):
+def add_pred_vals(y_pred, ann_list, rep_list,y_true):
 
     added_preds = y_pred[:,:,:,ann_list[0]]
     zero_tensor = K.zeros_like(y_pred[:,:,:,0])
@@ -244,17 +244,6 @@ def weighted_tversky_loss(weights, ndim, alpha=0.7, gamma=1.33, eps=1e-6):
     return weighted_dice
 
 
-def true_vals(data):
-    # Set channel 1 as the sum of channels 1 and 2
-    data[..., 1] = np.sum(data[..., 1:3], axis=-1)
-
-    # Set channel 3 as the sum of channels 3 to 7
-    data[..., 3] = np.sum(data[..., 3:8], axis=-1)
-
-    # Set channel 9 as the sum of channels 9 to 12
-    data[..., 9] = np.sum(data[..., 9:13], axis=-1)
-    return data
-
 
 
 def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
@@ -271,11 +260,11 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
         ###########################
         
         
-        y_true = true_vals(y_true)
+
 #         ######## FOR CONIC ########
-        rep_list = [5,6,7]
-        add_list = [3,5,6,7]
-        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        rep_list = [2,4,8,10,11,12]
+        add_list = [9,10,11,12]
+        y_pred = add_pred_vals(y_pred, add_list, rep_list,y_true)
 #         ###########################
 
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
@@ -683,8 +672,8 @@ class StarDistBase(BaseModel):
             result[2] = np.moveaxis(result[2],channel,-1)
 
 #         ######## FOR CONIC ########
-        rep_list = [5,6,7]
-        add_list = [3,5,6,7]
+        rep_list = [2,4,8,10,11,12]
+        add_list = [9,10,11,12]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
 #         ###########################
         
