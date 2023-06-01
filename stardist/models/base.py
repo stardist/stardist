@@ -275,6 +275,13 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
 ## ---------------------------------------
 
 
+## CoNuSAC -----------------------------
+#         rep_list = [2,6,7,8,9,10,11,12]
+#         add_list = [1,2]
+#         y_pred = add_pred_vals(y_pred, add_list, rep_list)
+## ---------------------------------------
+
+
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
     
     return dice_cce
@@ -701,7 +708,15 @@ class StarDistBase(BaseModel):
 #         rep_list = [4,5,6,7,8,12]
 #         add_list = [3,4,5,6,7]
 #         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
-## ---------------------------------------        
+## ---------------------------------------      
+
+
+## CoNuSAC -----------------------------
+#         rep_list = [2,6,7,8,9,10,11,12]
+#         add_list = [1,2]
+#         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
+## ---------------------------------------
+
 
         # print(result[2].shape)
 
