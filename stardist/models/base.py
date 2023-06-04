@@ -251,12 +251,12 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
 
     def dice_cce(y_true, y_pred):
 
-## CONIC ----------------------------
+# CONIC ----------------------------
         rep_list = [2,4,8,10,11,12]
  
         add_list = [9,10,11,12]
         y_pred = add_pred_vals(y_pred, add_list, rep_list)
-## ----------------------------------
+# ----------------------------------
         
 ## CoNSeP -------------------------
 #         rep_list = [10,11,12]
@@ -688,11 +688,11 @@ class StarDistBase(BaseModel):
 
 
         
-## CONIC ----------------------------
+# CONIC ----------------------------
         rep_list = [2,4,8,10,11,12]
         add_list = [9,10,11,12]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
-## ----------------------------------
+# ----------------------------------
         
 ## CoNSeP -------------------------
 #         rep_list = [10,11,12]
