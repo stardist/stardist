@@ -252,10 +252,10 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
     def dice_cce(y_true, y_pred):
 
 # CONIC ----------------------------
-        rep_list = [2,4,8,10,11,12]
+        # rep_list = [2,4,8,10,11,12]
  
-        add_list = [9,10,11,12]
-        y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        # add_list = [9,10,11,12]
+        # y_pred = add_pred_vals(y_pred, add_list, rep_list)
 # ----------------------------------
         
 ## CoNSeP -------------------------
