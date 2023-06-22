@@ -107,7 +107,6 @@ setup(
     ],
     install_requires=[
         "csbdeep>=0.6.3",
-        "numpy~=1.19.2",
         "scikit-image",
         "numba",
         "imageio",
