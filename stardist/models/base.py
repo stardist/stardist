@@ -1,5 +1,5 @@
 from __future__ import print_function, unicode_literals, absolute_import, division
-
+import os
 import numpy as np
 import sys
 import warnings
@@ -486,7 +486,6 @@ class StarDistBase(BaseModel):
                         % str(threshs.get("nms"))
                     )
                     threshs["nms"] = None
-                import os
 
                 weights_path = str(self.logdir / "weights_last.h5")
                 print(weights_path)
