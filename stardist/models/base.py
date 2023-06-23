@@ -294,25 +294,25 @@ def compound_tversky_cce(weights, ndim, alpha=0.7, gamma=0):
         # ----------------------------------
 
         ## CoNSeP -------------------------
-        rep_list = [10,11,12]
-        add_list = [9,10,11,12]
+        rep_list = [10, 11, 12]
+        add_list = [9, 10, 11, 12]
         y_pred = add_pred_vals(y_pred, add_list, rep_list)
-        rep_list = [4,5,6,7]
-        add_list = [3,4,5,6,7]
+        rep_list = [4, 5, 6, 7]
+        add_list = [3, 4, 5, 6, 7]
         y_pred = add_pred_vals(y_pred, add_list, rep_list)
         ## --------------------------------
 
-## PanNuke -----------------------------
-#         rep_list = [4,5,6,7,8,12]
-#         add_list = [3,4,5,6,7]
-#         y_pred = add_pred_vals(y_pred, add_list, rep_list)
-## ---------------------------------------
+        ## PanNuke -----------------------------
+        #         rep_list = [4,5,6,7,8,12]
+        #         add_list = [3,4,5,6,7]
+        #         y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        ## ---------------------------------------
 
-## CoNuSAC -----------------------------
-#         rep_list = [2,6,7,8,9,10,11,12]
-#         add_list = [1,2]
-#         y_pred = add_pred_vals(y_pred, add_list, rep_list)
-## ---------------------------------------
+        ## CoNuSAC -----------------------------
+        #         rep_list = [2,6,7,8,9,10,11,12]
+        #         add_list = [1,2]
+        #         y_pred = add_pred_vals(y_pred, add_list, rep_list)
+        ## ---------------------------------------
 
         return K.mean(_cce(y_true, y_pred)) + K.mean(_tversky(y_true, y_pred))
 
@@ -486,6 +486,13 @@ class StarDistBase(BaseModel):
                         % str(threshs.get("nms"))
                     )
                     threshs["nms"] = None
+                import os
+
+                weights_path = str(self.logdir / "weights_last.h5")
+                print(weights_path)
+                if os.path.exists(weights_path):
+                    self.keras_model.load_weights(weights_path)
+                    print("Weights loaded successfully.")
             except FileNotFoundError:
                 if config is None and len(tuple(self.logdir.glob("*.h5"))) > 0:
                     print(
@@ -502,19 +509,6 @@ class StarDistBase(BaseModel):
                 prob=self.thresholds.prob, nms=self.thresholds.nms
             )
         )
-        import os
-        weights_path = str(self.logdir / "weights_last.h5")
-        print(weights_path)
-        if os.path.exists(weights_path):
-            self.keras_model.load_weights(weights_path)
-            print("Weights loaded successfully.")
-
-
-
-
-
-
-
 
     @property
     def thresholds(self):
@@ -623,7 +617,7 @@ class StarDistBase(BaseModel):
             loss = [prob_loss, dist_loss, prob_class_loss]
         else:
             loss = [prob_loss, dist_loss]
-        
+
         self.keras_model.compile(
             optimizer,
             loss=loss,
@@ -897,14 +891,14 @@ class StarDistBase(BaseModel):
         # result[2] = out_add_pred_vals(result[2], add_list, rep_list)
         # ----------------------------------
 
-## CoNSeP -------------------------
-        rep_list = [10,11,12]
-        add_list = [9,10,11,12]
+        ## CoNSeP -------------------------
+        rep_list = [10, 11, 12]
+        add_list = [9, 10, 11, 12]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
-        rep_list = [4,5,6,7]
-        add_list = [3,4,5,6,7]
+        rep_list = [4, 5, 6, 7]
+        add_list = [3, 4, 5, 6, 7]
         result[2] = out_add_pred_vals(result[2], add_list, rep_list)
-## --------------------------------
+        ## --------------------------------
 
         ## PanNuke -----------------------------
         #         rep_list = [4,5,6,7,8,12]
