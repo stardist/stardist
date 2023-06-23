@@ -742,6 +742,7 @@ class StarDist2D(StarDistBase):
         import os
 
         weights_path = str(self.logdir / "weights_last.h5")
+        print(weights_path)
         if os.path.exists(weights_path):
             self.keras_model.load_weights(weights_path)
             print("Weights loaded successfully.")
