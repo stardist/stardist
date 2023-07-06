@@ -234,7 +234,8 @@ class Config2D(BaseConfig):
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
-        min_delta_key = 'epsilon' if LooseVersion(keras.__version__)<=LooseVersion('2.1.5') else 'min_delta'
+        # keras.__version__ was removed in tensorflow 2.13.0
+        min_delta_key = 'epsilon' if LooseVersion(getattr(keras, '__version__', '9.9.9'))<=LooseVersion('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False
