@@ -2,7 +2,7 @@ import os
 import numpy as np
 from tifffile import imread
 from skimage.measure import label
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 from pathlib import Path
 from timeit import default_timer
 from csbdeep.utils.tf import keras_import
