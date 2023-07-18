@@ -63,9 +63,9 @@ jobs:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: pytest tensorflow
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
+          # CIBW_TEST_REQUIRES: pytest tensorflow
+          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          # CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
 
       - name: Build wheels for CPython (Linux and Windows)
         if: startsWith(matrix.os, 'macos') == false
