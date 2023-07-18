@@ -72,4 +72,4 @@ jobs:
           matrix.tensorflow == 1
         run: pip install ".[bioimageio]"
 
-      - run: pytest -v --durations=50 -m "not gpu"
+      - run: pytest -m "not gpu"
