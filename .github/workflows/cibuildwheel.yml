@@ -22,7 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-10.15]
+        # os: [ubuntu-20.04, windows-2019, macos-11]
+        os: [macos-11, macos-12]
         py: [cp36, cp37, cp38, cp39, cp310, cp311]
 
     steps:
