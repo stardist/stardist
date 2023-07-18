@@ -134,7 +134,10 @@ setup(
 
     extras_require={
         "tf1":  ["csbdeep[tf1]>=0.6.3"],
-        "test": ["pytest>=7.2.0"],
+        "test": [
+            "pytest;        python_version< '3.7'",
+            "pytest>=7.2.0; python_version>='3.7'",
+         ],
         "bioimageio": ["bioimageio.core>=0.5.0","importlib-metadata"],
     },
 
