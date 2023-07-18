@@ -23,9 +23,9 @@ jobs:
       fail-fast: false
       matrix:
         # os: [ubuntu-20.04, windows-2019, macos-11]
-        os: [macos-11, macos-12]
-        # py: [cp36, cp37, cp38, cp39, cp310, cp311]
-        py: [cp38, cp310]
+        os: [macos-11]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311]
+        # py: [cp38, cp310]
 
     steps:
       - uses: actions/checkout@v3
@@ -39,12 +39,12 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
+        # https://scikit-learn.org/stable/developers/advanced_installation.html#macos
       - name: Setup OpenMP (macOS)
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
           brew config
-          brew shellenv
           brew install libomp
           eval `brew shellenv`
           tee -a $GITHUB_ENV << END
