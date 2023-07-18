@@ -53,9 +53,10 @@ jobs:
           CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/include
           LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp
           END
-          ls -la ${HOMEBREW_PREFIX}
-          ls -la ${HOMEBREW_PREFIX}/libomp
-          find ${HOMEBREW_PREFIX}
+          ls -la ${HOMEBREW_PREFIX}/opt
+          ls -la ${HOMEBREW_PREFIX}/opt/libomp
+          ls -la ${HOMEBREW_PREFIX}/opt/libomp/include
+          find ${HOMEBREW_PREFIX}/opt
 
       - name: Build wheels for CPython (macOS)
         if: startsWith(matrix.os, 'macos')
