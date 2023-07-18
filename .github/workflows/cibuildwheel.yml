@@ -44,19 +44,16 @@ jobs:
         shell: bash
         run: |
           brew config
+          brew shellenv
           brew install libomp
           eval `brew shellenv`
           tee -a $GITHUB_ENV << END
           CC=/usr/bin/clang
           CXX=/usr/bin/clang++
-          CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/include
-          CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/include
-          LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/lib -L${HOMEBREW_PREFIX}/lib -lomp
+          CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
+          CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
+          LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/opt/libomp/lib -L${HOMEBREW_PREFIX}/opt/libomp/lib -lomp
           END
-          ls -la ${HOMEBREW_PREFIX}/opt
-          ls -la ${HOMEBREW_PREFIX}/opt/libomp
-          ls -la ${HOMEBREW_PREFIX}/opt/libomp/include
-          find ${HOMEBREW_PREFIX}/opt
 
       - name: Build wheels for CPython (macOS)
         if: startsWith(matrix.os, 'macos')
