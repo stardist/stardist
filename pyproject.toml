@@ -1,3 +1,13 @@
 [build-system]
 requires = ["setuptools>=40.8.0", "wheel", "oldest-supported-numpy"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+addopts = "-v --durations=50"
+testpaths = [
+    "tests",
+]
+# only works for pytest >= 7.2.0, which isn't available for Python 3.6
+# filterwarnings = [
+#     "ignore::pytest.PytestReturnNotNoneWarning"
+# ]

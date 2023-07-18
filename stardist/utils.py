@@ -7,8 +7,8 @@ import datetime
 from tqdm import tqdm
 from collections import defaultdict
 from zipfile import ZipFile, ZIP_DEFLATED
-from scipy.ndimage.morphology import distance_transform_edt, binary_fill_holes
-from scipy.ndimage.measurements import find_objects
+from scipy.ndimage import distance_transform_edt, binary_fill_holes
+from scipy.ndimage import find_objects
 from scipy.optimize import minimize_scalar
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
@@ -365,9 +365,9 @@ def mask_to_categorical(y, n_classes, classes, return_cls_dict=False):
     for cls, labels in cls_dict.items():
         if cls is None:
             # prob == -1 will be used in the loss to ignore object
-            y_mask[np.isin(y, labels)] = -1
+            y_mask[np.isin(y, labels), :] = -1
         elif np.issubdtype(type(cls), np.integer) and 0 <= cls <= n_classes:
-            y_mask[...,cls] = np.isin(y, labels)
+            y_mask[np.isin(y, labels), cls] = 1
         else:
             raise ValueError(f"Wrong class id '{cls}' (for n_classes={n_classes})")
 

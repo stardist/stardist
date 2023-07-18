@@ -122,18 +122,22 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 
     install_requires=[
-        'csbdeep>=0.6.3',
+        'csbdeep>=0.7.4',
         'scikit-image',
         'numba',
         'imageio',
     ],
 
     extras_require={
-        "tf1":  ["csbdeep[tf1]>=0.6.3"],
-        "test": ["pytest"],
+        "tf1":  ["csbdeep[tf1]>=0.7.4"],
+        "test": [
+            "pytest;        python_version< '3.7'",
+            "pytest>=7.2.0; python_version>='3.7'",
+         ],
         "bioimageio": ["bioimageio.core>=0.5.0","importlib-metadata"],
     },
 

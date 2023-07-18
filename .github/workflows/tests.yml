@@ -19,15 +19,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-latest, macos-latest]
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
         tensorflow: [1, 2]
         exclude:
-            # https://www.tensorflow.org/install/pip#system-requirements
+            # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
             tensorflow: 1
           - python-version: '3.9'
             tensorflow: 1
           - python-version: '3.10'
+            tensorflow: 1
+          - python-version: '3.11'
             tensorflow: 1
           - os: windows-latest
             tensorflow: 1
@@ -51,7 +53,7 @@ jobs:
         if: matrix.python-version == 3.9
         run: pip install edt "numpy>=1.20"
 
-      # # should also work with clang, but there are
+      # # should also work with clang, but there are 
       # # openmp-related symbol issues just when using Python 3.6?
       # - name: Use GCC on macOS
       #   if: startsWith(matrix.os, 'macos')
@@ -66,8 +68,13 @@ jobs:
 
       - name: Install bioimage.io dependencies
         if: |
-          matrix.python-version >= 3.7 &&
+          matrix.python-version == 3.7 &&
           matrix.tensorflow == 1
         run: pip install ".[bioimageio]"
 
-      - run: pytest -v --durations=50 -m "not gpu"
+      - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
+        if: matrix.python-version != 3.6
+        run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
+        shell: bash
+
+      - run: pytest -m "not gpu"
