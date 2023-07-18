@@ -7,6 +7,7 @@ addopts = "-v --durations=50"
 testpaths = [
     "tests",
 ]
-filterwarnings = [
-    "ignore::pytest.PytestReturnNotNoneWarning"
-]
+# only works for pytest >= 7.2.0, which isn't available for Python 3.6
+# filterwarnings = [
+#     "ignore::pytest.PytestReturnNotNoneWarning"
+# ]

@@ -72,4 +72,9 @@ jobs:
           matrix.tensorflow == 1
         run: pip install ".[bioimageio]"
 
+      - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
+        if: matrix.python-version == 3.6
+        run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
+        shell: bash
+
       - run: pytest -m "not gpu"
