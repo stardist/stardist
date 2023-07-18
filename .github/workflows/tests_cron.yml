@@ -67,12 +67,12 @@ jobs:
 
       - name: Install bioimage.io dependencies
         if: |
-          matrix.python-version >= 3.7 &&
+          matrix.python-version == 3.7 &&
           matrix.tensorflow == 1
         run: pip install "stardist[bioimageio]"
 
       - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
-        if: matrix.python-version == 3.6
+        if: matrix.python-version != 3.6
         run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
         shell: bash
 

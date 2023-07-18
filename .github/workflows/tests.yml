@@ -22,7 +22,7 @@ jobs:
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
         tensorflow: [1, 2]
         exclude:
-            # https://www.tensorflow.org/install/pip#system-requirements
+            # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
             tensorflow: 1
           - python-version: '3.9'
@@ -68,12 +68,12 @@ jobs:
 
       - name: Install bioimage.io dependencies
         if: |
-          matrix.python-version >= 3.7 &&
+          matrix.python-version == 3.7 &&
           matrix.tensorflow == 1
         run: pip install ".[bioimageio]"
 
       - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
-        if: matrix.python-version == 3.6
+        if: matrix.python-version != 3.6
         run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
         shell: bash
 
