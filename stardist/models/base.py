@@ -179,7 +179,7 @@ class StarDistDataBase(RollingSequence):
             from gputools import max_filter
             self.max_filter = lambda y, patch_size: max_filter(y.astype(np.float32), patch_size)
         else:
-            from scipy.ndimage.filters import maximum_filter
+            from scipy.ndimage import maximum_filter
             self.max_filter = lambda y, patch_size: maximum_filter(y, patch_size, mode='constant')
 
         self.maxfilter_patch_size = maxfilter_patch_size if maxfilter_patch_size is not None else self.patch_size
