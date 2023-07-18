@@ -24,7 +24,8 @@ jobs:
       matrix:
         # os: [ubuntu-20.04, windows-2019, macos-11]
         os: [macos-11]
-        py: [cp36, cp37, cp38, cp39, cp310, cp311]
+        py: [cp310]
+        # py: [cp36, cp37, cp38, cp39, cp310, cp311]
         # py: [cp38, cp310]
 
     steps:
@@ -110,7 +111,7 @@ jobs:
     name: Upload to PyPI
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v3
         name: Download wheels and sdist
@@ -118,17 +119,17 @@ jobs:
           name: dist
           path: dist
 
-      - name: Check that package version matches git tag ${{ github.ref_name }}
-        shell: bash
-        run: |
-          ls -l dist
-          test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+      # - name: Check that package version matches git tag ${{ github.ref_name }}
+      #   shell: bash
+      #   run: |
+      #     ls -l dist
+      #     test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         name: Publish to PyPI
         with:
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          # password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
-          # password: ${{ secrets.TESTPYPI_API_TOKEN }}
-          # repository_url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
