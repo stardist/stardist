@@ -55,9 +55,14 @@ class build_ext_openmp(build_ext):
 
 #------------------------------------------------------------------------------------
 
+# https://stackoverflow.com/a/22866630
+# python setup.py sdist                    ->  __file__ is relative path
+# python /absolute/path/to/setup.py sdist  ->  __file__ is absolute path
+# python -m build --sdist                  ->  __file__ is absolute path
 
 # cf. https://github.com/mkleehammer/pyodbc/issues/82#issuecomment-231561240
-_dir = path.dirname(__file__)
+# _dir = path.dirname(__file__)
+_dir = '' #  assumption: Path(__file__).parent == Path.cwd()
 
 with open(path.join(_dir,'stardist','version.py'), encoding="utf-8") as f:
     exec(f.read())
