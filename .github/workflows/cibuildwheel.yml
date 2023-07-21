@@ -14,77 +14,77 @@ on:
       - published
 
 jobs:
-  # build_wheels:
-  #   name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
-  #   runs-on: ${{ matrix.os }}
-  #   env:
-  #       SETUPTOOLS_USE_DISTUTILS: stdlib
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [ubuntu-20.04, windows-2019, macos-11]
-  #       py: [cp36, cp37, cp38, cp39, cp310, cp311]
+  build_wheels:
+    name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+        SETUPTOOLS_USE_DISTUTILS: stdlib
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, windows-2019, macos-11]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311]
 
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       name: Checkout repository
+    steps:
+      - uses: actions/checkout@v3
+        name: Checkout repository
 
-  #     - uses: actions/setup-python@v4
-  #       name: Install Python
-  #       with:
-  #         python-version: '3.x'
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          python-version: '3.x'
 
-  #     - name: Install cibuildwheel
-  #       run: python -m pip install cibuildwheel
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel
 
-  #       # https://scikit-learn.org/stable/developers/advanced_installation.html#macos
-  #     - name: Setup OpenMP (macOS)
-  #       if: startsWith(matrix.os, 'macos')
-  #       shell: bash
-  #       run: |
-  #         brew config
-  #         brew install libomp
-  #         eval `brew shellenv`
-  #         tee -a $GITHUB_ENV << END
-  #         CC=/usr/bin/clang
-  #         CXX=/usr/bin/clang++
-  #         CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-  #         CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-  #         LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/opt/libomp/lib -L${HOMEBREW_PREFIX}/opt/libomp/lib -lomp
-  #         END
+        # https://scikit-learn.org/stable/developers/advanced_installation.html#macos
+      - name: Setup OpenMP (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          brew config
+          brew install libomp
+          eval `brew shellenv`
+          tee -a $GITHUB_ENV << END
+          CC=/usr/bin/clang
+          CXX=/usr/bin/clang++
+          CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
+          CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
+          LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/opt/libomp/lib -L${HOMEBREW_PREFIX}/opt/libomp/lib -lomp
+          END
 
-  #     - name: Build wheels for CPython (macOS)
-  #       if: startsWith(matrix.os, 'macos')
-  #       run: |
-  #         python -m cibuildwheel --output-dir dist
-  #       env:
-  #         CIBW_BUILD: "${{ matrix.py }}-*"
-  #         CIBW_ARCHS_MACOS: x86_64 arm64
-  #         CIBW_BUILD_VERBOSITY: 1
-  #         CIBW_TEST_REQUIRES: pytest tensorflow
-  #         CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-  #         CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
+      - name: Build wheels for CPython (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "${{ matrix.py }}-*"
+          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
 
-  #     - name: Build wheels for CPython (Linux and Windows)
-  #       if: startsWith(matrix.os, 'macos') == false
-  #       run: |
-  #         python -m cibuildwheel --output-dir dist
-  #       env:
-  #         # only build for platforms where tensorflow is available
-  #         CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
-  #         CIBW_SKIP: "*musllinux*"
-  #         # numba is a requirement and only has wheels for manylinux2014
-  #         CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-  #         CIBW_BUILD_VERBOSITY: 1
-  #         CIBW_TEST_REQUIRES: pytest tensorflow
-  #         CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-  #         # CIBW_TEST_SKIP: "*musllinux*"
+      - name: Build wheels for CPython (Linux and Windows)
+        if: startsWith(matrix.os, 'macos') == false
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          # only build for platforms where tensorflow is available
+          CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
+          CIBW_SKIP: "*musllinux*"
+          # numba is a requirement and only has wheels for manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          # CIBW_TEST_SKIP: "*musllinux*"
 
-  #     - uses: actions/upload-artifact@v3
-  #       name: Upload wheels
-  #       with:
-  #         name: dist
-  #         path: ./dist/*.whl
+      - uses: actions/upload-artifact@v3
+        name: Upload wheels
+        with:
+          name: dist
+          path: ./dist/*.whl
 
 
   build_sdist:
@@ -104,29 +104,29 @@ jobs:
           path: dist/*.tar.gz
 
 
-  # upload_pypi:
-  #   name: Upload to PyPI
-  #   needs: [build_wheels, build_sdist]
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'release' && github.event.action == 'published'
-  #   steps:
-  #     - uses: actions/download-artifact@v3
-  #       name: Download wheels and sdist
-  #       with:
-  #         name: dist
-  #         path: dist
+  upload_pypi:
+    name: Upload to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - uses: actions/download-artifact@v3
+        name: Download wheels and sdist
+        with:
+          name: dist
+          path: dist
 
-  #     - name: Check that package version matches git tag ${{ github.ref_name }}
-  #       shell: bash
-  #       run: |
-  #         ls -l dist
-  #         test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+      - name: Check that package version matches git tag ${{ github.ref_name }}
+        shell: bash
+        run: |
+          ls -l dist
+          test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
 
-  #     - uses: pypa/gh-action-pypi-publish@release/v1
-  #       name: Publish to PyPI
-  #       with:
-  #         user: __token__
-  #         password: ${{ secrets.PYPI_API_TOKEN }}
-  #         verbose: true
-  #         # password: ${{ secrets.TESTPYPI_API_TOKEN }}
-  #         # repository-url: https://test.pypi.org/legacy/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        name: Publish to PyPI
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          verbose: true
+          # password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          # repository-url: https://test.pypi.org/legacy/
