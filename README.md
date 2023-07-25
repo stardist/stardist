@@ -44,7 +44,7 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package is compatible with Python 3.6 - 3.10.
+This package is compatible with Python 3.6 - 3.11.
 
 If you only want to use a StarDist plugin for a GUI-based software, please read [this](#plugins-for-other-software).
 
