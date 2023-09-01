@@ -21,22 +21,21 @@
 #endif
 
 /*-<a                             href="qh-globa_r.htm#TOC"
- >-------------------------------</a><a name="argv_to_command">-</a>
+  >-------------------------------</a><a name="argv_to_command">-</a>
 
- qh_argv_to_command(argc, argv, command, max_size )
+  qh_argv_to_command( argc, argv, command, max_size )
 
     build command from argc/argv
     max_size is at least
 
- returns:
+  returns:
     a space-delimited string of options (just as typed)
     returns false if max_size is too short
 
- notes:
+  notes:
     silently removes
     makes option string easy to input and output
-    matches qh_argv_to_command_size()
-
+    matches qh_argv_to_command_size
     argc may be 0
 */
 int qh_argv_to_command(int argc, char *argv[], char* command, int max_size) {
@@ -93,18 +92,20 @@ error_argv:
 } /* argv_to_command */
 
 /*-<a                             href="qh-globa_r.htm#TOC"
->-------------------------------</a><a name="argv_to_command_size">-</a>
+  >-------------------------------</a><a name="argv_to_command_size">-</a>
 
-qh_argv_to_command_size(argc, argv )
+  qh_argv_to_command_size( argc, argv )
 
     return size to allocate for qh_argv_to_command()
 
-notes:
+  notes:
+    only called from rbox with qh_errexit not enabled
+    caller should report error if returned size is less than 1
     argc may be 0
     actual size is usually shorter
 */
 int qh_argv_to_command_size(int argc, char *argv[]) {
-    unsigned int count= 1; /* null-terminator if argc==0 */
+    int count= 1; /* null-terminator if argc==0 */
     int i;
     char *s;
 
@@ -130,7 +131,7 @@ int qh_argv_to_command_size(int argc, char *argv[]) {
     generate pseudo-random number between 1 and 2^31 -2
 
   notes:
-    For qhull and rbox, called from qh_RANDOMint(),etc. [user.h]
+    For qhull and rbox, called from qh_RANDOMint(),etc. [user_r.h]
 
     From Park & Miller's minimal standard random number generator
       Communications of the ACM, 31:1192-1201, 1988.
@@ -192,9 +193,9 @@ realT qh_randomfactor(qhT *qh, realT scale, realT offset) {
 /*-<a                             href="qh-geom_r.htm#TOC"
 >-------------------------------</a><a name="randommatrix">-</a>
 
-qh_randommatrix(qh, buffer, dim, rows )
-  generate a random dim X dim matrix in range [-1,1]
-  assumes buffer is [dim+1, dim]
+  qh_randommatrix(qh, buffer, dim, rows )
+    generate a random dim X dim matrix in range [-1,1]
+    assumes buffer is [dim+1, dim]
 
   returns:
     sets buffer to random numbers

@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullHyperplane.cpp#5 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullHyperplane.cpp#5 $$Change: 3009 $
+** $DateTime: 2020/07/30 19:25:22 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -22,7 +22,7 @@ namespace orgQhull {
 #//!\name Constructors
 
 QhullHyperplane::
-QhullHyperplane(const Qhull &q) 
+QhullHyperplane(const Qhull &q)
 : hyperplane_coordinates(0)
 , qh_qh(q.qh())
 , hyperplane_offset(0.0)
@@ -31,7 +31,7 @@ QhullHyperplane(const Qhull &q)
 }
 
 QhullHyperplane::
-QhullHyperplane(const Qhull &q, int hyperplaneDimension, coordT *c, coordT hyperplaneOffset) 
+QhullHyperplane(const Qhull &q, int hyperplaneDimension, coordT *c, coordT hyperplaneOffset)
 : hyperplane_coordinates(c)
 , qh_qh(q.qh())
 , hyperplane_offset(hyperplaneOffset)
@@ -120,8 +120,9 @@ distance(const QhullPoint &p) const
       break;
   default:
       dist= offset();
-      for (int k=dim; k--; )
+      for(int k=dim; k--; ){
           dist += *point++ * *normal++;
+      }
       break;
     }
     return dist;
@@ -143,7 +144,7 @@ double QhullHyperplane::
 norm() const {
     double d= 0.0;
     const coordT *c= coordinates();
-    for (int k=dimension(); k--; ){
+    for(int k=dimension(); k--; ){
         d += *c * *c;
         ++c;
     }
@@ -174,11 +175,7 @@ operator<<(ostream &os, const QhullHyperplane::PrintHyperplane &pr)
     const realT *c= p.coordinates();
     for(int k=p.dimension(); k--; ){
         realT r= *c++;
-        if(pr.print_message){
-            os << " " << r; // FIXUP QH11010 %8.4g
-        }else{
-            os << " " << r; // FIXUP QH11010 qh_REAL_1
-        }
+        os << " " << r; // QH11010 FIX: %8.4g qh_REAL_1
     }
     os << pr.hyperplane_offset_message << " " << p.offset();
     os << std::endl;

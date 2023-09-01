@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullPoint.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullPoint.h#5 $$Change: 3008 $
+** $DateTime: 2020/07/30 13:54:27 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -20,8 +20,8 @@
 namespace orgQhull {
 
 #//!\name Defined here
-    class QhullPoint;  //!<  QhullPoint as a pointer and dimension to shared memory
-    class QhullPointIterator; //!< Java-style iterator for QhullPoint coordinates
+    class QhullPoint;           //!< QhullPoint is a pointer to coordinates and dimension
+    class QhullPointIterator;   //!< Java-style iterator for QhullPoint coordinates
 
 #//!\name Used here
     class Qhull;
@@ -87,7 +87,7 @@ public:
     int                 dimension() const { return point_dimension; }
     coordT *            getBaseT() const { return point_coordinates; } // for QhullPointSet
     countT              id() const { return qh_pointid(qh_qh, point_coordinates); } // NOerrors
-    bool                isValid() const { return (point_coordinates!=0 && point_dimension>0); };
+    bool                isValid() const { return (point_coordinates!=0 && point_dimension>0); }
     bool                operator==(const QhullPoint &other) const;
     bool                operator!=(const QhullPoint &other) const { return ! operator==(other); }
     const coordT &      operator[](int idx) const { QHULL_ASSERT(point_coordinates!=0 && idx>=0 && idx<point_dimension); return *(point_coordinates+idx); } //!< 0 to hull_dim-1
@@ -104,7 +104,7 @@ public:
     int                 count() { return (point_coordinates ? point_dimension : 0); }
     iterator            end() { return (point_coordinates ? point_coordinates+point_dimension : 0); }
     const_iterator      end() const { return (point_coordinates ? point_coordinates+point_dimension : 0); }
-    size_t              size() { return (size_t)(point_coordinates ? point_dimension : 0); }
+    size_t              size() { return static_cast<size_t>(point_coordinates ? point_dimension : 0); }
 
 #//!\name Methods
     void                advancePoint(countT idx) { if(point_coordinates) { point_coordinates += idx*point_dimension; } }
@@ -123,6 +123,8 @@ public:
 
 };//QhullPoint
 
+//! QhullPointIterator is a Java-style iterator for QhullPoint coordinates
+//! QhullPointIterator may be used on temporary results.  It copies the coordinates pointer in QhullPoint
 QHULL_DECLARE_SEQUENTIAL_ITERATOR(QhullPoint, coordT)
 
 }//namespace orgQhull
