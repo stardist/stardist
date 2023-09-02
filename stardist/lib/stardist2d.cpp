@@ -550,7 +550,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
                                           results, params);
     else{
       results.resize(n_polys-i);
-      for (int n = 0; n < results.size(); ++n)
+      for (size_t n = 0; n < results.size(); ++n)
         results[n].first = i+n;
     }
     
@@ -563,7 +563,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)   shared(suppressed)
 #endif
     
-    for (int neigh=0; neigh<results.size(); neigh++) {
+    for (size_t neigh=0; neigh<results.size(); neigh++) {
     // for (int j=i+1; j<n_polys; j++) {
 
       long j = results[neigh].first;
