@@ -1171,7 +1171,7 @@ void _COMMON_non_maximum_suppression_sparse(
                                           results, params);
     else{
       results.resize(n_polys-i);
-      for (int n = 0; n < results.size(); ++n)
+      for (size_t n = 0; n < results.size(); ++n)
         results[n].first = i+n;
     }
     //  inner loop
@@ -1192,7 +1192,7 @@ void _COMMON_non_maximum_suppression_sparse(
     //   if (suppressed[j])
     //     continue;
     
-    for (int neigh=0; neigh<results.size(); neigh++) {
+    for (size_t neigh=0; neigh<results.size(); neigh++) {
 
       long j = results[neigh].first;
 
@@ -1458,13 +1458,12 @@ void  _COMMON_polyhedron_to_label(const float* dist, const float* points,
 
     // loop over bounding box and label pixel if inside of the polyhedron
 #pragma omp parallel for schedule(dynamic)
-    for (int z = std::max(0,bbox[0]); z <= std::min(nz-1,bbox[1]); ++z) {
-      for (int y = std::max(0,bbox[2]); y <= std::min(ny-1,bbox[3]); ++y) {
-        for (int x = std::max(0,bbox[4]); x <= std::min(nx-1,bbox[5]); ++x) {
+    for (uint64_t z = std::max(0,bbox[0]); z <= (uint64_t) std::min(nz-1,bbox[1]); ++z) {
+      for (uint64_t y = std::max(0,bbox[2]); y <= (uint64_t) std::min(ny-1,bbox[3]); ++y) {
+        for (uint64_t x = std::max(0,bbox[4]); x <= (uint64_t) std::min(nx-1,bbox[5]); ++x) {
 
-          
           bool inside = false;
-          long offset = x+y*nx+z*(nx*ny);
+          uint64_t offset = x+y*nx+z*(nx*ny);
 
           switch(render_mode){
           case 0:
