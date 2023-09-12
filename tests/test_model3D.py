@@ -10,6 +10,15 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer
 
 
+# integration test 
+def test_integration():
+    model = StarDist3D.from_pretrained('3D_demo')
+    x = normalize(test_image_nuclei_3d())
+    labels, details = model.predict_instances(x)
+    assert set(np.unique(labels).tolist()) == set(range(31))
+    assert np.abs(np.sum(labels>0)-32962)<10
+    return model, x, labels
+    
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 1, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers, use_sequence):
@@ -381,4 +390,6 @@ if __name__ == '__main__':
     # res = _test_model_multiclass(n_classes = 2, classes="auto", n_channel=1, epochs=20)
     # test_stardistdata((2,2,2), True)
 
-    x, y = test_predict_with_scale((.4,1,1))
+    # x, y = test_predict_with_scale((.4,1,1))
+
+    model,x, labels = test_prediction()

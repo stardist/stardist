@@ -12,6 +12,17 @@ from csbdeep.utils import normalize
 from utils import circle_image, path_model2d, crop, NumpySequence, Timer
 
 
+# integration test 
+def test_integration():
+    model = StarDist2D.from_pretrained('2D_versatile_fluo')
+    x = normalize(test_image_nuclei_2d())
+    labels, details = model.predict_instances(x)
+    assert set(np.unique(labels).tolist()) == set(range(120))
+    assert np.abs(np.sum(labels>0)-55985)<10
+    return model, x, labels
+
+
+
 @pytest.mark.parametrize('n_rays, grid, n_channel, workers, use_sequence', [(17, (1, 1), None, 1, False), (32, (2, 4), 1, 1, False), (4, (8, 2), 2, 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, workers, use_sequence):
     img = circle_image(shape=(160, 160))
