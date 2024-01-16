@@ -40,6 +40,8 @@ class Block:
         self.stride = self.size - (self.min_overlap + 2*self.context)
         self._start = 0
         self._frozen = False
+        self._extra_context_start = 0
+        self._extra_context_end = 0
 
     @property
     def start(self):
@@ -139,19 +141,19 @@ class Block:
 
     @property
     def context_start(self):
-        return 0 if self.at_begin else self.context
+        return 0 if self.at_begin else self.context + self._extra_context_start
 
     @property
     def context_end(self):
-        return 0 if self.at_end else self.context
+        return 0 if self.at_end else self.context + self._extra_context_end
 
     def __repr__(self):
-        shared  = f'{self.start:03}:{self.end:03}'
-        shared += f', size={self.context_start}-{self.size-self.context_start-self.context_end}-{self.context_end}'
-        if self.at_end:
-            return f'{self.__class__.__name__}({shared})'
-        else:
-            return f'{self.__class__.__name__}({shared}, overlap={self.overlap}/{self.overlap-self.context_start-self.context_end})'
+        text  = f'{self.start:03}:{self.end:03}'
+        text += f', write={self.slice_write.start:03}:{self.slice_write.stop:03}'
+        text += f', size={self.context_start}+{self.size-self.context_start-self.context_end}+{self.context_end}'
+        if not self.at_end:
+            text += f', overlap={self.overlap}R/{self.overlap-self.context_end-self.succ.context_start}W'
+        return f'{self.__class__.__name__}({text})'
 
     @property
     def chain(self):
@@ -204,7 +206,7 @@ class Block:
             t = t.add_succ()
         last = t
 
-        # [print(t) for t in first]
+        # print(); [print(t) for t in first]
 
         # move blocks around to make it fit
         excess = last.end - size
@@ -214,6 +216,20 @@ class Block:
             excess -= 1
             t = t.succ
             if (t == last): t = first
+        # print(); [print(t) for t in first]
+
+        # add extra context to avoid overlapping write regions of non-neighboring blocks
+        t = first
+        while not t.at_end:
+            if (t.succ is not None and t.succ.succ is not None):
+                overlap_write = t.slice_write.stop - t.succ.succ.slice_write.start
+                if overlap_write > 0:
+                    overlap_split1, overlap_split2 = overlap_write // 2, overlap_write - overlap_write // 2
+                    t._extra_context_end             += overlap_split1
+                    t.succ.succ._extra_context_start += overlap_split2
+            t = t.succ
+        # print(); [print(t) for t in first]
+
 
         # make a copy of the cover and multiply sizes by grid
         if grid > 1:
@@ -225,10 +241,14 @@ class Block:
             _t = _first = first
             t = first = Block(block_size, min_overlap, context, None)
             t.stride = _t.stride*grid
+            t._extra_context_start = _t._extra_context_start*grid
+            t._extra_context_end   = _t._extra_context_end*grid
             while not _t.at_end:
                 _t = _t.succ
                 t = t.add_succ()
                 t.stride = _t.stride*grid
+                t._extra_context_start = _t._extra_context_start*grid
+                t._extra_context_end   = _t._extra_context_end*grid
             last = t
 
             # change size of last block
@@ -242,10 +262,12 @@ class Block:
         first.freeze()
 
         blocks = first.chain
+        # print(); [print(t) for t in first]
 
         # sanity checks
         assert first.start == 0 and last.end == size_orig
         assert all(t.overlap-2*context >= min_overlap for t in blocks if t != last)
+        assert all(t.slice_write.stop-t.succ.slice_write.start >= min_overlap for t in blocks if t != last)
         assert all(t.start % grid == 0 and t.end % grid == 0 for t in blocks if t != last)
         # print(); [print(t) for t in first]
 
