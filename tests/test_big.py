@@ -98,11 +98,11 @@ def test_predict2D(model2d, use_channel):
     ref_labels, ref_polys = model.predict_instances(img, axes=axes)
     res_labels, res_polys = model.predict_instances_big(img, axes=axes, block_size=288, min_overlap=32, context=96)
 
-    m = matching(ref_labels, res_labels)
+    m = matching(ref_labels, res_labels, thresh=0.99)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
     m = matching(render_polygons(ref_polys, shape=img.shape),
-                 render_polygons(res_polys, shape=img.shape))
+                 render_polygons(res_polys, shape=img.shape), thresh=0.99)
     assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
 
     # sort them first lexicographic
@@ -129,8 +129,11 @@ def test_predict3D(model3d):
     ref_labels, ref_polys = model.predict_instances(img)
     res_labels, res_polys = model.predict_instances_big(img, axes='ZYX', block_size=(55,105,105), min_overlap=(13,25,25), context=(17,30,30))
 
-    m = matching(ref_labels, res_labels)
-    assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
+    m = matching(ref_labels, res_labels, thresh=0.99)
+    # 2024-01-25: failed on github actions: "windows-latest" in combination with tensorflow 2.15.0 (python 3.9, 3.10, and 3.11)
+    #             (m.mean_true_score was 0.9999979271079009)
+    # assert (1.0, 1.0) == (m.accuracy, m.mean_true_score)
+    assert m.accuracy == 1.0 and m.mean_true_score > 0.999
 
     # sort them first lexicographic
     ref_inds = np.lexsort(ref_polys["points"].T)
