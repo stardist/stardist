@@ -241,11 +241,25 @@ If available, the C++ code will make use of [OpenMP](https://en.wikipedia.org/wi
 #### macOS
 The default C/C++ compiler Clang that comes with the macOS command line tools (installed via `xcode-select --install`) does not support OpenMP out of the box, but it can be added. Alternatively, a suitable compiler can be installed from [conda-forge](https://conda-forge.org). Please see this [detailed guide](https://scikit-learn.org/stable/developers/advanced_installation.html#macos)  for more information on both strategies (although written for [scikit-image](https://scikit-learn.org), it also applies here).
 
-A third alternative (and what we did until StarDist 0.8.1) is to install the OpenMP-enabled GCC compiler via [Homebrew](https://brew.sh) with `brew install gcc` (e.g. installing `gcc-10`/`g++-10` or newer). After that, you can build the package like this (adjust compiler names/paths as necessary):
+A third alternative (and what we did until StarDist 0.8.1) is to install the OpenMP-enabled GCC compiler via [Homebrew](https://brew.sh) with `brew install gcc` (e.g. installing `gcc-12`/`g++-12` or newer). After that, you can build the package like this (adjust compiler names/paths as necessary):
 
-    CC=gcc-10 CXX=g++-10 pip install stardist
+    CC=gcc-12 CXX=g++-12 pip install stardist
 
 If you use `conda` on macOS and after `import stardist` see errors similar to `Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next`, please see [this issue](https://github.com/stardist/stardist/issues/19#issuecomment-535610758) for a temporary workaround.
+
+If you encounter an `ImportError: dlopen(...): symbol not found in flat namespace ...` error on `import stardist`, you may try to install it like so:
+
+```
+brew install libomp
+
+export HOMEBREW_PREFIX=/opt/homebrew #set to your homebrew prefix
+export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+export CFLAGS="$CFLAGS -I/usr/local/opt/libomp/include"
+export CXXFLAGS="$CXXFLAGS -I/usr/local/opt/libomp/include"
+export LDFLAGS="$LDFLAGS -Wl,-rpath,/usr/local/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
+
+pip install stardist --no-binary :all:
+```
 
 ##### Apple Silicon
 
