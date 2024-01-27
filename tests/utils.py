@@ -106,3 +106,9 @@ def path_model3d():
     return Path(_root_dir()) / '..' / 'models' / 'examples' / '3D_demo'
 
 
+def check_same_shapes(*arrays, shape_index=None):
+    if len(arrays) < 2: return
+    shape_index = slice(None) if shape_index is None else shape_index
+    shape = arrays[0].shape
+    debug = f"full array shapes: {[a.shape for a in arrays]}\nindexed array shapes: {[a.shape[shape_index] for a in arrays]}"
+    assert all(a.shape[shape_index] == shape[shape_index] for a in arrays), debug

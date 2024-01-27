@@ -9,7 +9,7 @@ from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
-from utils import circle_image, path_model2d, crop, NumpySequence, Timer
+from utils import circle_image, path_model2d, crop, NumpySequence, Timer, check_same_shapes
 
 
 # integration test
@@ -142,8 +142,9 @@ def test_stardistdata(shape_completion, n_classes, classes):
                        grid = (2,2),
                        n_classes = n_classes, classes = classes,
                        shape_completion = shape_completion, b = 8,
-                       batch_size=1, patch_size=(30, 40), n_rays=32, length=1)
+                       batch_size=1, patch_size=(30, 41), n_rays=32, length=1)
     a, b = s[0]
+    check_same_shapes(*b, shape_index=slice(0,3))
     return a,b, s
 
 

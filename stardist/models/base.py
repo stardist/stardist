@@ -28,7 +28,7 @@ from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
 from ..nms import _ind_prob_thresh
-from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
+from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold, grid_divisible_patch_size
 
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
@@ -142,6 +142,7 @@ class StarDistDataBase(RollingSequence):
         len(classes)==len(X) or _raise(ValueError("X and classes must have same length"))
 
         self.n_classes, self.classes = n_classes, classes
+        patch_size = grid_divisible_patch_size(patch_size, grid)
 
         nD = len(patch_size)
         assert nD in (2,3)

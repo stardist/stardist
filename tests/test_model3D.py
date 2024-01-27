@@ -1,13 +1,15 @@
 import sys
 import numpy as np
 import pytest
+import tempfile
+from pathlib import Path
 from itertools import product
 from stardist.data import test_image_nuclei_3d
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
-from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer
+from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer, check_same_shapes
 
 
 # integration test
@@ -149,6 +151,7 @@ def test_stardistdata(grid):
     s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
                        patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
     (img,), (prob, dist) = s[0]
+    check_same_shapes(prob, dist, shape_index=slice(0,4))
 
     return (img,), (prob, dist), s
 
@@ -219,8 +222,8 @@ def test_mesh_export(model3d):
     labels, polys = model.predict_instances(x, nms_thresh=.5,
                                         overlap_label=-3)
 
-    s = export_to_obj_file3D(polys,
-                             "mesh.obj",scale = (.2,.1,.1))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        s = export_to_obj_file3D(polys, str(Path(tmpdir)/"mesh.obj"), scale = (.2,.1,.1))
     return s
 
 
