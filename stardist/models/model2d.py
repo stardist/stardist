@@ -95,7 +95,7 @@ class StarDistData2D(StarDistDataBase):
         if self.n_classes is None:
             return [X], [prob,dist_and_mask]
         else:
-            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
+            prob_class = np.stack(tuple((mask_to_categorical(y[self.b], self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
             # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
