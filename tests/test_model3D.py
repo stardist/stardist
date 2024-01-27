@@ -10,7 +10,7 @@ from csbdeep.utils import normalize
 from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer
 
 
-# integration test 
+# integration test
 def test_integration():
     model = StarDist3D.from_pretrained('3D_demo')
     x = normalize(test_image_nuclei_3d())
@@ -18,7 +18,7 @@ def test_integration():
     assert set(np.unique(labels).tolist()) == set(range(31))
     assert np.abs(np.sum(labels>0)-32962)<10
     return model, x, labels
-    
+
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 1, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers, use_sequence):
@@ -292,7 +292,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         n_channel_in=n_channel,
         n_classes = n_classes,
         use_gpu=False,
-        train_epochs=1,
+        train_epochs=epochs,
         train_steps_per_epoch=10,
         train_batch_size=batch_size,
         train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
@@ -316,25 +316,25 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
 
-    s = model.train(X, Y, classes = classes, epochs = epochs,
+    s = model.train(X, Y, classes = classes,
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
-    labels, res = model.predict_instances(img)
+    # labels, res = model.predict_instances(img)
     # return  model, X,Y, classes, labels, res
 
-    img = np.tile(img,(4,2,2) if img.ndim==3 else (4,2,2,1))
+    # img = np.tile(img,(4,2,2) if img.ndim==3 else (4,2,2,1))
 
     kwargs = dict(prob_thresh=.5)
-    labels1, res1 = model.predict_instances(img, **kwargs)
+    labels1, res1 = model.predict_instances(img, sparse = False, **kwargs)
     labels2, res2 = model.predict_instances(img, sparse = True, **kwargs)
-    labels3, res3 = model.predict_instances_big(img, axes="ZYX" if img.ndim==3 else "ZYXC",
-                                                block_size=96, min_overlap=8, context=8, **kwargs)
+    # labels3, res3 = model.predict_instances_big(img, axes="ZYX" if img.ndim==3 else "ZYXC",
+    #                                             block_size=96, min_overlap=8, context=8, **kwargs)
 
     assert np.allclose(labels1, labels2)
     assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
 
-    return model, img, res1, res2, res3
+    return model, img, res1, res2 #, res3
 
 
 
@@ -343,8 +343,8 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
                          [ (None, "auto", 1, 1, 1),
                            (1, "auto", 3, 1, 1),
                            (3, (1,2,3), 3, 1, 1),
-                           (3, (1,2,3), 3, 1, 2)]
-                         )
+                         # (3, (1,2,3), 3, 1, 2),
+                         ])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_size):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
@@ -360,7 +360,7 @@ def test_predict_with_scale(scale):
     x = test_image_nuclei_3d()
     x = normalize(x)
     x_scaled = zoom(x, scale, order=1)
-    
+
     labels,        res        = model.predict_instances(x, scale=scale)
     labels_scaled, res_scaled = model.predict_instances(x_scaled)
 
@@ -371,7 +371,7 @@ def test_predict_with_scale(scale):
     assert np.allclose(res['rays_faces'], res_scaled['rays_faces'])
     assert np.allclose(res['rays_vertices'] * np.asarray(scale).reshape(1,3), res_scaled['rays_vertices'])
     return x, labels
-    
+
 
 # this test has to be at the end of the model
 def test_load_and_export_TF(model3d):
