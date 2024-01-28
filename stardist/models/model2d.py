@@ -39,6 +39,8 @@ class StarDistData2D(StarDistDataBase):
 
         self.shape_completion = bool(shape_completion)
         if self.shape_completion and b > 0:
+            if not all(b % g == 0 for g in self.grid):
+                raise ValueError(f"'shape_completion' requires that crop size {b} ('train_completion_crop' in config) is evenly divisible by all grid values {self.grid}")
             self.b = slice(b,-b),slice(b,-b)
         else:
             self.b = slice(None),slice(None)
@@ -133,7 +135,7 @@ class Config2D(BaseConfig):
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
     n_classes : None or int
-        Number of object classes to use for multi-class predection (use None to disable)
+        Number of object classes to use for multi-class prediction (use None to disable)
     backbone : str
         Name of the neural network architecture to be used as backbone.
     kwargs : dict
@@ -529,7 +531,7 @@ class StarDist2D(StarDistBase):
         if scale is not None:
             # need to undo the scaling given by the scale dict, e.g. scale = dict(X=0.5,Y=0.5):
             #   1. re-scale points (origins of polygons)
-            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons 
+            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons
             if not (isinstance(scale,dict) and 'X' in scale and 'Y' in scale):
                 raise ValueError("scale must be a dictionary with entries for 'X' and 'Y'")
             rescale = (1/scale['Y'],1/scale['X'])

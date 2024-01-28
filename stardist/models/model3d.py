@@ -141,7 +141,7 @@ class Config3D(BaseConfig):
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
     n_classes : None or int
-        Number of object classes to use for multi-class predection (use None to disable)
+        Number of object classes to use for multi-class prediction (use None to disable)
     anisotropy : (float,float,float)
         Anisotropy of objects along each of the axes.
         Use ``None`` to disable only for (nearly) isotropic objects shapes.
