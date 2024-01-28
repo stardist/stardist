@@ -304,8 +304,10 @@ class StarDistBase(BaseModel):
                             'mae': masked_loss_mae,
                             'iou': masked_loss_iou,
                             }[self.config.train_dist_loss]
-        prob_loss = 'binary_crossentropy'
 
+        def prob_loss(y_true, y_pred):
+            mask = y_true >= 0
+            return K.mean(K.binary_crossentropy(y_true[mask], y_pred[mask]), axis=-1)
 
         def split_dist_true_mask(dist_true_mask):
             return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)

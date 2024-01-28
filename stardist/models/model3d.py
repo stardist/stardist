@@ -46,6 +46,7 @@ class StarDistData3D(StarDistDataBase):
         if self.batch_size > 1:
             self.out_X = np.empty((self.batch_size,)+tuple(self.patch_size)+(() if self.n_channel is None else (self.n_channel,)), dtype=np.float32)
             patch_size_grid = tuple((p-1)//g+1 for p,g in zip(self.patch_size,self.grid))
+            self.out_mask_neg_labels = np.empty((self.batch_size,)+patch_size_grid, dtype=bool)
             self.out_edt_prob = np.empty((self.batch_size,)+patch_size_grid, dtype=np.float32)
             self.out_star_dist3D = np.empty((self.batch_size,)+patch_size_grid+(len(self.rays),), dtype=np.float32)
             if self.n_classes is not None:
@@ -64,6 +65,16 @@ class StarDistData3D(StarDistDataBase):
             X, Y = list(zip(*[(np.stack([_x[0] for _x in x],axis=-1), y[0]) for y,*x in arrays]))
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
+
+        tmp = [y[self.ss_grid[1:]] < 0 for y in Y]
+        has_neg_labels = any(m.any() for m in tmp)
+        if has_neg_labels:
+            if len(Y) == 1:
+                mask_neg_labels = tmp[0][np.newaxis]
+            else:
+                mask_neg_labels = np.stack(tmp, out=self.out_mask_neg_labels[:len(Y)])
+            # set negative label pixels to 0 (background)
+            Y = tuple(np.maximum(y, 0) for y in Y)
 
         if len(Y) == 1:
             X = X[0][np.newaxis]
@@ -89,6 +100,9 @@ class StarDistData3D(StarDistDataBase):
         # append dist_mask to dist as additional channel
         dist = np.concatenate([dist,dist_mask],axis=-1)
 
+        if has_neg_labels:
+            prob[mask_neg_labels] = -1  # set to -1 to disable loss
+
         if self.n_classes is None:
             return [X], [prob,dist]
         else:
@@ -103,6 +117,9 @@ class StarDistData3D(StarDistDataBase):
             # prob_class = prob_class[self.ss_grid]
             # 'zoom' might lead to better registered maps (especially if upscaled later)
             prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
+
+            if has_neg_labels:
+                prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
 
             return [X], [prob,dist, prob_class]
 
@@ -438,6 +455,8 @@ class StarDist3D(StarDistBase):
             Input images
         Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
             Label masks
+            Positive pixel values denote object instance ids (0 for background).
+            Negative values can be used to turn off all losses for the corresponding pixels (e.g. for regions that haven't been labeled).
         classes (optional): 'auto' or iterable of same length as X
              label id -> class id mapping for each label mask of Y if multiclass prediction is activated (n_classes > 0)
              list of dicts with label id -> class id (1,...,n_classes)

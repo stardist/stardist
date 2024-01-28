@@ -142,18 +142,52 @@ def test_optimize_thresholds(model3d):
     return model
 
 
+@pytest.mark.parametrize('n_classes, classes', [(None,(1,1)),(2,(1,2))])
 @pytest.mark.parametrize('grid',((1,1,1),(1,4,4)))
-def test_stardistdata(grid):
+@pytest.mark.parametrize('batch_size',(1,2))
+def test_stardistdata(n_classes, classes, grid, batch_size):
     np.random.seed(42)
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
-    s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
-                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
-    (img,), (prob, dist) = s[0]
-    check_same_shapes(prob, dist, shape_index=slice(0,4))
+    data_kwargs = dict(
+        grid = grid,
+        n_classes = n_classes, classes = classes,
+        batch_size=batch_size, rays=Rays_GoldenSpiral(64), length=1,
+    )
 
-    return (img,), (prob, dist), s
+    a,b = StarDistData3D([img,img], [mask,mask], patch_size=(30, 40, 50), **data_kwargs)[0]
+    check_same_shapes(*b, shape_index=slice(0,4))
+    ###
+
+    assert img.shape == mask.shape
+    _crop = tuple(slice(0, (sh//g)*g) for sh,g in zip(img.shape, grid))
+    img, mask = img[_crop], mask[_crop]
+
+    labels_ids = tuple({*np.unique(mask).tolist()}-{0})
+    ind = np.random.choice(labels_ids, len(labels_ids) // 2, replace=False)
+    mask_neg = np.isin(mask,ind) # mask to make labels negative
+
+    mask = mask.astype(np.int32)
+    mask[mask_neg] *= -1
+
+    s = StarDistData3D([img,img], [mask,mask], patch_size=mask.shape, **data_kwargs)
+    mask_neg = mask_neg[s.ss_grid[1:]]
+
+    a, b = s[0]
+    check_same_shapes(*b, shape_index=slice(0,4))
+    prob, dist_and_mask = b[:2]
+    prob, dist, dist_mask = prob[0,...,0], dist_and_mask[0,...,:-1], dist_and_mask[0,...,-1]
+
+    assert np.allclose(prob[mask_neg], -1)
+    assert np.allclose(dist_mask[mask_neg], 0)
+    assert np.allclose(dist[np.broadcast_to(mask_neg[...,None],dist.shape)], 0)
+
+    if n_classes is not None:
+        prob_class = b[2]
+        assert np.allclose(prob_class[np.broadcast_to(mask_neg[...,None],prob_class.shape)], -1)
+
+    return a,b, s
 
 
 def _edt_available():
