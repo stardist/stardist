@@ -68,8 +68,9 @@ def masked_metric_mse(mask):
     return relevant_mse
 
 def kld(y_true, y_pred):
-    y_true = K.clip(y_true, K.epsilon(), 1)
-    y_pred = K.clip(y_pred, K.epsilon(), 1)
+    mask = y_true >= 0 # pixels to ignore have y_true == -1
+    y_true = K.clip(y_true[mask], K.epsilon(), 1)
+    y_pred = K.clip(y_pred[mask], K.epsilon(), 1)
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
 
