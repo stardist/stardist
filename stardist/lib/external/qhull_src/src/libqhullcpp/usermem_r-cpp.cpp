@@ -17,16 +17,16 @@
    may produce a warning about throwing an error from C code.
 */
 
-#include <stdarg.h>
 #include <stdexcept>
 #include <stdlib.h>
-
+#include <cstdarg>
+#include <cstddef>
 
 extern "C" {
-  void qh_exit(int exitcode);
-  void qh_free(void *mem);
-  void *qh_malloc(size_t size);
-  void qh_fprintf_stderr(int msgcode, const char *fmt, ... );
+    void    qh_exit(int exitcode);
+    void    qh_fprintf_stderr(int msgcode, const char *fmt, ... );
+    void   *qh_malloc(size_t size);
+    void    qh_free(void *mem);
 }
 
 /*-<a                             href="qh-user_r.htm#TOC"

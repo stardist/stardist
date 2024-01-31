@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/RoadError.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/RoadError.h#7 $$Change: 2959 $
+** $DateTime: 2020/05/28 22:25:29 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -58,22 +58,22 @@ public:
     RoadError(int code, const char *fmt, int d, int d2, float f, double e);
 
     RoadError &         operator=(const RoadError &other);
-                        ~RoadError() throw() {};
+                        ~RoadError() throw() {}
 
 #//!\name Class methods
 
     static void         clearGlobalLog() { global_log.seekp(0); }
     static bool         emptyGlobalLog() { return global_log.tellp()<=0; }
-    static const char  *stringGlobalLog() { return global_log.str().c_str(); }
+    static std::string  stringGlobalLog() { return global_log.str(); }
 
 #//!\name Virtual
     virtual const char *what() const throw();
 
 #//!\name GetSet
     bool                isValid() const { return log_event.isValid(); }
-    int                 errorCode() const { return error_code; };
-   // FIXUP QH11021 should RoadError provide errorMessage().  Currently what()
-    RoadLogEvent        roadLogEvent() const { return log_event; };
+    int                 errorCode() const { return error_code; }
+   // QH11021 FIX: should RoadError provide errorMessage().  Currently what()
+    RoadLogEvent        roadLogEvent() const { return log_event; }
 
 #//!\name Update
     void                logErrorLastResort() const;

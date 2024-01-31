@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/Qhull.cpp#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/Qhull.cpp#12 $$Change: 3009 $
+** $DateTime: 2020/07/30 19:25:22 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -29,12 +29,12 @@ using std::ostream;
 #pragma warning( disable : 4996)  // function was declared deprecated(strcpy, localtime, etc.)
 #endif
 
-namespace orgQhull {
+namespace orgQhull{
 
 #//!\name Global variables
 
 const char s_unsupported_options[]=" Fd TI ";
-const char s_not_output_options[]= " Fd TI A C d E H P Qb QbB Qbb Qc Qf Qg Qi Qm QJ Qr QR Qs Qt Qv Qx Qz Q0 Q1 Q2 Q3 Q4 Q5 Q6 Q7 Q8 Q9 Q10 Q11 R Tc TC TM TP TR Tv TV TW U v V W ";
+const char s_not_output_options[]= " Fd TI A C d E H P Qa Qb QbB Qbb Qc Qf Qg Qi Qm QJ Qr QR Qs Qt Qv Qx Qz Q0 Q1 Q2 Q3 Q4 Q5 Q6 Q7 Q8 Q9 Q10 Q11 Q15 R TA Tc TC TM TP TR Tv TV TW U v V W ";
 
 #//!\name Constructor, destructor, etc.
 Qhull::
@@ -96,7 +96,7 @@ Qhull::
 {
     // Except for cerr, does not throw errors
     if(qh_qh->hasQhullMessage()){
-        cerr<< "\nQhull output at end\n"; //FIXUP QH11005: where should error and log messages go on ~Qhull?
+        cerr<< "\nQhull messages at ~Qhull()\n"; // QH11005 FIX: where should error and log messages go on ~Qhull?
         cerr<< qh_qh->qhullMessage();
         qh_qh->clearQhullMessage();
     }
@@ -183,7 +183,8 @@ defineVertexNeighborFacets(){
 }//defineVertexNeighborFacets
 
 QhullFacetList Qhull::
-facetList() const{
+facetList() const
+{
     return QhullFacetList(beginFacet(), endFacet());
 }//facetList
 
@@ -199,9 +200,11 @@ otherPoints() const
     return QhullPointSet(qh_qh, qh_qh->other_points);
 }//otherPoints
 
-//! Return vertices of the convex hull.
+//! Return vertices of the convex hull in qh.vertex_list order
+//! Vertices are not ordered by adjacency (see QhullFacet::nextFacet2d)
 QhullVertexList Qhull::
-vertexList() const{
+vertexList() const
+{
     return QhullVertexList(beginVertex(), endVertex());
 }//vertexList
 
@@ -227,29 +230,50 @@ outputQhull(const char *outputflags)
     char *command= const_cast<char*>(cmd.c_str());
     QH_TRY_(qh_qh){ // no object creation -- destructors skipped on longjmp()
         qh_clear_outputflags(qh_qh);
-        char *s = qh_qh->qhull_command + strlen(qh_qh->qhull_command) + 1; //space
+        char *s= qh_qh->qhull_command + strlen(qh_qh->qhull_command) + 1; //space
         strncat(qh_qh->qhull_command, command, sizeof(qh_qh->qhull_command)-strlen(qh_qh->qhull_command)-1);
         qh_checkflags(qh_qh, command, const_cast<char *>(s_not_output_options));
         qh_initflags(qh_qh, s);
         qh_initqhull_outputflags(qh_qh);
-        if(qh_qh->KEEPminArea < REALmax/2
-           || (0 != qh_qh->KEEParea + qh_qh->KEEPmerge + qh_qh->GOODvertex
-                    + qh_qh->GOODthreshold + qh_qh->GOODpoint + qh_qh->SPLITthresholds)){
+        if(qh_qh->KEEPminArea < REALmax/2 || qh_qh->KEEParea || qh_qh->KEEPmerge || qh_qh->GOODvertex
+                  || qh_qh->GOODpoint || qh_qh->GOODthreshold || qh_qh->SPLITthresholds){
             facetT *facet;
             qh_qh->ONLYgood= False;
-            FORALLfacet_(qh_qh->facet_list) {
+            FORALLfacet_(qh_qh->facet_list){
                 facet->good= True;
             }
             qh_prepare_output(qh_qh);
         }
         qh_produce_output2(qh_qh);
-        if(qh_qh->VERIFYoutput && !qh_qh->STOPpoint && !qh_qh->STOPcone){
+        if(qh_qh->VERIFYoutput && !qh_qh->FORCEoutput && !qh_qh->STOPadd && !qh_qh->STOPcone && !qh_qh->STOPpoint){
             qh_check_points(qh_qh);
         }
     }
     qh_qh->NOerrexit= true;
     qh_qh->maybeThrowQhullMessage(QH_TRY_status);
 }//outputQhull
+
+//! Prepare Qhull for Voronoi output
+//! Calls qh_markvoronoi ('v o Fi Fo') and qh_order_vertexneighbors ('v Fi Fo')
+void Qhull::
+prepareVoronoi(bool *isLower, int *voronoiVertexCount)
+{
+  QH_TRY_(qh_qh){ // no object creation -- destructors skipped on longjmp()
+    boolT isLowerHull;
+    vertexT *vertex;
+
+    setT *vertices= qh_markvoronoi(qh_qh, facetList().first().getFacetT(), NULL, !qh_ALL, &isLowerHull, voronoiVertexCount);
+    *isLower= isLowerHull;
+
+    qhT *qh= qh_qh;
+    FORALLvertices{
+      qh_order_vertexneighbors(qh, vertex);
+    }
+    qh_settempfree(qh, &vertices);
+  }
+  qh_qh->NOerrexit= true;
+  qh_qh->maybeThrowQhullMessage(QH_TRY_status);
+}//prepareVoronoi
 
 //! For qhull commands, see http://www.qhull.org/html/qhull.htm or html/qhull.htm
 void Qhull::
@@ -263,7 +287,7 @@ runQhull(const RboxPoints &rboxPoints, const char *qhullCommand2)
 //! For rbox commands, see http://www.qhull.org/html/rbox.htm or html/rbox.htm
 //! For qhull commands, see http://www.qhull.org/html/qhull.htm or html/qhull.htm
 void Qhull::
-runQhull(const char *inputComment, int pointDimension, int pointCount, const realT *pointCoordinates, const char *qhullCommand)
+runQhull(const char *inputComment2, int pointDimension, int pointCount, const realT *pointCoordinates, const char *qhullCommand2)
 {
   /* gcc may issue a "might be clobbered" warning for pointDimension and pointCoordinates [-Wclobbered].
      These parameters are not referenced after a longjmp() and hence not clobbered.
@@ -273,7 +297,7 @@ runQhull(const char *inputComment, int pointDimension, int pointCount, const rea
     }
     run_called= true;
     string s("qhull ");
-    s += qhullCommand;
+    s += qhullCommand2;
     char *command= const_cast<char*>(s.c_str());
     /************* Expansion of QH_TRY_ for debugging
     int QH_TRY_status;
@@ -289,7 +313,7 @@ runQhull(const char *inputComment, int pointDimension, int pointCount, const rea
         qh_checkflags(qh_qh, command, const_cast<char *>(s_unsupported_options));
         qh_initflags(qh_qh, command);
         *qh_qh->rbox_command= '\0';
-        strncat( qh_qh->rbox_command, inputComment, sizeof(qh_qh->rbox_command)-1);
+        strncat( qh_qh->rbox_command, inputComment2, sizeof(qh_qh->rbox_command)-1);
         if(qh_qh->DELAUNAY){
             qh_qh->PROJECTdelaunay= True;   // qh_init_B() calls qh_projectinput()
         }
@@ -306,7 +330,7 @@ runQhull(const char *inputComment, int pointDimension, int pointCount, const rea
         qh_qhull(qh_qh);
         qh_check_output(qh_qh);
         qh_prepare_output(qh_qh);
-        if(qh_qh->VERIFYoutput && !qh_qh->STOPpoint && !qh_qh->STOPcone){
+        if(qh_qh->VERIFYoutput && !qh_qh->FORCEoutput && !qh_qh->STOPadd && !qh_qh->STOPcone && !qh_qh->STOPpoint){
             qh_check_points(qh_qh);
         }
     }
@@ -332,12 +356,13 @@ initializeFeasiblePoint(int hulldim)
             qh_fprintf(qh_qh, qh_qh->ferr, 6209, "qhull error: missing feasible point for halfspace intersection.  Use option 'Hn,n' or Qhull::setFeasiblePoint before runQhull()\n");
             qh_errexit(qh_qh, qh_ERRmem, NULL, NULL);
         }
-        if(feasible_point.size()!=(size_t)hulldim){
-            qh_fprintf(qh_qh, qh_qh->ferr, 6210, "qhull error: dimension of feasiblePoint should be %d.  It is %u", hulldim, feasible_point.size());
+        if(feasible_point.size()!=static_cast<size_t>(hulldim)){
+            qh_fprintf(qh_qh, qh_qh->ferr, 6210, "qhull error: dimension of feasiblePoint should be %d.  It is %u\n", hulldim, feasible_point.size());
             qh_errexit(qh_qh, qh_ERRmem, NULL, NULL);
         }
-        if (!(qh_qh->feasible_point= (coordT*)qh_malloc(hulldim * sizeof(coordT)))) {
-            qh_fprintf(qh_qh, qh_qh->ferr, 6202, "qhull error: insufficient memory for feasible point\n");
+        qh_qh->feasible_point= static_cast<coordT*>(qh_malloc(static_cast<size_t>(hulldim) * sizeof(coordT)));
+        if(!qh_qh->feasible_point){
+            qh_fprintf(qh_qh, qh_qh->ferr, 6042, "qhull error (Qhull.cpp): insufficient memory for feasible point\n");
             qh_errexit(qh_qh, qh_ERRmem, NULL, NULL);
         }
         coordT *t= qh_qh->feasible_point;

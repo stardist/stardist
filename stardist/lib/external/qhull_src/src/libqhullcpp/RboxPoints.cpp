@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/RboxPoints.cpp#5 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/RboxPoints.cpp#8 $$Change: 2965 $
+** $DateTime: 2020/06/04 15:37:41 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -11,6 +11,7 @@
 #include "libqhullcpp/QhullError.h"
 
 #include <iostream>
+#include <cstring>
 
 using std::cerr;
 using std::endl;
@@ -109,13 +110,29 @@ hasRboxMessage() const
 #//!\name Methods
 
 //! Appends points as defined by rboxCommand
+//! If dimension previously defined, adds " Ddim" to rboxCommand
 //! Appends rboxCommand to comment
 //! For rbox commands, see http://www.qhull.org/html/rbox.htm or html/rbox.htm
 void RboxPoints::
 appendPoints(const char *rboxCommand)
 {
     string s("rbox ");
+    int dim= dimension(); // QhullPoints
     s += rboxCommand;
+    if(dim==0){
+        if(*rboxCommand=='D'){
+            char *endDim= NULL;
+            dim= (int)strtol(rboxCommand+1, &endDim, 10);
+            if(*endDim=='\0' && dim>0){
+                setDimension(dim);
+                return;
+            }
+        }
+    }else if(dim!=3){
+        char dimStr[20]; // max dim is 200 (MAXdim)
+        sprintf(dimStr, " D%d", dim);
+        s += dimStr;
+    }
     char *command= const_cast<char*>(s.c_str());
     if(qh()->cpp_object){
         throw QhullError(10001, "Qhull error: conflicting user of cpp_object for RboxPoints::appendPoints() or corrupted qh_qh");
@@ -154,19 +171,23 @@ appendPoints(const char *rboxCommand)
 
 notes:
     only called from qh_rboxpoints()
+    sets rbox_status to msgcode if error 6000..6999
     same as fprintf() and Qhull.qh_fprintf()
     fgets() is not trapped like fprintf()
     Do not throw errors from here.  Use qh_errexit_rbox;
     A similar technique can be used for qh_fprintf to capture all of its output
 */
 extern "C"
+
 void qh_fprintf_rbox(qhT *qh, FILE*, int msgcode, const char *fmt, ... ) {
     va_list args;
 
     using namespace orgQhull;
 
     if(!qh->cpp_object){
-        qh_errexit_rbox(qh, 10072);
+        fprintf(stderr, "QH10072 Qhull internal error (qh_fprintf_rbox): qh.cpp_object not defined.  Exit program\n");
+        qh_errexit_rbox(qh, 72);
+        /* never returns */
     }
     RboxPoints *out= reinterpret_cast<RboxPoints *>(qh->cpp_object);
     va_start(args, fmt);
@@ -184,10 +205,11 @@ void qh_fprintf_rbox(qhT *qh, FILE*, int msgcode, const char *fmt, ... ) {
     switch(msgcode){
     case 9391:
     case 9392:
-        out->rbox_message += "RboxPoints error: options 'h', 'n' not supported.\n";
-        qh_errexit_rbox(qh, 10010);
+        out->rbox_message += "QH10010 Qhull input error (RboxPoints): options 'h', 'n' not supported.\n";
+        qh_errexit_rbox(qh, 10);
         /* never returns */
-    case 9393:  // FIXUP QH11026 countT vs. int
+        break;
+    case 9393:  // QH11026 FIX: countT vs. int
         {
             int dimension= va_arg(args, int);
             string command(va_arg(args, char*));
@@ -217,6 +239,9 @@ void qh_fprintf_rbox(qhT *qh, FILE*, int msgcode, const char *fmt, ... ) {
         // fall through
     case 9404:
         *out << va_arg(args, double);
+        break;
+    default:
+        // do nothing
         break;
     }
     va_end(args);
