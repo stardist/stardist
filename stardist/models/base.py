@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import warnings
 import math
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from collections import namedtuple
 from pathlib import Path
 import threading
