@@ -381,7 +381,8 @@ static PyObject* c_non_max_suppression_inds_old(PyObject *self, PyObject *args) 
   delete [] bbox_x2;
   delete [] bbox_y1;
   delete [] bbox_y2;
-
+  Py_DECREF(points);
+	
   return PyArray_Return(result);
 }
 
