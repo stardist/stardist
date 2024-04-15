@@ -36,95 +36,114 @@ except ImportError:
     # warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
     pass
 
+# NOT CRITICAL
+# def gputools_available():
+#     try:
+#         import gputools
+#     except:
+#         return False
+#     return True
 
-def gputools_available():
-    try:
-        import gputools
-    except:
-        return False
-    return True
+# NOT CRITICAL
+# def path_absolute(path_relative):
+#     """ Get absolute path to resource"""
+#     base_path = os.path.abspath(os.path.dirname(__file__))
+#     return os.path.join(base_path, path_relative)
 
-
-def path_absolute(path_relative):
-    """ Get absolute path to resource"""
-    base_path = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(base_path, path_relative)
-
-
-def _is_power_of_2(i):
-    assert i > 0
-    e = np.log2(i)
-    return e == int(e)
+# NOT CRITICAL
+# def _is_power_of_2(i):
+#     assert i > 0
+#     e = np.log2(i)
+#     return e == int(e)
 
 
 def _normalize_grid(grid,n):
     try:
+        # Attempts to convert grid to a tuple
         grid = tuple(grid)
+        # Checks if grid is n-length, is a scalar, is a power of 2.
         (len(grid) == n and
          all(map(np.isscalar,grid)) and
          all(map(_is_power_of_2,grid))) or _raise(TypeError())
+        # Return if so
         return tuple(int(g) for g in grid)
     except (TypeError, AssertionError):
         raise ValueError("grid = {grid} must be a list/tuple of length {n} with values that are power of 2".format(grid=grid, n=n))
 
+# NOT CRITICAL
+# def edt_prob(lbl_img, anisotropy=None):
+#     if _edt_available:
+#         return _edt_prob_edt(lbl_img, anisotropy=anisotropy)
+#     else:
+#         # warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
+#         return _edt_prob_scipy(lbl_img, anisotropy=anisotropy)
 
-def edt_prob(lbl_img, anisotropy=None):
-    if _edt_available:
-        return _edt_prob_edt(lbl_img, anisotropy=anisotropy)
-    else:
-        # warnings.warn("Could not find package edt... \nConsider installing it with \n  pip install edt\nto improve training data generation performance.")
-        return _edt_prob_scipy(lbl_img, anisotropy=anisotropy)
-
+# CRITICAL TO POST-PROCESSING: USED TO ANALYZE SHAPES, DISTANCE MAP, SEGMENTATION QUALITY, FEATURE EXTRACTION
 def _edt_prob_edt(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize.
     Internally uses https://github.com/seung-lab/euclidean-distance-transform-3d
     that can handle multiple labels at once
     """
+    # Ensures the image is a contiguous array
     lbl_img = np.ascontiguousarray(lbl_img)
+    # Checks that all pixels have the same values
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
+    # If it is constant, it warns the user.
     if constant_img:
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
-    # we just need to compute the edt once but then normalize it for each object
+    # Get the Euclidean Distance
     prob = edt(lbl_img, anisotropy=anisotropy, black_border=constant_img, parallel=_edt_parallel)
+    # Find the slices of each labeled objects
     objects = find_objects(lbl_img)
     for i,sl in enumerate(objects,1):
         # i: object label id, sl: slices of object in lbl_img
         if sl is None: continue
+        # Create an normalize the mask
         _mask = lbl_img[sl]==i
-        # normalize it
         prob[sl][_mask] /= np.max(prob[sl][_mask]+1e-10)
     return prob
 
+# Premise: the farther you are from the nearest border (closer you are to the max) the more likely you are in the object
 def _edt_prob_scipy(lbl_img, anisotropy=None):
     """Perform EDT on each labeled object and normalize."""
-    def grow(sl,interior):
-        return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
+    def grow(sl, interior):
+        """Grow object slice by 1 for all interior object bounding boxes."""
+        return tuple(slice(s.start - int(w[0]), s.stop + int(w[1])) for s, w in zip(sl, interior))
     def shrink(interior):
-        return tuple(slice(int(w[0]),(-1 if w[1] else None)) for w in interior)
+        """Shrink interior object bounding boxes."""
+        return tuple(slice(int(w[0]), (-1 if w[1] else None)) for w in interior)
+    # Check if the input image is a constant image (all pixels have the same value)
     constant_img = lbl_img.min() == lbl_img.max() and lbl_img.flat[0] > 0
     if constant_img:
-        lbl_img = np.pad(lbl_img, ((1,1),)*lbl_img.ndim, mode='constant')
+        # Pad the image to avoid errors in EDT computation for constant images
+        lbl_img = np.pad(lbl_img, ((1, 1),) * lbl_img.ndim, mode='constant')
         warnings.warn("EDT of constant label image is ill-defined. (Assuming background around it.)")
+    # Find the slices of each labeled object in lbl_img
     objects = find_objects(lbl_img)
-    prob = np.zeros(lbl_img.shape,np.float32)
-    for i,sl in enumerate(objects,1):
+    # Initialize probability map with zeros
+    prob = np.zeros(lbl_img.shape, np.float32)
+    for i, sl in enumerate(objects, 1):
         # i: object label id, sl: slices of object in lbl_img
-        if sl is None: continue
-        interior = [(s.start>0,s.stop<sz) for s,sz in zip(sl,lbl_img.shape)]
-        # 1. grow object slice by 1 for all interior object bounding boxes
-        # 2. perform (correct) EDT for object with label id i
-        # 3. extract EDT for object of original slice and normalize
-        # 4. store edt for object only for pixels of given label id i
+        if sl is None:
+            continue
+        # Determine if the object slice is an interior slice (not at the image borders)
+        interior = [(s.start > 0, s.stop < sz) for s, sz in zip(sl, lbl_img.shape)]
+        # Shrink the object slice for interior slices
         shrink_slice = shrink(interior)
-        grown_mask = lbl_img[grow(sl,interior)]==i
+        # Grow the object slice by 1 for all interior object bounding boxes
+        grown_mask = lbl_img[grow(sl, interior)] == i
+        # Extract the mask for the current object label id
         mask = grown_mask[shrink_slice]
+        # Compute the Euclidean Distance Transform (EDT) for the current object
         edt = distance_transform_edt(grown_mask, sampling=anisotropy)[shrink_slice][mask]
-        prob[sl][mask] = edt/(np.max(edt)+1e-10)
+        # Normalize the EDT values for the current object and store in the probability map
+        prob[sl][mask] = edt / (np.max(edt) + 1e-10)
     if constant_img:
-        prob = prob[(slice(1,-1),)*lbl_img.ndim].copy()
+        # Remove the padding from the probability map for constant images
+        prob = prob[(slice(1, -1),) * lbl_img.ndim].copy()
     return prob
 
-
+# Fills holes in labeled images
 def _fill_label_holes(lbl_img, **kwargs):
     lbl_img_filled = np.zeros_like(lbl_img)
     for l in (set(np.unique(lbl_img)) - set([0])):
@@ -133,9 +152,8 @@ def _fill_label_holes(lbl_img, **kwargs):
         lbl_img_filled[mask_filled] = l
     return lbl_img_filled
 
-
+"""Fill small holes in label image."""
 def fill_label_holes(lbl_img, **kwargs):
-    """Fill small holes in label image."""
     # TODO: refactor 'fill_label_holes' and 'edt_prob' to share code
     def grow(sl,interior):
         return tuple(slice(s.start-int(w[0]),s.stop+int(w[1])) for s,w in zip(sl,interior))
@@ -152,6 +170,12 @@ def fill_label_holes(lbl_img, **kwargs):
         lbl_img_filled[sl][mask_filled] = i
     return lbl_img_filled
 
+"""The sample_points function is designed to sample a 
+specified number of points from within a mask, optionally 
+using a probability map to perform weighted sampling. The 
+function is primarily used in the context of drawing 
+polygons or shapes associated with the mask, such as 
+when visualizing segmented objects or regions in an image."""
 
 def sample_points(n_samples, mask, prob=None, b=2):
     """sample points to draw some of the associated polygons"""
@@ -176,6 +200,10 @@ def sample_points(n_samples, mask, prob=None, b=2):
     points = np.stack(points,axis=-1)
     return points
 
+"""In StarDist, the calculate_extents function is used to calculate the 
+sizes of bounding boxes for objects (or regions) in labeled images. These 
+bounding box sizes are then aggregated using a specified function (such as np.median) 
+to obtain a representative size for each object or region."""
 
 def calculate_extents(lbl, func=np.median):
     """ Aggregate bounding box sizes of objects in label images. """
