@@ -373,12 +373,12 @@ def export_bioimageio(
         min percentile to be used for image normalization (default: 1.0)
     max_percentile: float
         max percentile to be used for image normalization (default: 99.8)
+    overwrite_spec_kwargs: dict or None
+        spec keywords that should be overloaded (default: None)
     generate_default_deps: bool
         not required for bioimage.io, i.e. StarDist models don't need a dependencies field in rdf.yaml (default: False)
         if True, generate an environment.yaml file recording the python, bioimageio.core, stardist and tensorflow requirements
         from which a conda environment can be recreated to run this export
-    overwrite_spec_kwargs: dict or None
-        spec keywords that should be overloaded (default: None)
     """
     _, build_model, *_ = _import()
     from .models import StarDist2D, StarDist3D
