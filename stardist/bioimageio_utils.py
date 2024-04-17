@@ -345,8 +345,8 @@ def export_bioimageio(
     mode="tensorflow_saved_model_bundle",
     min_percentile=1.0,
     max_percentile=99.8,
-    generate_default_deps=False,
     overwrite_spec_kwargs=None,
+    generate_default_deps=False,
 ):
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
