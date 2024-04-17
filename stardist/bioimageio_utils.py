@@ -76,7 +76,7 @@ def _create_stardist_dependencies(outdir):
     from . import __version__ as stardist_version
     pkg_info = get_distribution("stardist")
     # dependencies that start with the name "bioimageio" will be added as conda dependencies
-    reqs_conda = [f"{req.project_name}{req.specifier}" for req in pkg_info.requires(extras=['bioimageio']) if str(req).startswith('bioimageio')]
+    reqs_conda = [f"{req.project_name}{req.specifier}" for req in pkg_info.requires(extras=['bioimageio']) if req.key.startswith('bioimageio')]
     # only stardist and tensorflow as pip dependencies
     tf_major, tf_minor = LooseVersion(tf_version).version[:2]
     reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={tf_major}.{tf_minor},<{tf_major+1}")
