@@ -76,7 +76,7 @@ def _create_stardist_dependencies(outdir):
     from . import __version__ as stardist_version
     pkg_info = get_distribution("stardist")
     # dependencies that start with the name "bioimageio" will be added as conda dependencies
-    reqs_conda = [str(req) for req in pkg_info.requires(extras=['bioimageio']) if str(req).startswith('bioimageio')]
+    reqs_conda = [f"{req.project_name}{req.specifier}" for req in pkg_info.requires(extras=['bioimageio']) if req.key.startswith('bioimageio')]
     # only stardist and tensorflow as pip dependencies
     tf_major, tf_minor = LooseVersion(tf_version).version[:2]
     reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={tf_major}.{tf_minor},<{tf_major+1}")
@@ -109,7 +109,7 @@ def _create_stardist_doc(outdir):
     return doc_path
 
 
-def _get_stardist_metadata(outdir, model):
+def _get_stardist_metadata(outdir, model, generate_default_deps):
     metadata, *_ = _import()
     package_data = metadata("stardist")
     doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
@@ -123,7 +123,6 @@ def _get_stardist_metadata(outdir, model):
         authors=list(authors.get(name.strip(),dict(name=name.strip())) for name in package_data["Author"].split(",")),
         git_repo=package_data["Home-Page"],
         license=package_data["License"],
-        dependencies=_create_stardist_dependencies(outdir),
         cite=[{"text": "Cell Detection with Star-Convex Polygons", "doi": doi_2d},
               {"text": "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy", "doi": doi_3d}],
         tags=[
@@ -139,6 +138,9 @@ def _get_stardist_metadata(outdir, model):
         covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
         documentation=_create_stardist_doc(outdir),
     )
+    if generate_default_deps:  # only if requested, as not required for bioimage.io
+        data['dependencies'] = _create_stardist_dependencies(outdir)
+
     return data
 
 
@@ -344,6 +346,7 @@ def export_bioimageio(
     min_percentile=1.0,
     max_percentile=99.8,
     overwrite_spec_kwargs=None,
+    generate_default_deps=False,
 ):
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
@@ -372,6 +375,10 @@ def export_bioimageio(
         max percentile to be used for image normalization (default: 99.8)
     overwrite_spec_kwargs: dict or None
         spec keywords that should be overloaded (default: None)
+    generate_default_deps: bool
+        not required for bioimage.io, i.e. StarDist models don't need a dependencies field in rdf.yaml (default: False)
+        if True, generate an environment.yaml file recording the python, bioimageio.core, stardist and tensorflow requirements
+        from which a conda environment can be recreated to run this export
     """
     _, build_model, *_ = _import()
     from .models import StarDist2D, StarDist3D
@@ -395,7 +402,7 @@ def export_bioimageio(
 
     with tempfile.TemporaryDirectory() as _tmp_dir:
         tmp_dir = Path(_tmp_dir)
-        kwargs = _get_stardist_metadata(tmp_dir, model)
+        kwargs = _get_stardist_metadata(tmp_dir, model, generate_default_deps)
         model_kwargs = _get_weights_and_model_metadata(tmp_dir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                        min_percentile=min_percentile, max_percentile=max_percentile)
         kwargs.update(model_kwargs)
