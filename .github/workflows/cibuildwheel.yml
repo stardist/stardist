@@ -17,8 +17,8 @@ jobs:
   build_wheels:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-        SETUPTOOLS_USE_DISTUTILS: stdlib
+    # env:
+    #     SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
