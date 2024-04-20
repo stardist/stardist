@@ -13,10 +13,9 @@ import scipy.ndimage as ndi
 import numbers
 
 from csbdeep.models.base_model import BaseModel
-from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
+from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard, BACKEND as K
 
 import tensorflow as tf
-K = keras_import('backend')
 Sequence = keras_import('utils', 'Sequence')
 Adam = keras_import('optimizers', 'Adam')
 ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')

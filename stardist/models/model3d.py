@@ -9,12 +9,11 @@ from tqdm import tqdm
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage, IS_KERAS_3_PLUS, BACKEND as K
 from distutils.version import LooseVersion
 from scipy.ndimage import zoom
 from skimage.measure  import regionprops
 keras = keras_import()
-K = keras_import('backend')
 Input, Conv3D, MaxPooling3D, UpSampling3D, Add, Concatenate = keras_import('layers', 'Input', 'Conv3D', 'MaxPooling3D', 'UpSampling3D', 'Add', 'Concatenate')
 Model = keras_import('models', 'Model')
 
