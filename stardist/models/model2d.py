@@ -24,6 +24,7 @@ from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 
+_gen_rtype = list if IS_TF_1 else tuple
 
 class StarDistData2D(StarDistDataBase):
 
@@ -103,7 +104,7 @@ class StarDistData2D(StarDistDataBase):
 
         # note: must return tuples in keras 3 (cf. https://stackoverflow.com/a/78158487)
         if self.n_classes is None:
-            return (X,), (prob,dist_and_mask)
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask))
         else:
             prob_class = np.stack(tuple((mask_to_categorical(y[self.b], self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
@@ -115,7 +116,7 @@ class StarDistData2D(StarDistDataBase):
             if has_neg_labels:
                 prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
 
-            return (X,), (prob,dist_and_mask, prob_class)
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask, prob_class))
 
 
 

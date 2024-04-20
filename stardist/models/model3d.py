@@ -25,6 +25,7 @@ from ..geometry import star_dist3D, polyhedron_to_label
 from ..rays3d import Rays_GoldenSpiral, rays_from_json
 from ..nms import non_maximum_suppression_3d, non_maximum_suppression_3d_sparse
 
+_gen_rtype = list if IS_TF_1 else tuple
 
 class StarDistData3D(StarDistDataBase):
 
@@ -104,7 +105,7 @@ class StarDistData3D(StarDistDataBase):
 
         # note: must return tuples in keras 3 (cf. https://stackoverflow.com/a/78158487)
         if self.n_classes is None:
-            return (X,), (prob,dist)
+            return _gen_rtype((X,)), _gen_rtype((prob,dist))
         else:
             tmp = [mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx)]
             # TODO: downsample here before stacking?
@@ -121,7 +122,7 @@ class StarDistData3D(StarDistDataBase):
             if has_neg_labels:
                 prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
 
-            return (X,), (prob,dist, prob_class)
+            return _gen_rtype((X,)), _gen_rtype((prob,dist, prob_class))
 
 
 
