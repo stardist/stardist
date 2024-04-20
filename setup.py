@@ -1,9 +1,14 @@
 from __future__ import absolute_import, print_function
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
-from numpy import get_include as get_numpy_include_dirs
+from numpy import get_include
 from os import path
 from glob import glob
+
+
+def get_numpy_include_dirs():
+    return [get_include()]
+
 
 class build_ext_openmp(build_ext):
     # https://www.openmp.org/resources/openmp-compilers-tools/
