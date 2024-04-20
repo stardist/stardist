@@ -132,14 +132,14 @@ setup(
     ],
 
     install_requires=[
-        'csbdeep>=0.7.4',
+        'csbdeep @ git+https://github.com/csbdeep/csbdeep.git@keras3',
         'scikit-image',
         'numba',
         'imageio',
     ],
 
     extras_require={
-        "tf1":  ["csbdeep[tf1]>=0.7.4"],
+        "tf1":  ["keras>=2.1.2,<2.4","protobuf<3.21","h5py<3"],
         "test": [
             "pytest;        python_version< '3.7'",
             "pytest>=7.2.0; python_version>='3.7'",
