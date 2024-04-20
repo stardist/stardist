@@ -102,8 +102,9 @@ class StarDistData3D(StarDistDataBase):
         if has_neg_labels:
             prob[mask_neg_labels] = -1  # set to -1 to disable loss
 
+        # note: must return tuples in keras 3 (cf. https://stackoverflow.com/a/78158487)
         if self.n_classes is None:
-            return [X], [prob,dist]
+            return (X,), (prob,dist)
         else:
             tmp = [mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx)]
             # TODO: downsample here before stacking?
@@ -120,7 +121,7 @@ class StarDistData3D(StarDistDataBase):
             if has_neg_labels:
                 prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
 
-            return [X], [prob,dist, prob_class]
+            return (X,), (prob,dist, prob_class)
 
 
 
@@ -524,6 +525,12 @@ class StarDist3D(StarDistBase):
             n_classes        = self.config.n_classes,
             sample_ind_cache = self.config.train_sample_cache,
         )
+        worker_kwargs = dict(workers=workers, use_multiprocessing=workers>1)
+        if IS_KERAS_3_PLUS:
+            data_kwargs['keras_kwargs'] = worker_kwargs
+            fit_kwargs = {}
+        else:
+            fit_kwargs = worker_kwargs
 
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
@@ -566,10 +573,10 @@ class StarDist3D(StarDistBase):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
                                                            n_images=3, prob_out=False, input_slices=input_slices, output_slices=output_slices))
 
-        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        fit = self.keras_model.fit_generator if (IS_TF_1 and not IS_KERAS_3_PLUS) else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, use_multiprocessing=workers>1,
+                      **fit_kwargs,
                       callbacks=self.callbacks, verbose=1,
                       # set validation batchsize to training batchsize (only works in tf 2.x)
                       **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))

@@ -130,9 +130,9 @@ class StarDistDataBase(RollingSequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
                  n_classes=None, classes=None,
-                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0, keras_kwargs=None):
 
-        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True, keras_kwargs=keras_kwargs)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
