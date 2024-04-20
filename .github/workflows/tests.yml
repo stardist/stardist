@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-latest, macos-latest]
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         exclude:
             # https://www.tensorflow.org/install/source#tested_build_configurations
@@ -30,6 +30,8 @@ jobs:
           - python-version: '3.10'
             tensorflow: 1
           - python-version: '3.11'
+            tensorflow: 1
+          - python-version: '3.12'
             tensorflow: 1
           - os: windows-latest
             tensorflow: 1
