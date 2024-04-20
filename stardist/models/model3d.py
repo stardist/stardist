@@ -10,7 +10,7 @@ from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import conv_block3, unet_block, resnet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
 from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage, IS_KERAS_3_PLUS, BACKEND as K
-from distutils.version import LooseVersion
+from packaging.version import Version
 from scipy.ndimage import zoom
 from skimage.measure  import regionprops
 keras = keras_import()
@@ -290,7 +290,7 @@ class Config3D(BaseConfig):
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         # keras.__version__ was removed in tensorflow 2.13.0
-        min_delta_key = 'epsilon' if LooseVersion(getattr(keras, '__version__', '9.9.9'))<=LooseVersion('2.1.5') else 'min_delta'
+        min_delta_key = 'epsilon' if Version(getattr(keras, '__version__', '9.9.9'))<=Version('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False

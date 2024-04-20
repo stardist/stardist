@@ -12,7 +12,7 @@ from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorB
 from skimage.segmentation import clear_border
 from skimage.measure import regionprops
 from scipy.ndimage import zoom
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 keras = keras_import()
 Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
@@ -248,7 +248,7 @@ class Config2D(BaseConfig):
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         # keras.__version__ was removed in tensorflow 2.13.0
-        min_delta_key = 'epsilon' if LooseVersion(getattr(keras, '__version__', '9.9.9'))<=LooseVersion('2.1.5') else 'min_delta'
+        min_delta_key = 'epsilon' if Version(getattr(keras, '__version__', '9.9.9'))<=Version('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False
