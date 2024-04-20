@@ -9,6 +9,7 @@ from stardist.matching import matching
 from stardist.utils import export_imagej_rois
 from stardist.plot import render_label, render_label_pred
 from csbdeep.utils import normalize
+from csbdeep.utils.tf import IS_KERAS_3_PLUS
 from utils import circle_image, path_model2d, crop, NumpySequence, Timer, check_same_shapes
 
 
@@ -555,6 +556,7 @@ def test_predict_with_scale(scale, mode):
 
 
 # this test has to be at the end of the model
+@pytest.mark.skipif(IS_KERAS_3_PLUS, reason="no longer supported with keras 3+")
 def test_load_and_export_TF(model2d):
     model = model2d
     assert any(g>1 for g in model.config.grid)

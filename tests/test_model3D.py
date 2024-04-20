@@ -9,6 +9,7 @@ from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
+from csbdeep.utils.tf import IS_KERAS_3_PLUS
 from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer, check_same_shapes
 
 
@@ -411,6 +412,7 @@ def test_predict_with_scale(scale):
 
 
 # this test has to be at the end of the model
+@pytest.mark.skipif(IS_KERAS_3_PLUS, reason="no longer supported with keras 3+")
 def test_load_and_export_TF(model3d):
     model = model3d
     assert any(g>1 for g in model.config.grid)
