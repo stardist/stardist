@@ -13,16 +13,35 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, py${{ matrix.python-version }}, tf${{ matrix.tensorflow }})
     runs-on: ${{ matrix.os }}
-    # env:
-    #     SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
+        # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
         os: [ubuntu-20.04, windows-latest, macos-latest]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
+        include:
+          # always set 'package-extras' conditional on tensorflow version
+          - tensorflow: 1
+            package-extras: 'test,tf1'
+          - tensorflow: 2
+            package-extras: 'test'
+          # test bioimage.io export with python 3.7 and tensorflow 1
+          - python-version: '3.7'
+            tensorflow: 1
+            package-extras: 'test,tf1,bioimageio'
+          # install edt with numpy>=1.20 when testing with python 3.9
+          - python-version: '3.9'
+            deps-extra: 'edt "numpy>=1.20"'
+          # add extra run to test latest tensorflow with legacy keras
+          - os: ubuntu-20.04
+            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
+            tensorflow: 2
+            package-extras: 'test'
+            deps-extra: 'tf_keras'
+            exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
         exclude:
-            # https://www.tensorflow.org/install/source#tested_build_configurations
+          # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
             tensorflow: 1
           - python-version: '3.9'
@@ -35,27 +54,21 @@ jobs:
             tensorflow: 1
           - os: windows-latest
             tensorflow: 1
-    
-            # also test tf 2.16+ and keras 2?
 
     steps:
-      - uses: actions/setup-python@v5
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install --upgrade pip wheel setuptools
-      - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-      - uses: actions/checkout@v4
+        
+      - name: Upgrade pip, wheel, setuptools
+        run: python -m pip install --upgrade pip wheel setuptools
 
-      - if: matrix.tensorflow == 1
-        run: echo "package_extras=test,tf1" >> $GITHUB_ENV
-        shell: bash
-      - if: matrix.tensorflow == 2
-        run: echo "package_extras=test" >> $GITHUB_ENV
-        shell: bash
+      - name: Install TensorFlow
+        run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
 
-      - name: Install edt
-        if: matrix.python-version == 3.9
-        run: pip install edt "numpy>=1.20"
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       # # should also work with clang, but there are 
       # # openmp-related symbol issues just when using Python 3.6?
@@ -67,18 +80,22 @@ jobs:
       #     echo "CC=/usr/local/bin/gcc-9" >> $GITHUB_ENV
       #     echo "CXX=/usr/local/bin/g++-9" >> $GITHUB_ENV
 
-      - name: Install package
-        run: pip install ".[${{env.package_extras}}]"
+      - name: Install extra dependencies (if any)
+        if: ${{ matrix.deps-extra }}
+        run: pip install ${{ matrix.deps-extra }}
 
-      - name: Install bioimage.io dependencies
-        if: |
-          matrix.python-version == 3.7 &&
-          matrix.tensorflow == 1
-        run: pip install ".[bioimageio]"
+      - name: Install package
+        run: pip install ".[${{ matrix.package-extras }}]"
+
+      - name: Run extra commands (if any)
+        if: ${{ matrix.exec-extra }}
+        run: ${{ matrix.exec-extra }}
+        shell: bash
 
       - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
         if: matrix.python-version != 3.6
         run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
         shell: bash
 
-      - run: pytest -m "not gpu"
+      - name: Run tests
+        run: pytest -m "not gpu"
