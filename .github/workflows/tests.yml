@@ -22,15 +22,12 @@ jobs:
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         include:
+            # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
+            #
           - tensorflow: 1
             package-extras: 'test,tf1'
           - tensorflow: 2
             package-extras: 'test'
-            #
-          - os: ubuntu-20.04
-            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
-            tensorflow: 2
-            deps-extra-pre: '"keras<3"'
             #
           - python-version: '3.9'
             deps-extra-pre: 'edt "numpy>=1.20"'
@@ -38,6 +35,13 @@ jobs:
           - python-version: '3.7'
             tensorflow: 1
             deps-extra-post: '".[bioimageio]"'
+            #
+          - os: ubuntu-20.04
+            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
+            tensorflow: 2
+            package-extras: 'test'
+            deps-extra-pre: 'tf_keras'
+            exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
         exclude:
             # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
@@ -92,6 +96,11 @@ jobs:
       - name: Install extra dependencies (post package installation)
         if: ${{ matrix.deps-extra-post }}
         run: pip install ${{ matrix.deps-extra-post }}
+
+      - name: Run extra command
+        if: ${{ matrix.exec-extra }}
+        run: ${{ matrix.exec-extra }}
+        shell: bash
 
       # - name: Install bioimage.io dependencies
       #   if: |
