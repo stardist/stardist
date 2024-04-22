@@ -13,10 +13,9 @@ import scipy.ndimage as ndi
 import numbers
 
 from csbdeep.models.base_model import BaseModel
-from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
+from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard, BACKEND as K
 
 import tensorflow as tf
-K = keras_import('backend')
 Sequence = keras_import('utils', 'Sequence')
 Adam = keras_import('optimizers', 'Adam')
 ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')
@@ -33,18 +32,21 @@ from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold, grid_di
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
 def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, reg_penalty=K.abs):
+    mask = K.cast(mask, K.floatx())
+    weights = K.cast(weights, K.floatx())
+    _reg_weight = K.cast(reg_weight, K.floatx())
     def _loss(y_true, y_pred):
         actual_loss = K.mean(mask * weights * loss(y_true, y_pred), axis=-1)
         norm_mask = (K.mean(mask) + K.epsilon()) if norm_by_mask else 1
         if reg_weight > 0:
             reg_loss = K.mean((1-mask) * reg_penalty(y_pred), axis=-1)
-            return actual_loss / norm_mask + reg_weight * reg_loss
+            return actual_loss / norm_mask + _reg_weight * reg_loss
         else:
             return actual_loss / norm_mask
     return _loss
 
 def masked_loss(mask, penalty, reg_weight, norm_by_mask):
-    loss = lambda y_true, y_pred: penalty(y_true - y_pred)
+    loss = lambda y_true, y_pred: penalty(K.cast(y_true, K.floatx()) - y_pred)
     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # TODO: should we use norm_by_mask=True in the loss or only in a metric?
@@ -68,6 +70,7 @@ def masked_metric_mse(mask):
     return relevant_mse
 
 def kld(y_true, y_pred):
+    y_true = K.cast(y_true, K.floatx())
     mask = y_true >= 0 # pixels to ignore have y_true == -1
     y_true = K.clip(y_true[mask], K.epsilon(), 1)
     y_pred = K.clip(y_pred[mask], K.epsilon(), 1)
@@ -76,6 +79,7 @@ def kld(y_true, y_pred):
 
 def masked_loss_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_loss(y_true, y_pred):
+        y_true = K.cast(y_true, K.floatx())
         axis = -1 if backend_channels_last() else 1
         # y_pred can be negative (since not constrained) -> 'inter' can be very large for y_pred << 0
         # - clipping y_pred values at 0 can lead to vanishing gradients
@@ -90,6 +94,7 @@ def masked_loss_iou(mask, reg_weight=0, norm_by_mask=True):
 
 def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_metric(y_true, y_pred):
+        y_true = K.cast(y_true, K.floatx())
         axis = -1 if backend_channels_last() else 1
         y_pred = K.maximum(0., y_pred)
         inter = K.mean(K.square(K.minimum(y_true,y_pred)), axis=axis)
@@ -107,10 +112,11 @@ def weighted_categorical_crossentropy(weights, ndim):
     shape = [1]*(ndim+2)
     shape[axis] = len(weights)
     weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
+    weights = K.cast(weights, K.floatx())
 
     def weighted_cce(y_true, y_pred):
         # ignore pixels that have y_true (prob_class) < 0
+        y_true = K.cast(y_true, K.floatx())
         mask = K.cast(y_true>=0, K.floatx())
         y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
@@ -124,9 +130,9 @@ class StarDistDataBase(RollingSequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
                  n_classes=None, classes=None,
-                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0, keras_kwargs=None):
 
-        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True, keras_kwargs=keras_kwargs)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
@@ -307,6 +313,7 @@ class StarDistBase(BaseModel):
                             }[self.config.train_dist_loss]
 
         def prob_loss(y_true, y_pred):
+            y_true = K.cast(y_true, K.floatx())
             mask = y_true >= 0
             return K.mean(K.binary_crossentropy(y_true[mask], y_pred[mask]), axis=-1)
 

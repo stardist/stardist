@@ -8,14 +8,13 @@ from tqdm import tqdm
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage, IS_KERAS_3_PLUS, BACKEND as K
 from skimage.segmentation import clear_border
 from skimage.measure import regionprops
 from scipy.ndimage import zoom
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 keras = keras_import()
-K = keras_import('backend')
 Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
 Model = keras_import('models', 'Model')
 
@@ -25,6 +24,7 @@ from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 
+_gen_rtype = list if IS_TF_1 else tuple
 
 class StarDistData2D(StarDistDataBase):
 
@@ -102,8 +102,9 @@ class StarDistData2D(StarDistDataBase):
         if has_neg_labels:
             prob[mask_neg_labels] = -1  # set to -1 to disable loss
 
+        # note: must return tuples in keras 3 (cf. https://stackoverflow.com/a/78158487)
         if self.n_classes is None:
-            return [X], [prob,dist_and_mask]
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask))
         else:
             prob_class = np.stack(tuple((mask_to_categorical(y[self.b], self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
@@ -115,7 +116,7 @@ class StarDistData2D(StarDistDataBase):
             if has_neg_labels:
                 prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
 
-            return [X], [prob,dist_and_mask, prob_class]
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask, prob_class))
 
 
 
@@ -248,7 +249,7 @@ class Config2D(BaseConfig):
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         # keras.__version__ was removed in tensorflow 2.13.0
-        min_delta_key = 'epsilon' if LooseVersion(getattr(keras, '__version__', '9.9.9'))<=LooseVersion('2.1.5') else 'min_delta'
+        min_delta_key = 'epsilon' if Version(getattr(keras, '__version__', '9.9.9'))<=Version('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False
@@ -430,6 +431,12 @@ class StarDist2D(StarDistBase):
             n_classes        = self.config.n_classes,
             sample_ind_cache = self.config.train_sample_cache,
         )
+        worker_kwargs = dict(workers=workers, use_multiprocessing=workers>1)
+        if IS_KERAS_3_PLUS:
+            data_kwargs['keras_kwargs'] = worker_kwargs
+            fit_kwargs = {}
+        else:
+            fit_kwargs = worker_kwargs
 
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
@@ -464,10 +471,10 @@ class StarDist2D(StarDistBase):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
                                                            n_images=3, prob_out=False, output_slices=output_slices))
 
-        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        fit = self.keras_model.fit_generator if (IS_TF_1 and not IS_KERAS_3_PLUS) else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, use_multiprocessing=workers>1,
+                      **fit_kwargs,
                       callbacks=self.callbacks, verbose=1,
                       # set validation batchsize to training batchsize (only works for tf >= 2.2)
                       **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))

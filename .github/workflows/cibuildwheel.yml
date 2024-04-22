@@ -17,19 +17,19 @@ jobs:
   build_wheels:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-        SETUPTOOLS_USE_DISTUTILS: stdlib
+    # env:
+    #     SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-2019, macos-11]
-        py: [cp36, cp37, cp38, cp39, cp310, cp311]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: Checkout repository
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         name: Install Python
         with:
           python-version: '3.x'
@@ -91,7 +91,7 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: Checkout repository
 
       - name: Build sdist

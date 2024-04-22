@@ -3,7 +3,7 @@ from pkg_resources import get_distribution
 from zipfile import ZipFile
 import numpy as np
 import tempfile
-from distutils.version import LooseVersion
+from packaging.version import Version
 from csbdeep.utils import axes_check_and_normalize, normalize, _raise
 
 
@@ -78,14 +78,14 @@ def _create_stardist_dependencies(outdir):
     # dependencies that start with the name "bioimageio" will be added as conda dependencies
     reqs_conda = [f"{req.project_name}{req.specifier}" for req in pkg_info.requires(extras=['bioimageio']) if req.key.startswith('bioimageio')]
     # only stardist and tensorflow as pip dependencies
-    tf_major, tf_minor = LooseVersion(tf_version).version[:2]
-    reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={tf_major}.{tf_minor},<{tf_major+1}")
+    v_tf = Version(tf_version)
+    reqs_pip = (f"stardist>={stardist_version}", f"tensorflow>={v_tf.major}.{v_tf.minor},<{v_tf.major+1}")
     # conda environment
     env = dict(
         name = 'stardist',
         channels = ['defaults', 'conda-forge'],
         dependencies = [
-            ('python>=3.7,<3.8' if tf_major == 1 else 'python>=3.7'),
+            ('python>=3.7,<3.8' if v_tf.major == 1 else 'python>=3.7'),
             *reqs_conda,
             'pip', {'pip': reqs_pip},
         ],
