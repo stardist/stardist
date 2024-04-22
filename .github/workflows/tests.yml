@@ -21,6 +21,23 @@ jobs:
         os: [ubuntu-20.04, windows-latest, macos-latest]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
+        include:
+          - tensorflow: 1
+            package-extras: 'test,tf1'
+          - tensorflow: 2
+            package-extras: 'test'
+            #
+          - os: ubuntu-20.04
+            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
+            tensorflow: 2
+            deps-extra-pre: '"keras<3"'
+            #
+          - python-version: '3.9'
+            deps-extra-pre: 'edt "numpy>=1.20"'
+            #
+          - python-version: '3.7'
+            tensorflow: 1
+            deps-extra-post: '".[bioimageio]"'
         exclude:
             # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
@@ -35,8 +52,6 @@ jobs:
             tensorflow: 1
           - os: windows-latest
             tensorflow: 1
-    
-            # also test tf 2.16+ and keras 2?
 
     steps:
       - uses: actions/setup-python@v5
@@ -46,16 +61,16 @@ jobs:
       - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
       - uses: actions/checkout@v4
 
-      - if: matrix.tensorflow == 1
-        run: echo "package_extras=test,tf1" >> $GITHUB_ENV
-        shell: bash
-      - if: matrix.tensorflow == 2
-        run: echo "package_extras=test" >> $GITHUB_ENV
-        shell: bash
+      # - if: matrix.tensorflow == 1
+      #   run: echo "package_extras=test,tf1" >> $GITHUB_ENV
+      #   shell: bash
+      # - if: matrix.tensorflow == 2
+      #   run: echo "package_extras=test" >> $GITHUB_ENV
+      #   shell: bash
 
-      - name: Install edt
-        if: matrix.python-version == 3.9
-        run: pip install edt "numpy>=1.20"
+      # - name: Install edt
+      #   if: matrix.python-version == 3.9
+      #   run: pip install edt "numpy>=1.20"
 
       # # should also work with clang, but there are 
       # # openmp-related symbol issues just when using Python 3.6?
@@ -67,14 +82,22 @@ jobs:
       #     echo "CC=/usr/local/bin/gcc-9" >> $GITHUB_ENV
       #     echo "CXX=/usr/local/bin/g++-9" >> $GITHUB_ENV
 
-      - name: Install package
-        run: pip install ".[${{env.package_extras}}]"
+      - name: Install extra dependencies (pre package installation)
+        if: ${{ matrix.deps-extra-pre }}
+        run: pip install ${{ matrix.deps-extra-pre }}
 
-      - name: Install bioimage.io dependencies
-        if: |
-          matrix.python-version == 3.7 &&
-          matrix.tensorflow == 1
-        run: pip install ".[bioimageio]"
+      - name: Install package
+        run: pip install ".[${{ matrix.package-extras }}]"
+
+      - name: Install extra dependencies (post package installation)
+        if: ${{ matrix.deps-extra-post }}
+        run: pip install ${{ matrix.deps-extra-post }}
+
+      # - name: Install bioimage.io dependencies
+      #   if: |
+      #     matrix.python-version == 3.7 &&
+      #     matrix.tensorflow == 1
+      #   run: pip install ".[bioimageio]"
 
       - name: Disable PytestReturnNotNoneWarning (Python 3.7+)
         if: matrix.python-version != 3.6
