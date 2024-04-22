@@ -32,12 +32,12 @@ jobs:
             tensorflow: 1
 
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip wheel setuptools
       - run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - if: matrix.tensorflow == 1
         run: echo "package_extras=test,tf1" >> $GITHUB_ENV
