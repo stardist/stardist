@@ -35,7 +35,7 @@ jobs:
             deps-extra: 'edt "numpy>=1.20"'
           # add extra run to test latest tensorflow with legacy keras
           - os: ubuntu-20.04
-            python-version: '>=3.12<3.13'  # intentionally be different than '3.12' to cause an additional combination
+            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
             tensorflow: 2
             package-extras: 'test'
             deps-extra: 'tf_keras'
