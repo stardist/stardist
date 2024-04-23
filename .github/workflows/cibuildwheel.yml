@@ -17,20 +17,23 @@ jobs:
   build_wheels:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-        SETUPTOOLS_USE_DISTUTILS: stdlib
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-11]
-        py: [cp36, cp37, cp38, cp39, cp310, cp311]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        include:
+          - cibw_test_requires: 'pytest tensorflow'
+          - os: ubuntu-latest
+            py: cp37  
+            cibw_test_requires: 'pytest tensorflow urllib3<2' # ImportError: urllib3 v2.0 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'OpenSSL 1.0.2k-fips  26 Jan 2017'. See: https://github.com/urllib3/urllib3/issues/2168
 
     steps:
-      - uses: actions/checkout@v3
-        name: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
-        name: Install Python
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -61,7 +64,7 @@ jobs:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
 
@@ -76,12 +79,12 @@ jobs:
           # numba is a requirement and only has wheels for manylinux2014
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: pytest tensorflow
+          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # CIBW_TEST_SKIP: "*musllinux*"
 
-      - uses: actions/upload-artifact@v3
-        name: Upload wheels
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
         with:
           name: dist
           path: ./dist/*.whl
@@ -91,14 +94,14 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-        name: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v3
-        name: Upload sdist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v3
         with:
           name: dist
           path: dist/*.tar.gz
@@ -110,8 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v3
-        name: Download wheels and sdist
+      - name: Download wheels and sdist
+        uses: actions/download-artifact@v3
         with:
           name: dist
           path: dist
@@ -122,8 +125,8 @@ jobs:
           ls -l dist
           test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
 
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        name: Publish to PyPI
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}

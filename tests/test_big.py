@@ -7,7 +7,7 @@ from stardist import calculate_extents, polyhedron_to_label
 from utils import real_image2d, real_image3d
 
 from stardist.geometry import polygons_to_label_coord
-from stardist.big import BlockND, Polygon, Polyhedron
+from stardist.big import Block, BlockND, Polygon, Polyhedron
 
 
 
@@ -75,6 +75,12 @@ def test_cover3D(block_size, context, grid):
 
     reassemble(lbl, 'ZYX', block_size, min_overlap, context, grid)
 
+
+def test_edgecases():
+    # in some cases need to add extra context to prevent overlapping write regions of non-neighboring blocks
+    # cf. https://forum.image.sc/t/trouble-using-stardist-predict-instances-big/88871/6
+    for size in range(7800,8000):
+        Block.cover(size=size, block_size=4096, min_overlap=128, context=128, grid=16)
 
 
 @pytest.mark.parametrize('use_channel', [False, True])

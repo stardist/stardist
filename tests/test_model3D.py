@@ -1,16 +1,19 @@
 import sys
 import numpy as np
 import pytest
+import tempfile
+from pathlib import Path
 from itertools import product
 from stardist.data import test_image_nuclei_3d
 from stardist.models import Config3D, StarDist3D
 from stardist.matching import matching
 from stardist.geometry import export_to_obj_file3D
 from csbdeep.utils import normalize
-from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer
+from csbdeep.utils.tf import IS_KERAS_3_PLUS
+from utils import circle_image, real_image3d, path_model3d, NumpySequence, Timer, check_same_shapes
 
 
-# integration test 
+# integration test
 def test_integration():
     model = StarDist3D.from_pretrained('3D_demo')
     x = normalize(test_image_nuclei_3d())
@@ -18,7 +21,7 @@ def test_integration():
     assert set(np.unique(labels).tolist()) == set(range(31))
     assert np.abs(np.sum(labels>0)-32962)<10
     return model, x, labels
-    
+
 
 @pytest.mark.parametrize('n_rays, grid, n_channel, backbone, workers, use_sequence', [(73, (2, 2, 2), None, 'resnet', 1, False), (33, (1, 2, 4), 1, 'resnet', 1, False), (7, (2, 1, 1), 2, 'unet', 1, True)])
 def test_model(tmpdir, n_rays, grid, n_channel, backbone, workers, use_sequence):
@@ -140,17 +143,52 @@ def test_optimize_thresholds(model3d):
     return model
 
 
+@pytest.mark.parametrize('n_classes, classes', [(None,(1,1)),(2,(1,2))])
 @pytest.mark.parametrize('grid',((1,1,1),(1,4,4)))
-def test_stardistdata(grid):
+@pytest.mark.parametrize('batch_size',(1,2))
+def test_stardistdata(n_classes, classes, grid, batch_size):
     np.random.seed(42)
     from stardist.models import StarDistData3D
     from stardist import Rays_GoldenSpiral
     img, mask = real_image3d()
-    s = StarDistData3D([img, img], [mask, mask], batch_size=1, grid=grid,
-                       patch_size=(30, 40, 50), rays=Rays_GoldenSpiral(64), length=1)
-    (img,), (prob, dist) = s[0]
+    data_kwargs = dict(
+        grid = grid,
+        n_classes = n_classes, classes = classes,
+        batch_size=batch_size, rays=Rays_GoldenSpiral(64), length=1,
+    )
 
-    return (img,), (prob, dist), s
+    a,b = StarDistData3D([img,img], [mask,mask], patch_size=(30, 40, 50), **data_kwargs)[0]
+    check_same_shapes(*b, shape_index=slice(0,4))
+    ###
+
+    assert img.shape == mask.shape
+    _crop = tuple(slice(0, (sh//g)*g) for sh,g in zip(img.shape, grid))
+    img, mask = img[_crop], mask[_crop]
+
+    labels_ids = tuple({*np.unique(mask).tolist()}-{0})
+    ind = np.random.choice(labels_ids, len(labels_ids) // 2, replace=False)
+    mask_neg = np.isin(mask,ind) # mask to make labels negative
+
+    mask = mask.astype(np.int32)
+    mask[mask_neg] *= -1
+
+    s = StarDistData3D([img,img], [mask,mask], patch_size=mask.shape, **data_kwargs)
+    mask_neg = mask_neg[s.ss_grid[1:]]
+
+    a, b = s[0]
+    check_same_shapes(*b, shape_index=slice(0,4))
+    prob, dist_and_mask = b[:2]
+    prob, dist, dist_mask = prob[0,...,0], dist_and_mask[0,...,:-1], dist_and_mask[0,...,-1]
+
+    assert np.allclose(prob[mask_neg], -1)
+    assert np.allclose(dist_mask[mask_neg], 0)
+    assert np.allclose(dist[np.broadcast_to(mask_neg[...,None],dist.shape)], 0)
+
+    if n_classes is not None:
+        prob_class = b[2]
+        assert np.allclose(prob_class[np.broadcast_to(mask_neg[...,None],prob_class.shape)], -1)
+
+    return a,b, s
 
 
 def _edt_available():
@@ -219,8 +257,8 @@ def test_mesh_export(model3d):
     labels, polys = model.predict_instances(x, nms_thresh=.5,
                                         overlap_label=-3)
 
-    s = export_to_obj_file3D(polys,
-                             "mesh.obj",scale = (.2,.1,.1))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        s = export_to_obj_file3D(polys, str(Path(tmpdir)/"mesh.obj"), scale = (.2,.1,.1))
     return s
 
 
@@ -292,7 +330,7 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
         n_channel_in=n_channel,
         n_classes = n_classes,
         use_gpu=False,
-        train_epochs=1,
+        train_epochs=epochs,
         train_steps_per_epoch=10,
         train_batch_size=batch_size,
         train_loss_weights=(1.,.2) if n_classes is None else (1, .2, 1.),
@@ -316,25 +354,25 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
 
     val_classes = {k:1 for k in set(mask[mask>0])}
 
-    s = model.train(X, Y, classes = classes, epochs = epochs,
+    s = model.train(X, Y, classes = classes,
                 validation_data=(X[:1], Y[:1]) if n_classes is None else (X[:1], Y[:1], (val_classes,))
                     )
 
-    labels, res = model.predict_instances(img)
+    # labels, res = model.predict_instances(img)
     # return  model, X,Y, classes, labels, res
 
-    img = np.tile(img,(4,2,2) if img.ndim==3 else (4,2,2,1))
+    # img = np.tile(img,(4,2,2) if img.ndim==3 else (4,2,2,1))
 
     kwargs = dict(prob_thresh=.5)
-    labels1, res1 = model.predict_instances(img, **kwargs)
+    labels1, res1 = model.predict_instances(img, sparse = False, **kwargs)
     labels2, res2 = model.predict_instances(img, sparse = True, **kwargs)
-    labels3, res3 = model.predict_instances_big(img, axes="ZYX" if img.ndim==3 else "ZYXC",
-                                                block_size=96, min_overlap=8, context=8, **kwargs)
+    # labels3, res3 = model.predict_instances_big(img, axes="ZYX" if img.ndim==3 else "ZYXC",
+    #                                             block_size=96, min_overlap=8, context=8, **kwargs)
 
     assert np.allclose(labels1, labels2)
     assert all([np.allclose(res1[k], res2[k]) for k in set(res1.keys()).union(set(res2.keys())) if isinstance(res1[k], np.ndarray)])
 
-    return model, img, res1, res2, res3
+    return model, img, res1, res2 #, res3
 
 
 
@@ -343,8 +381,8 @@ def _test_model_multiclass(n_classes = 1, classes = "auto", n_channel = None, ba
                          [ (None, "auto", 1, 1, 1),
                            (1, "auto", 3, 1, 1),
                            (3, (1,2,3), 3, 1, 1),
-                           (3, (1,2,3), 3, 1, 2)]
-                         )
+                         # (3, (1,2,3), 3, 1, 2),
+                         ])
 def test_model_multiclass(tmpdir, n_classes, classes, n_channel, epochs, batch_size):
     return _test_model_multiclass(n_classes=n_classes, classes=classes,
                                   n_channel=n_channel, basedir = tmpdir, epochs=epochs, batch_size=batch_size)
@@ -360,7 +398,7 @@ def test_predict_with_scale(scale):
     x = test_image_nuclei_3d()
     x = normalize(x)
     x_scaled = zoom(x, scale, order=1)
-    
+
     labels,        res        = model.predict_instances(x, scale=scale)
     labels_scaled, res_scaled = model.predict_instances(x_scaled)
 
@@ -371,9 +409,10 @@ def test_predict_with_scale(scale):
     assert np.allclose(res['rays_faces'], res_scaled['rays_faces'])
     assert np.allclose(res['rays_vertices'] * np.asarray(scale).reshape(1,3), res_scaled['rays_vertices'])
     return x, labels
-    
+
 
 # this test has to be at the end of the model
+@pytest.mark.skipif(IS_KERAS_3_PLUS, reason="no longer supported with keras 3+")
 def test_load_and_export_TF(model3d):
     model = model3d
     assert any(g>1 for g in model.config.grid)

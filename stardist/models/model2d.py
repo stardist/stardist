@@ -8,14 +8,13 @@ from tqdm import tqdm
 from csbdeep.models import BaseConfig
 from csbdeep.internals.blocks import unet_block
 from csbdeep.utils import _raise, backend_channels_last, axes_check_and_normalize, axes_dict
-from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage
+from csbdeep.utils.tf import keras_import, IS_TF_1, CARETensorBoard, CARETensorBoardImage, IS_KERAS_3_PLUS, BACKEND as K
 from skimage.segmentation import clear_border
 from skimage.measure import regionprops
 from scipy.ndimage import zoom
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 keras = keras_import()
-K = keras_import('backend')
 Input, Conv2D, MaxPooling2D = keras_import('layers', 'Input', 'Conv2D', 'MaxPooling2D')
 Model = keras_import('models', 'Model')
 
@@ -25,6 +24,7 @@ from ..utils import edt_prob, _normalize_grid, mask_to_categorical
 from ..geometry import star_dist, dist_to_coord, polygons_to_label
 from ..nms import non_maximum_suppression, non_maximum_suppression_sparse
 
+_gen_rtype = list if IS_TF_1 else tuple
 
 class StarDistData2D(StarDistDataBase):
 
@@ -39,6 +39,8 @@ class StarDistData2D(StarDistDataBase):
 
         self.shape_completion = bool(shape_completion)
         if self.shape_completion and b > 0:
+            if not all(b % g == 0 for g in self.grid):
+                raise ValueError(f"'shape_completion' requires that crop size {b} ('train_completion_crop' in config) is evenly divisible by all grid values {self.grid}")
             self.b = slice(b,-b),slice(b,-b)
         else:
             self.b = slice(None),slice(None)
@@ -59,6 +61,12 @@ class StarDistData2D(StarDistDataBase):
 
         X, Y = tuple(zip(*tuple(self.augmenter(_x, _y) for _x, _y in zip(X,Y))))
 
+        mask_neg_labels = tuple(y[self.b][self.ss_grid[1:3]] < 0 for y in Y)
+        has_neg_labels = any(m.any() for m in mask_neg_labels)
+        if has_neg_labels:
+            mask_neg_labels = np.stack(mask_neg_labels)
+            # set negative label pixels to 0 (background)
+            Y = tuple(np.maximum(y, 0) for y in Y)
 
         prob = np.stack([edt_prob(lbl[self.b][self.ss_grid[1:3]]) for lbl in Y])
         # prob = np.stack([edt_prob(lbl[self.b]) for lbl in Y])
@@ -91,18 +99,24 @@ class StarDistData2D(StarDistDataBase):
         dist_and_mask[...,:-1] = dist
         dist_and_mask[...,-1:] = dist_mask
 
+        if has_neg_labels:
+            prob[mask_neg_labels] = -1  # set to -1 to disable loss
 
+        # note: must return tuples in keras 3 (cf. https://stackoverflow.com/a/78158487)
         if self.n_classes is None:
-            return [X], [prob,dist_and_mask]
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask))
         else:
-            prob_class = np.stack(tuple((mask_to_categorical(y, self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
+            prob_class = np.stack(tuple((mask_to_categorical(y[self.b], self.n_classes, self.classes[k]) for y,k in zip(Y, idx))))
 
             # TODO: investigate downsampling via simple indexing vs. using 'zoom'
             # prob_class = prob_class[self.ss_grid]
             # 'zoom' might lead to better registered maps (especially if upscaled later)
             prob_class = zoom(prob_class, (1,)+tuple(1/g for g in self.grid)+(1,), order=0)
 
-            return [X], [prob,dist_and_mask, prob_class]
+            if has_neg_labels:
+                prob_class[mask_neg_labels] = -1  # set to -1 to disable loss
+
+            return _gen_rtype((X,)), _gen_rtype((prob,dist_and_mask, prob_class))
 
 
 
@@ -122,7 +136,7 @@ class Config2D(BaseConfig):
         Subsampling factors (must be powers of 2) for each of the axes.
         Model will predict on a subsampled grid for increased efficiency and larger field of view.
     n_classes : None or int
-        Number of object classes to use for multi-class predection (use None to disable)
+        Number of object classes to use for multi-class prediction (use None to disable)
     backbone : str
         Name of the neural network architecture to be used as backbone.
     kwargs : dict
@@ -235,7 +249,7 @@ class Config2D(BaseConfig):
         self.train_tensorboard         = True
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         # keras.__version__ was removed in tensorflow 2.13.0
-        min_delta_key = 'epsilon' if LooseVersion(getattr(keras, '__version__', '9.9.9'))<=LooseVersion('2.1.5') else 'min_delta'
+        min_delta_key = 'epsilon' if Version(getattr(keras, '__version__', '9.9.9'))<=Version('2.1.5') else 'min_delta'
         self.train_reduce_lr           = {'factor': 0.5, 'patience': 40, min_delta_key: 0}
 
         self.use_gpu                   = False
@@ -344,6 +358,8 @@ class StarDist2D(StarDistBase):
             Input images
         Y : tuple, list, `numpy.ndarray`, `keras.utils.Sequence`
             Label masks
+            Positive pixel values denote object instance ids (0 for background).
+            Negative values can be used to turn off all losses for the corresponding pixels (e.g. for regions that haven't been labeled).
         classes (optional): 'auto' or iterable of same length as X
              label id -> class id mapping for each label mask of Y if multiclass prediction is activated (n_classes > 0)
              list of dicts with label id -> class id (1,...,n_classes)
@@ -415,6 +431,12 @@ class StarDist2D(StarDistBase):
             n_classes        = self.config.n_classes,
             sample_ind_cache = self.config.train_sample_cache,
         )
+        worker_kwargs = dict(workers=workers, use_multiprocessing=workers>1)
+        if IS_KERAS_3_PLUS:
+            data_kwargs['keras_kwargs'] = worker_kwargs
+            fit_kwargs = {}
+        else:
+            fit_kwargs = worker_kwargs
 
         # generate validation data and store in numpy arrays
         n_data_val = len(validation_data[0])
@@ -449,10 +471,10 @@ class StarDist2D(StarDistBase):
                 self.callbacks.append(CARETensorBoardImage(model=self.keras_model, data=data_val, log_dir=str(self.logdir/'logs'/'images'),
                                                            n_images=3, prob_out=False, output_slices=output_slices))
 
-        fit = self.keras_model.fit_generator if IS_TF_1 else self.keras_model.fit
+        fit = self.keras_model.fit_generator if (IS_TF_1 and not IS_KERAS_3_PLUS) else self.keras_model.fit
         history = fit(iter(self.data_train), validation_data=data_val,
                       epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      workers=workers, use_multiprocessing=workers>1,
+                      **fit_kwargs,
                       callbacks=self.callbacks, verbose=1,
                       # set validation batchsize to training batchsize (only works for tf >= 2.2)
                       **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
@@ -516,7 +538,7 @@ class StarDist2D(StarDistBase):
         if scale is not None:
             # need to undo the scaling given by the scale dict, e.g. scale = dict(X=0.5,Y=0.5):
             #   1. re-scale points (origins of polygons)
-            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons 
+            #   2. re-scale coordinates (computed from distances) of (zero-origin) polygons
             if not (isinstance(scale,dict) and 'X' in scale and 'Y' in scale):
                 raise ValueError("scale must be a dictionary with entries for 'X' and 'Y'")
             rescale = (1/scale['Y'],1/scale['X'])

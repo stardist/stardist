@@ -13,10 +13,9 @@ import scipy.ndimage as ndi
 import numbers
 
 from csbdeep.models.base_model import BaseModel
-from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard
+from csbdeep.utils.tf import export_SavedModel, keras_import, IS_TF_1, CARETensorBoard, BACKEND as K
 
 import tensorflow as tf
-K = keras_import('backend')
 Sequence = keras_import('utils', 'Sequence')
 Adam = keras_import('optimizers', 'Adam')
 ReduceLROnPlateau, TensorBoard = keras_import('callbacks', 'ReduceLROnPlateau', 'TensorBoard')
@@ -28,23 +27,26 @@ from csbdeep.data import Resizer
 
 from ..sample_patches import get_valid_inds
 from ..nms import _ind_prob_thresh
-from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold
+from ..utils import _is_power_of_2,  _is_floatarray, optimize_threshold, grid_divisible_patch_size
 
 # TODO: helper function to check if receptive field of cnn is sufficient for object sizes in GT
 
 def generic_masked_loss(mask, loss, weights=1, norm_by_mask=True, reg_weight=0, reg_penalty=K.abs):
+    mask = K.cast(mask, K.floatx())
+    weights = K.cast(weights, K.floatx())
+    _reg_weight = K.cast(reg_weight, K.floatx())
     def _loss(y_true, y_pred):
         actual_loss = K.mean(mask * weights * loss(y_true, y_pred), axis=-1)
         norm_mask = (K.mean(mask) + K.epsilon()) if norm_by_mask else 1
         if reg_weight > 0:
             reg_loss = K.mean((1-mask) * reg_penalty(y_pred), axis=-1)
-            return actual_loss / norm_mask + reg_weight * reg_loss
+            return actual_loss / norm_mask + _reg_weight * reg_loss
         else:
             return actual_loss / norm_mask
     return _loss
 
 def masked_loss(mask, penalty, reg_weight, norm_by_mask):
-    loss = lambda y_true, y_pred: penalty(y_true - y_pred)
+    loss = lambda y_true, y_pred: penalty(K.cast(y_true, K.floatx()) - y_pred)
     return generic_masked_loss(mask, loss, reg_weight=reg_weight, norm_by_mask=norm_by_mask)
 
 # TODO: should we use norm_by_mask=True in the loss or only in a metric?
@@ -68,13 +70,16 @@ def masked_metric_mse(mask):
     return relevant_mse
 
 def kld(y_true, y_pred):
-    y_true = K.clip(y_true, K.epsilon(), 1)
-    y_pred = K.clip(y_pred, K.epsilon(), 1)
+    y_true = K.cast(y_true, K.floatx())
+    mask = y_true >= 0 # pixels to ignore have y_true == -1
+    y_true = K.clip(y_true[mask], K.epsilon(), 1)
+    y_pred = K.clip(y_pred[mask], K.epsilon(), 1)
     return K.mean(K.binary_crossentropy(y_true, y_pred) - K.binary_crossentropy(y_true, y_true), axis=-1)
 
 
 def masked_loss_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_loss(y_true, y_pred):
+        y_true = K.cast(y_true, K.floatx())
         axis = -1 if backend_channels_last() else 1
         # y_pred can be negative (since not constrained) -> 'inter' can be very large for y_pred << 0
         # - clipping y_pred values at 0 can lead to vanishing gradients
@@ -89,6 +94,7 @@ def masked_loss_iou(mask, reg_weight=0, norm_by_mask=True):
 
 def masked_metric_iou(mask, reg_weight=0, norm_by_mask=True):
     def iou_metric(y_true, y_pred):
+        y_true = K.cast(y_true, K.floatx())
         axis = -1 if backend_channels_last() else 1
         y_pred = K.maximum(0., y_pred)
         inter = K.mean(K.square(K.minimum(y_true,y_pred)), axis=axis)
@@ -106,10 +112,11 @@ def weighted_categorical_crossentropy(weights, ndim):
     shape = [1]*(ndim+2)
     shape[axis] = len(weights)
     weights = np.broadcast_to(weights, shape)
-    weights = K.constant(weights)
+    weights = K.cast(weights, K.floatx())
 
     def weighted_cce(y_true, y_pred):
         # ignore pixels that have y_true (prob_class) < 0
+        y_true = K.cast(y_true, K.floatx())
         mask = K.cast(y_true>=0, K.floatx())
         y_pred /= K.sum(y_pred+K.epsilon(), axis=axis, keepdims=True)
         y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
@@ -123,9 +130,9 @@ class StarDistDataBase(RollingSequence):
 
     def __init__(self, X, Y, n_rays, grid, batch_size, patch_size, length,
                  n_classes=None, classes=None,
-                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0):
+                 use_gpu=False, sample_ind_cache=True, maxfilter_patch_size=None, augmenter=None, foreground_prob=0, keras_kwargs=None):
 
-        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True)
+        super().__init__(data_size=len(X), batch_size=batch_size, length=length, shuffle=True, keras_kwargs=keras_kwargs)
 
         if isinstance(X, (np.ndarray, tuple, list)):
             X = [x.astype(np.float32, copy=False) for x in X]
@@ -142,6 +149,7 @@ class StarDistDataBase(RollingSequence):
         len(classes)==len(X) or _raise(ValueError("X and classes must have same length"))
 
         self.n_classes, self.classes = n_classes, classes
+        patch_size = grid_divisible_patch_size(patch_size, grid)
 
         nD = len(patch_size)
         assert nD in (2,3)
@@ -303,8 +311,11 @@ class StarDistBase(BaseModel):
                             'mae': masked_loss_mae,
                             'iou': masked_loss_iou,
                             }[self.config.train_dist_loss]
-        prob_loss = 'binary_crossentropy'
 
+        def prob_loss(y_true, y_pred):
+            y_true = K.cast(y_true, K.floatx())
+            mask = y_true >= 0
+            return K.mean(K.binary_crossentropy(y_true[mask], y_pred[mask]), axis=-1)
 
         def split_dist_true_mask(dist_true_mask):
             return tf.split(dist_true_mask, num_or_size_splits=[self.config.n_rays,-1], axis=-1)
@@ -1054,11 +1065,13 @@ class StarDistBase(BaseModel):
         return axes_check_and_normalize(axes, img.ndim)
 
 
-    def _compute_receptive_field(self, img_size=None):
+    def _compute_receptive_field(self, img_size=None, keras_model=None):
         # TODO: good enough?
         from scipy.ndimage import zoom
         if img_size is None:
             img_size = tuple(g*(128 if self.config.n_dim==2 else 64) for g in self.config.grid)
+        if keras_model is None:
+            keras_model = self.keras_model
         if np.isscalar(img_size):
             img_size = (img_size,) * self.config.n_dim
         img_size = tuple(img_size)
@@ -1068,14 +1081,20 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict(x, verbose=0)[0][0,...,0]
-        y0 = self.keras_model.predict(z, verbose=0)[0][0,...,0]
+        y  = keras_model.predict(x, verbose=0)[0][0,...,0]
+        y0 = keras_model.predict(z, verbose=0)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
         y0 = zoom(y0,grid,order=0)
         ind = np.where(np.abs(y-y0)>0)
-        return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
+        if any(len(i)==0 for i in ind):
+            import contextlib, io
+            with contextlib.redirect_stdout(io.StringIO()) as _:
+                keras_model_untrained = type(self)(self.config,basedir=None).keras_model
+            return self._compute_receptive_field(img_size=img_size, keras_model=keras_model_untrained)
+        else:
+            return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
 
 
     def _axes_tile_overlap(self, query_axes):

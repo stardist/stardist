@@ -392,3 +392,12 @@ def abspath(root, relpath):
     else:
         path = root.parent/relpath
     return str(path.absolute())
+
+
+def grid_divisible_patch_size(patch_size, grid, warn=True):
+    patch_size, grid = tuple(patch_size), tuple(grid)
+    assert len(patch_size) == len(grid)
+    patch_size_divisible = tuple(int(np.ceil(sh/g)*g) for sh,g in zip(patch_size,grid))
+    if patch_size != patch_size_divisible and warn:
+        warnings.warn(f"increasing patch_size from {patch_size} to {patch_size_divisible}, since it was not evenly divisible by grid {grid}")
+    return patch_size_divisible
