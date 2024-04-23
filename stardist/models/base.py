@@ -1065,11 +1065,13 @@ class StarDistBase(BaseModel):
         return axes_check_and_normalize(axes, img.ndim)
 
 
-    def _compute_receptive_field(self, img_size=None):
+    def _compute_receptive_field(self, img_size=None, keras_model=None):
         # TODO: good enough?
         from scipy.ndimage import zoom
         if img_size is None:
             img_size = tuple(g*(128 if self.config.n_dim==2 else 64) for g in self.config.grid)
+        if keras_model is None:
+            keras_model = self.keras_model
         if np.isscalar(img_size):
             img_size = (img_size,) * self.config.n_dim
         img_size = tuple(img_size)
@@ -1079,14 +1081,20 @@ class StarDistBase(BaseModel):
         x = np.zeros((1,)+img_size+(self.config.n_channel_in,), dtype=np.float32)
         z = np.zeros_like(x)
         x[(0,)+mid+(slice(None),)] = 1
-        y  = self.keras_model.predict(x, verbose=0)[0][0,...,0]
-        y0 = self.keras_model.predict(z, verbose=0)[0][0,...,0]
+        y  = keras_model.predict(x, verbose=0)[0][0,...,0]
+        y0 = keras_model.predict(z, verbose=0)[0][0,...,0]
         grid = tuple((np.array(x.shape[1:-1])/np.array(y.shape)).astype(int))
         assert grid == self.config.grid
         y  = zoom(y, grid,order=0)
         y0 = zoom(y0,grid,order=0)
         ind = np.where(np.abs(y-y0)>0)
-        return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
+        if any(len(i)==0 for i in ind):
+            import contextlib, io
+            with contextlib.redirect_stdout(io.StringIO()) as _:
+                keras_model_untrained = type(self)(self.config,basedir=None).keras_model
+            return self._compute_receptive_field(img_size=img_size, keras_model=keras_model_untrained)
+        else:
+            return [(m-np.min(i), np.max(i)-m) for (m,i) in zip(mid,ind)]
 
 
     def _axes_tile_overlap(self, query_axes):
