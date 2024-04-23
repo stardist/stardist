@@ -7,11 +7,11 @@
 
 # *StarDist* - Object Detection with Star-convex Shapes
 
-![](https://github.com/stardist/stardist/raw/master/images/stardist_overview.png)
+![](https://github.com/stardist/stardist/raw/main/images/stardist_overview.png)
 
 This repository contains the Python implementation of star-convex object detection for 2D and 3D images, as described in the papers:
 
-<img src="https://github.com/stardist/stardist/raw/master/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
+<img src="https://github.com/stardist/stardist/raw/main/images/stardist_logo.jpg" title="siân is the king of the universe" width="25%" align="right">
 
 - Uwe Schmidt, Martin Weigert, Coleman Broaddus, and Gene Myers.  
 [*Cell Detection with Star-convex Polygons*](https://arxiv.org/abs/1806.03535).  
@@ -29,11 +29,11 @@ Please [cite the paper(s)](#how-to-cite) if you are using this code in your rese
 The following figure illustrates the general approach for 2D images. The training data consists of corresponding pairs of input (i.e. raw) images and fully annotated label images (i.e. every pixel is labeled with a unique object id or 0 for background).
 A model is trained to densely predict the distances (r) to the object boundary along a fixed set of rays and object probabilities (d), which together produce an overcomplete set of candidate polygons for a given input image. The final result is obtained via non-maximum suppression (NMS) of these candidates.
 
-![](https://github.com/stardist/stardist/raw/master/images/overview_2d.png)
+![](https://github.com/stardist/stardist/raw/main/images/overview_2d.png)
 
 The approach for 3D volumes is similar to the one described for 2D, using pairs of input and fully annotated label volumes as training data.
 
-![](https://github.com/stardist/stardist/raw/master/images/overview_3d.png)
+![](https://github.com/stardist/stardist/raw/main/images/overview_3d.png)
 
 ## Webinar/Tutorial
 
@@ -52,7 +52,7 @@ If you only want to use a StarDist plugin for a GUI-based software, please read 
 (either TensorFlow 1 or 2) by following the official instructions.
 For [GPU support](https://www.tensorflow.org/install/gpu), it is very
 important to install the specific versions of CUDA and cuDNN that are
-compatible with the respective version of TensorFlow. (If you need help and can use `conda`, take a look at [this](https://github.com/CSBDeep/CSBDeep/tree/master/extras#conda-environment).)
+compatible with the respective version of TensorFlow. (If you need help and can use `conda`, take a look at [this](https://github.com/CSBDeep/CSBDeep/tree/main/extras#conda-environment).)
 
 2. *StarDist* can then be installed with `pip`:
 
@@ -76,9 +76,9 @@ compatible with the respective version of TensorFlow. (If you need help and can 
 
 ## Usage
 
-We provide example workflows for 2D and 3D via Jupyter [notebooks](https://github.com/stardist/stardist/tree/master/examples) that illustrate how this package can be used.
+We provide example workflows for 2D and 3D via Jupyter [notebooks](https://github.com/stardist/stardist/tree/main/examples) that illustrate how this package can be used.
 
-![](https://github.com/stardist/stardist/raw/master/images/example_steps.png)
+![](https://github.com/stardist/stardist/raw/main/images/example_steps.png)
 
 ### Pretrained Models for 2D
 
@@ -87,8 +87,8 @@ Currently we provide some pretrained models in 2D that might already be suitable
 
 | key | Modality (Staining) | Image format | Example Image    | Description  |
 | :-- | :-: | :-:| :-:| :-- |
-| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/stardist/stardist/raw/master/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a [subset of the DSB 2018 nuclei segmentation challenge dataset](https://github.com/stardist/stardist/releases/download/0.1.0/dsb2018.zip). |
-|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/stardist/stardist/raw/master/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TNBC dataset from Naylor et al. (2018)](https://zenodo.org/record/1175282#.X6mwG9so-CN). |
+| `2D_versatile_fluo` `2D_paper_dsb2018`| Fluorescence (nuclear marker) | 2D single channel| <img src="https://github.com/stardist/stardist/raw/main/images/example_fluo.jpg" title="example image fluo" width="120px" align="center">       | *Versatile (fluorescent nuclei)* and *DSB 2018 (from StarDist 2D paper)* that were both trained on a [subset of the DSB 2018 nuclei segmentation challenge dataset](https://github.com/stardist/stardist/releases/download/0.1.0/dsb2018.zip). |
+|`2D_versatile_he` | Brightfield (H&E) | 2D RGB  | <img src="https://github.com/stardist/stardist/raw/main/images/example_histo.jpg" title="example image histo" width="120px" align="center">       | *Versatile (H&E nuclei)* that was trained on images from the [MoNuSeg 2018 training data](https://monuseg.grand-challenge.org/Data/) and the [TNBC dataset from Naylor et al. (2018)](https://zenodo.org/record/1175282#.X6mwG9so-CN). |
 
 
 You can access these pretrained models from `stardist.models.StarDist2D`
@@ -144,7 +144,7 @@ Although each of these provide decent annotation tools, we currently recommend u
    (Always disable `allow overlapping labels` or – in older versions of LabKit – enable the `override` option.) 
 4. Export the label image via `Labeling > Save Labeling ...` with `Files of Type > TIF Image` making sure that the file name ends with `.tif` or `.tiff`.
 
-![](https://github.com/stardist/stardist/raw/master/images/labkit_2d_labkit.png)
+![](https://github.com/stardist/stardist/raw/main/images/labkit_2d_labkit.png)
 
 
 Additional tips:
@@ -157,20 +157,20 @@ Additional tips:
 1. Install [QuPath](https://qupath.github.io/)
 2. Create a new project (`File -> Project...-> Create project`) and add your raw images
 3. Annotate nuclei/objects
-4. Run [this script](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
+4. Run [this script](https://raw.githubusercontent.com/stardist/stardist/main/extras/qupath_export_annotations.groovy) to export the annotations (save the script and drag it on QuPath. Then execute it with `Run for project`). The script will create a `ground_truth` folder within your QuPath project that includes both the `images` and `masks` subfolder that then can directly be used with *StarDist*.
 
-To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/stardist/stardist/master/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL).
+To see how this could be done, have a look at the following [example QuPath project](https://raw.githubusercontent.com/stardist/stardist/main/extras/qupath_example_project.zip) (data courtesy of Romain Guiet, EPFL).
 
-![](https://github.com/stardist/stardist/raw/master/images/qupath.png)
+![](https://github.com/stardist/stardist/raw/main/images/qupath.png)
 
 
 ### Multi-class Prediction
 
 StarDist also supports multi-class prediction, i.e. each found object instance can additionally be classified into a fixed number of discrete object classes (e.g. cell types):
 
-![](https://github.com/stardist/stardist/raw/master/images/stardist_multiclass.png)
+![](https://github.com/stardist/stardist/raw/main/images/stardist_multiclass.png)
 
-Please see the [multi-class example notebook](https://nbviewer.jupyter.org/github/stardist/stardist/blob/master/examples/other2D/multiclass.ipynb) if you're interested in this.
+Please see the [multi-class example notebook](https://nbviewer.jupyter.org/github/stardist/stardist/blob/main/examples/other2D/multiclass.ipynb) if you're interested in this.
 
 ## Instance segmentation metrics
 

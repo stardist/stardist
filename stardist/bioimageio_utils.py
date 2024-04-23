@@ -135,7 +135,7 @@ def _get_stardist_metadata(outdir, model, generate_default_deps):
             'instance-segmentation', 'object-detection', # task
             'stardist',
         ],
-        covers=["https://raw.githubusercontent.com/stardist/stardist/master/images/stardist_logo.jpg"],
+        covers=["https://raw.githubusercontent.com/stardist/stardist/main/images/stardist_logo.jpg"],
         documentation=_create_stardist_doc(outdir),
     )
     if generate_default_deps:  # only if requested, as not required for bioimage.io
