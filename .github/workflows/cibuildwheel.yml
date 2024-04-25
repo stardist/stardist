@@ -21,19 +21,20 @@ jobs:
       fail-fast: false
       matrix:
         # os: [macos-13, macos-14]
-        os: [macos-14]
+        os: [macos-13]
+        # os: [macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-          # - os: macos-13
-          #   cibw_arch: x86_64
-          - os: macos-14
-            cibw_arch: arm64
-        exclude:
-          - os: macos-14
-            py: cp36
-          - os: macos-14
-            py: cp37
+          - os: macos-13
+            cibw_arch: x86_64
+        #   - os: macos-14
+        #     cibw_arch: arm64
+        # exclude:
+        #   - os: macos-14
+        #     py: cp36
+        #   - os: macos-14
+        #     py: cp37
 
     steps:
       - name: Checkout repository
@@ -76,7 +77,7 @@ jobs:
 
       - name: Build wheels for CPython (macOS)
         run: |
-          if [[ "$CIBW_ARCHS_MACOS" == arm64 ]]; then
+          if [[ "$CIBW_ARCHS_MACOS" == "arm64" ]]; then
               # SciPy requires 12.0 on arm to prevent kernel panics
               # https://github.com/scipy/scipy/issues/14688
               # so being conservative, we just do the same here
@@ -88,8 +89,8 @@ jobs:
               export MACOS_DEPLOYMENT_TARGET=10.9
               OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
           fi
-          # echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
-          # echo MACOS_DEPLOYMENT_TARGET=${MACOS_DEPLOYMENT_TARGET}
+          echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
+          echo MACOS_DEPLOYMENT_TARGET=${MACOS_DEPLOYMENT_TARGET}
 
           # use conda to install llvm-openmp
           # Note that we do NOT activate the conda environment, we just add the
