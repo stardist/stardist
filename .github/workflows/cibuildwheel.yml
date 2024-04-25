@@ -20,12 +20,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14]
+        # os: [macos-13, macos-14]
+        os: [macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-          - os: macos-13
-            cibw_arch: x86_64
+          # - os: macos-13
+          #   cibw_arch: x86_64
           - os: macos-14
             cibw_arch: arm64
 
@@ -49,7 +50,7 @@ jobs:
               echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
           else
-            echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
+              echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
           fi
 
       - name: Install conda for macos arm64
@@ -88,7 +89,7 @@ jobs:
           # use conda to install llvm-openmp
           # Note that we do NOT activate the conda environment, we just add the
           # library install path to CFLAGS/CXXFLAGS/LDFLAGS below.
-          sudo conda create -n build $OPENMP_URL
+          sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
           PREFIX="$CONDA_HOME/envs/build"
           export CC=/usr/bin/clang
           export CXX=/usr/bin/clang++
