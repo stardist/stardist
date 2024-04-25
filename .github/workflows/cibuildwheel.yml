@@ -45,10 +45,10 @@ jobs:
         shell: bash
         run: |
           command -v conda && ret=$? || ret=$?
-          if [[ "$ret" == "0" && test -d /usr/local/miniconda ]]; then
+          if [[ "$ret" == "0" && -d /usr/local/miniconda ]]; then
               echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
-          else;
+          else
             echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
           fi
 
