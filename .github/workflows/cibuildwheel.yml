@@ -29,6 +29,11 @@ jobs:
           #   cibw_arch: x86_64
           - os: macos-14
             cibw_arch: arm64
+        exclude:
+          - py: cp36
+            cibw_arch: arm64
+          - py: cp37
+            cibw_arch: arm64
 
     steps:
       - name: Checkout repository
@@ -89,14 +94,15 @@ jobs:
           # use conda to install llvm-openmp
           # Note that we do NOT activate the conda environment, we just add the
           # library install path to CFLAGS/CXXFLAGS/LDFLAGS below.
+          ls -lah "$CONDA_HOME/bin/"
           sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
           PREFIX="$CONDA_HOME/envs/build"
           export CC=/usr/bin/clang
           export CXX=/usr/bin/clang++
-          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
-          export CFLAGS="$CFLAGS -Wno-implicit-function-declaration -I$PREFIX/include"
+          export CFLAGS="$CFLAGS -I$PREFIX/include"
           export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
-          export LDFLAGS="$LDFLAGS -Wl,-S -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+          export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
 
           python -m cibuildwheel --output-dir dist
         env:
