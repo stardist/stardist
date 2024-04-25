@@ -20,11 +20,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest]
+        os: [macos-13, macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
-        cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
+          - os: macos-13
+            cibw_arch: x86_64
+          - os: macos-14
+            cibw_arch: arm64
 
     steps:
       - name: Checkout repository
@@ -42,35 +45,28 @@ jobs:
         shell: bash
         run: |
           command -v conda && ret=$? || ret=$?
-          echo "CONDA_INSTALLED=$ret" >> $GITHUB_ENV
-          if [[ "$CONDA_INSTALLED" == "1" ]]; then
-              test -d /usr/local/miniconda
+          if [[ "$ret" == "0" && test -d /usr/local/miniconda ]]; then
+              echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
+          else;
+            echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
           fi
 
-      # - name: Install conda for macos arm64
-      #   if: ${{ matrix.cibw_arch == 'arm64' }}
-      #   run: |
-      #     set -ex
-      #     # check assumption that conda isn't already installed
-      #     [[ "$CONDA_INSTALLED" == "0" ]] || exit 1
-      #     command -v conda && exit 1
-      #     # macos arm64 runners do not have conda installed
-      #     MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-MacOSX-arm64.sh"
-      #     curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
-      #     # install miniforge
-      #     MINIFORGE_PATH=$HOME/miniforge
-      #     bash ./miniforge.sh -b -p $MINIFORGE_PATH
-      #     # echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
-      #     echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
-
-      # - name: Set conda environment for existing conda installation
-      #   if: ${{ matrix.cibw_arch != 'arm64' }}
-      #   run: |
-      #     # check assumption that conda is already installed
-      #     [[ "$CONDA_INSTALLED" == "1" ]] || exit 1
-      #     test -d /usr/local/miniconda
-      #     echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
+      - name: Install conda for macos arm64
+        if: ${{ matrix.cibw_arch == 'arm64' }}
+        run: |
+          set -ex
+          # check assumption that conda isn't already installed
+          [[ "$CONDA_INSTALLED" == "0" ]] || exit 1
+          command -v conda && exit 1
+          # macos arm64 runners do not have conda installed
+          MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-MacOSX-arm64.sh"
+          curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
+          # install miniforge
+          MINIFORGE_PATH=$HOME/miniforge
+          bash ./miniforge.sh -b -p $MINIFORGE_PATH
+          # echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
+          echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
 
       - name: Build wheels for CPython (macOS)
         run: |
