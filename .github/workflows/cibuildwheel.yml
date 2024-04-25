@@ -23,8 +23,8 @@ jobs:
         # os: [ubuntu-latest, windows-latest, macos-latest]
         os: [macos-13, macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
-        # include:
-        #   - cibw_test_requires: 'pytest tensorflow'
+        include:
+          - cibw_test_requires: 'pytest tensorflow'
         #   - os: ubuntu-latest
         #     py: cp37
         #     cibw_test_requires: 'pytest tensorflow urllib3<2' # ImportError: urllib3 v2.0 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'OpenSSL 1.0.2k-fips  26 Jan 2017'. See: https://github.com/urllib3/urllib3/issues/2168
