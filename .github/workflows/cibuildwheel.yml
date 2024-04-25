@@ -49,7 +49,7 @@ jobs:
               echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
           else;
-            echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
+            echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
           fi
 
       - name: Install conda for macos arm64
