@@ -14,7 +14,6 @@ on:
       - published
 
 jobs:
-
   build_wheels_linux_windows:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
