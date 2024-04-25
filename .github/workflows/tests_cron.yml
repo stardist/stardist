@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [ubuntu-20.04, windows-latest, macos-13]
+        os: [ubuntu-20.04, windows-latest, macos-latest] # macos-latest is arm64-based
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         include:
@@ -35,6 +35,15 @@ jobs:
             package-extras: 'test'
             deps-extra: 'tf_keras'
             exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
+          # cases for using x86_64-based runner (macos-13)
+          - os: macos-13
+            python-version: '3.6'  # no arm64 wheels
+          - os: macos-13
+            python-version: '3.7'  # no arm64 wheels
+          - os: macos-13
+            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
+            tensorflow: 2
+            package-extras: 'test'
         exclude:
           # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
@@ -69,8 +78,8 @@ jobs:
         if: ${{ matrix.deps-extra }}
         run: pip install ${{ matrix.deps-extra }}
 
-      - name: Install package from source (just to test wheel building)
-        if: startsWith(matrix.os, 'windows') == false
+      - name: Install package from source (just to test wheel building) - Linux
+        if: startsWith(matrix.os, 'ubuntu')
         run: pip install --no-binary stardist "stardist[${{ matrix.package-extras }}]"
 
       - name: Install package from source (just to test wheel building) - Windows
@@ -81,9 +90,14 @@ jobs:
           TMPDIR: "/tmp"  # - /tmp should already exist on runner image
           TMP: "/tmp"     # - set all temp-related env variables (had issues with when omitting some)
 
+      # - name: Install package from source (just to test wheel building) - macOS
+      #   if: startsWith(matrix.os, 'macos')
+      #   run: ...
+
       - name: Install package from wheel
+        shell: bash
         run: |
-          pip uninstall -y stardist
+          [[ -z $(pip list | grep stardist) ]] && pip uninstall -y stardist
           pip install --no-cache-dir --only-binary stardist "stardist[${{ matrix.package-extras }}]>0"
 
       - name: Run extra commands (if any)

@@ -63,7 +63,7 @@ jobs:
   build_wheels_mac:
     # build wheels for macOS, using an x86_64-based runner to build both x86_64 and arm64 wheels
     # (better would be to build arm64 wheels on an arm64-based runner, but c++ compilation throws errors and haven't debugged why)
-    # - arm64 wheels can only be build for python 3.7+
+    # - arm64 wheels can only be build for python 3.8+
     # - arm64 wheels cannot be tested on an x86_64-based runner, so they are tested in a separate job
     # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
     name: Build ${{ matrix.py }}-${{ matrix.cibw_arch }} wheels on ${{ matrix.os }}
