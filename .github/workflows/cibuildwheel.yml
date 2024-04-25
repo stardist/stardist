@@ -23,7 +23,8 @@ jobs:
         # os: [macos-13, macos-14]
         os: [macos-13]
         # os: [macos-14]
-        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        # py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        py: [cp39, cp312]
         cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
@@ -108,7 +109,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        # python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.9', '3.12']
         arch: [x86_64, arm64]
         include:
           - arch: x86_64
@@ -140,7 +142,7 @@ jobs:
         run: pip install pytest tensorflow
 
       - name: Install wheel
-        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl"
+        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
 
       - name: Checkout repository
         uses: actions/checkout@v4
