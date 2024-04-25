@@ -48,8 +48,8 @@ jobs:
       - name: Check if conda is installed
         shell: bash
         run: |
-          command -v conda
-          echo "CONDA_INSTALLED=$?" >> $GITHUB_ENV
+          command -v conda && ret=$? || ret=$?
+          echo "CONDA_INSTALLED=$ret" >> $GITHUB_ENV
 
       - name: Install conda for macos arm64
         if: ${{ matrix.cibw_arch == 'arm64' }}
