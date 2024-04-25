@@ -24,10 +24,11 @@ jobs:
         os: [macos-13]
         # os: [macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-          - os: macos-13
-            cibw_arch: x86_64
+        #   - os: macos-13
+        #     cibw_arch: x86_64
         #   - os: macos-14
         #     cibw_arch: arm64
         # exclude:
@@ -54,10 +55,8 @@ jobs:
           set -ex
           command -v conda && ret=$? || ret=$?
           if [[ "$ret" == "0" && -d /usr/local/miniconda ]]; then
-              echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
           else
-              echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
               if [[ "${{ matrix.cibw_arch }}" == "arm64" ]]; then
                   MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-arm64.sh"
               else
