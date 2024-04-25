@@ -57,11 +57,14 @@ jobs:
           if [[ "$ret" == "0" && -d /usr/local/miniconda ]]; then
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
           else
-              if [[ "${{ matrix.cibw_arch }}" == "arm64" ]]; then
-                  MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-arm64.sh"
-              else
-                  MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-x86_64.sh"
-              fi
+              # if [[ "${{ matrix.cibw_arch }}" == "arm64" ]]; then
+              #     MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-arm64.sh"
+              # else
+              #     MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-x86_64.sh"
+              # fi
+
+              MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-x86_64.sh"
+
               curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
               # install miniforge
               MINIFORGE_PATH=$HOME/miniforge
