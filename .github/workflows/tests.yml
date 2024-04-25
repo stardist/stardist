@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [ubuntu-20.04, windows-latest, macos-latest] # macos-latest is arm64-based
+        os: [ubuntu-20.04, windows-latest, macos-13]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         include:
@@ -40,10 +40,6 @@ jobs:
             package-extras: 'test'
             deps-extra: 'tf_keras'
             exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
-          - os: macos-13  # x86_64-based runner
-            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
-            tensorflow: 2
-            package-extras: 'test'
         exclude:
           # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
