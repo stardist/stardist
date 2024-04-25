@@ -1,7 +1,7 @@
 # adapted from:
-# - https://github.com/matplotlib/matplotlib/blob/master/.github/workflows/cibuildwheel.yml
-# - https://github.com/scikit-image/scikit-image/blob/master/.github/workflows/cibuildwheel.yml
 # - https://github.com/pypa/cibuildwheel/blob/main/examples/github-deploy.yml
+# - https://github.com/scikit-learn/scikit-learn/blob/main/.github/workflows/wheels.yml
+# - https://github.com/scikit-image/scikit-image/blob/main/.github/workflows/wheels_recipe.yml
 
 name: Build and upload to PyPI
 
@@ -14,13 +14,13 @@ on:
       - published
 
 jobs:
-  build_wheels:
+  build_wheels_linux_windows:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
         include:
           - cibw_test_requires: 'pytest tensorflow'
@@ -40,38 +40,8 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
-        # https://scikit-learn.org/stable/developers/advanced_installation.html#macos
-      - name: Setup OpenMP (macOS)
-        if: startsWith(matrix.os, 'macos')
-        shell: bash
-        run: |
-          brew config
-          brew install libomp
-          eval `brew shellenv`
-          tee -a $GITHUB_ENV << END
-          CC=/usr/bin/clang
-          CXX=/usr/bin/clang++
-          CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-          CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-          LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/opt/libomp/lib -L${HOMEBREW_PREFIX}/opt/libomp/lib -lomp
-          END
-
-      - name: Build wheels for CPython (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          python -m cibuildwheel --output-dir dist
-        env:
-          CIBW_BUILD: "${{ matrix.py }}-*"
-          CIBW_ARCHS_MACOS: x86_64 arm64
-          CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
-
       - name: Build wheels for CPython (Linux and Windows)
-        if: startsWith(matrix.os, 'macos') == false
-        run: |
-          python -m cibuildwheel --output-dir dist
+        run: python -m cibuildwheel --output-dir dist
         env:
           # only build for platforms where tensorflow is available
           CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
@@ -88,6 +58,128 @@ jobs:
         with:
           name: dist
           path: ./dist/*.whl
+
+
+  build_wheels_mac:
+    # build wheels for macOS, using an x86_64-based runner to build both x86_64 and arm64 wheels
+    # (better would be to build arm64 wheels on an arm64-based runner, but c++ compilation throws errors and haven't debugged why)
+    # - arm64 wheels can only be build for python 3.7+
+    # - arm64 wheels cannot be tested on an x86_64-based runner, so they are tested in a separate job
+    # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+    name: Build ${{ matrix.py }}-${{ matrix.cibw_arch }} wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13] # runner hardware is x86_64 (intel)
+        # os: [macos-14] # runner hardware is arm64 (apple silicon) -> compiling c++ throws error
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        cibw_arch: [x86_64, arm64]
+        include:
+          - cibw_test_requires: 'pytest tensorflow'
+        exclude:
+          - py: cp36
+            cibw_arch: arm64
+          - py: cp37
+            cibw_arch: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel
+
+      - name: Install conda
+        shell: bash
+        run: |
+          set -ex
+          MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
+          MINIFORGE_PATH="$HOME/miniforge"
+          curl -L --retry 10 $MINIFORGE_URL -o ./miniforge.sh
+          bash ./miniforge.sh -b -p $MINIFORGE_PATH
+          echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
+
+      - name: Build wheels for CPython (macOS)
+        run: |
+          if [[ "$CIBW_ARCHS_MACOS" == "arm64" ]]; then
+              # SciPy requires 12.0 on arm to prevent kernel panics
+              # https://github.com/scipy/scipy/issues/14688
+              export MACOSX_DEPLOYMENT_TARGET=12.0
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+          else
+              export MACOSX_DEPLOYMENT_TARGET=10.9
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
+          fi
+          echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
+
+          # use conda to install llvm-openmp and use it for building
+          sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
+          PREFIX="$CONDA_HOME/envs/build"
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          export CFLAGS="$CFLAGS -I$PREFIX/include"
+          export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
+          export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
+
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "${{ matrix.py }}-*"
+          CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: ./dist/*.whl
+
+
+  test_wheels_mac_arm64:
+    # test arm64 wheels for macOS using an arm64-based runner
+    name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
+    needs: [build_wheels_mac]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14] # runner hardware is arm64 (apple silicon)
+        arch: [arm64]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install TensorFlow and PyTest
+        run: pip install pytest tensorflow
+
+      - name: Install wheel
+        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: pytest -v -m "not gpu"
 
 
   build_sdist:
@@ -109,7 +201,7 @@ jobs:
 
   upload_pypi:
     name: Upload to PyPI
-    needs: [build_wheels, build_sdist]
+    needs: [build_wheels_linux_windows, test_wheels_mac_arm64, build_sdist]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
