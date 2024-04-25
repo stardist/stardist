@@ -14,107 +14,107 @@ on:
       - published
 
 jobs:
-  # build_wheels_mac:
-  #   name: Build ${{ matrix.py }}-${{ matrix.cibw_arch }} wheels on ${{ matrix.os }}
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       # os: [macos-13, macos-14]
-  #       os: [macos-13]
-  #       # os: [macos-14]
-  #       # py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
-  #       py: [cp39, cp312]
-  #       cibw_arch: [x86_64, arm64]
-  #       include:
-  #         - cibw_test_requires: 'pytest tensorflow'
-  #         # - os: macos-13
-  #         #   cibw_arch: x86_64
-  #         # - os: macos-14
-  #         #   cibw_arch: arm64
-  #       exclude:
-  #         - py: cp36
-  #           cibw_arch: arm64
-  #         - py: cp37
-  #           cibw_arch: arm64
-  #         # - os: macos-14
-  #         #   py: cp36
-  #         # - os: macos-14
-  #         #   py: cp37
+  build_wheels_mac:
+    name: Build ${{ matrix.py }}-${{ matrix.cibw_arch }} wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # os: [macos-13, macos-14]
+        os: [macos-13]
+        # os: [macos-14]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        # cibw_arch: [x86_64, arm64]
+        cibw_arch: [arm64]
+        include:
+          - cibw_test_requires: 'pytest tensorflow'
+          # - os: macos-13
+          #   cibw_arch: x86_64
+          # - os: macos-14
+          #   cibw_arch: arm64
+        exclude:
+          - py: cp36
+            cibw_arch: arm64
+          - py: cp37
+            cibw_arch: arm64
+          # - os: macos-14
+          #   py: cp36
+          # - os: macos-14
+          #   py: cp37
 
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  #     - name: Install Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.x'
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-  #     - name: Install cibuildwheel
-  #       run: python -m pip install cibuildwheel
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel
 
-  #     - name: Install conda
-  #       shell: bash
-  #       run: |
-  #         set -ex
-  #         MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
-  #         MINIFORGE_PATH="$HOME/miniforge"
-  #         curl -L --retry 10 $MINIFORGE_URL -o ./miniforge.sh
-  #         bash ./miniforge.sh -b -p $MINIFORGE_PATH
-  #         echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
+      - name: Install conda
+        shell: bash
+        run: |
+          set -ex
+          MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
+          MINIFORGE_PATH="$HOME/miniforge"
+          curl -L --retry 10 $MINIFORGE_URL -o ./miniforge.sh
+          bash ./miniforge.sh -b -p $MINIFORGE_PATH
+          echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
 
-  #     - name: Build wheels for CPython (macOS)
-  #       run: |
-  #         if [[ "$CIBW_ARCHS_MACOS" == "arm64" ]]; then
-  #             # SciPy requires 12.0 on arm to prevent kernel panics
-  #             # https://github.com/scipy/scipy/issues/14688
-  #             export MACOSX_DEPLOYMENT_TARGET=12.0
-  #             OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
-  #         else
-  #             export MACOSX_DEPLOYMENT_TARGET=10.9
-  #             OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
-  #         fi
-  #         echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
+      - name: Build wheels for CPython (macOS)
+        run: |
+          if [[ "$CIBW_ARCHS_MACOS" == "arm64" ]]; then
+              # SciPy requires 12.0 on arm to prevent kernel panics
+              # https://github.com/scipy/scipy/issues/14688
+              export MACOSX_DEPLOYMENT_TARGET=12.0
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+          else
+              export MACOSX_DEPLOYMENT_TARGET=10.9
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
+          fi
+          echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
 
-  #         # use conda to install llvm-openmp and use it for building
-  #         sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
-  #         PREFIX="$CONDA_HOME/envs/build"
-  #         export CC=/usr/bin/clang
-  #         export CXX=/usr/bin/clang++
-  #         export CFLAGS="$CFLAGS -I$PREFIX/include"
-  #         export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
-  #         export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
+          # use conda to install llvm-openmp and use it for building
+          sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
+          PREFIX="$CONDA_HOME/envs/build"
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          export CFLAGS="$CFLAGS -I$PREFIX/include"
+          export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
+          export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
 
-  #         python -m cibuildwheel --output-dir dist
-  #       env:
-  #         CIBW_BUILD: "${{ matrix.py }}-*"
-  #         CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
-  #         CIBW_BUILD_VERBOSITY: 1
-  #         # CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-  #         # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "${{ matrix.py }}-*"
+          CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
+          CIBW_BUILD_VERBOSITY: 1
+          # CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
+          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
 
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: dist
-  #         path: ./dist/*.whl
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: ./dist/*.whl
 
 
 
   test_wheels_mac:
     name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
-    # needs: [build_wheels_mac]
+    needs: [build_wheels_mac]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
-        python-version: ['3.9', '3.12']
-        arch: [x86_64, arm64]
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        # arch: [x86_64, arm64]
+        arch: [arm64]
         include:
-          - arch: x86_64
-            os: macos-13
+          # - arch: x86_64
+          #   os: macos-13
           - arch: arm64
             os: macos-14
         exclude:
@@ -124,11 +124,11 @@ jobs:
             arch: arm64
 
     steps:
-      # - name: Download wheels
-      #   uses: actions/download-artifact@v3
-      #   with:
-      #     name: dist
-      #     path: dist
+      - name: Download wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -141,11 +141,8 @@ jobs:
       - name: Install TensorFlow and PyTest
         run: pip install pytest tensorflow
 
-      # - name: Install wheel
-      #   run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
-
-      - name: Install stardist
-        run: pip install stardist
+      - name: Install wheel
+        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
 
       - name: Checkout repository
         uses: actions/checkout@v4
