@@ -21,21 +21,25 @@ jobs:
       fail-fast: false
       matrix:
         # os: [macos-13, macos-14]
-        # os: [macos-13]
-        os: [macos-14]
+        os: [macos-13]
+        # os: [macos-14]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
         cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-        #   - os: macos-13
-        #     cibw_arch: x86_64
-        #   - os: macos-14
-        #     cibw_arch: arm64
-        # exclude:
-        #   - os: macos-14
-        #     py: cp36
-        #   - os: macos-14
-        #     py: cp37
+          # - os: macos-13
+          #   cibw_arch: x86_64
+          # - os: macos-14
+          #   cibw_arch: arm64
+        exclude:
+          - py: cp36
+            cibw_arch: arm64
+          - py: cp37
+            cibw_arch: arm64
+          # - os: macos-14
+          #   py: cp36
+          # - os: macos-14
+          #   py: cp37
 
     steps:
       - name: Checkout repository
@@ -86,8 +90,8 @@ jobs:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
 
       - name: Upload wheels
