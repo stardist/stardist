@@ -48,17 +48,55 @@ jobs:
         if: ${{ matrix.cibw_arch == 'arm64' }}
         run: |
           set -ex
+          # check assumption that conda isn't already installed
+          [[ "$CONDA_INSTALLED" == "0" ]] || exit 1
+          command -v conda && exit 1
           # macos arm64 runners do not have conda installed
           MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Mambaforge-23.11.0-0-MacOSX-arm64.sh"
           curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
           # install miniforge
           MINIFORGE_PATH=$HOME/miniforge
           bash ./miniforge.sh -b -p $MINIFORGE_PATH
-          echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
+          # echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
           echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
+
+      - name: Set conda environment for existing conda installation
+        if: ${{ matrix.cibw_arch != 'arm64' }}
+        run: |
+          # check assumption that conda is already installed
+          [[ "$CONDA_INSTALLED" == "1" ]] || exit 1
+          test -d /usr/local/miniconda
+          echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
 
       - name: Build wheels for CPython (macOS)
         run: |
+          if [[ "$CIBW_ARCHS_MACOS" == arm64 ]]; then
+              # SciPy requires 12.0 on arm to prevent kernel panics
+              # https://github.com/scipy/scipy/issues/14688
+              # so being conservative, we just do the same here
+              export MACOSX_DEPLOYMENT_TARGET=12.0
+              export MACOS_DEPLOYMENT_TARGET=12.0
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+          else
+              export MACOSX_DEPLOYMENT_TARGET=10.9
+              export MACOS_DEPLOYMENT_TARGET=10.9
+              OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
+          fi
+          echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
+          echo MACOS_DEPLOYMENT_TARGET=${MACOS_DEPLOYMENT_TARGET}
+
+          # use conda to install llvm-openmp
+          # Note that we do NOT activate the conda environment, we just add the
+          # library install path to CFLAGS/CXXFLAGS/LDFLAGS below.
+          sudo conda create -n build $OPENMP_URL
+          PREFIX="$CONDA_HOME/envs/build"
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+          export CFLAGS="$CFLAGS -Wno-implicit-function-declaration -I$PREFIX/include"
+          export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
+          export LDFLAGS="$LDFLAGS -Wl,-S -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
+
           python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
