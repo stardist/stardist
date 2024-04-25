@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [ubuntu-20.04, windows-latest, macos-latest]
+        os: [ubuntu-20.04, windows-latest, macos-13]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         include:
@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-        
+
       - name: Upgrade pip, wheel, setuptools
         run: python -m pip install --upgrade pip wheel setuptools
 
@@ -70,7 +70,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # # should also work with clang, but there are 
+      # # should also work with clang, but there are
       # # openmp-related symbol issues just when using Python 3.6?
       # - name: Use GCC on macOS
       #   if: startsWith(matrix.os, 'macos')
