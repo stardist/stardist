@@ -140,7 +140,7 @@ jobs:
         run: pip install pytest tensorflow
 
       - name: Install wheel
-        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*.whl"
+        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl"
 
       - name: Checkout repository
         uses: actions/checkout@v4
