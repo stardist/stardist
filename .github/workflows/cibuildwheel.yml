@@ -48,32 +48,28 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
-      - name: Check if conda is installed
+      - name: Check conda and install if needed
         shell: bash
         run: |
+          set -ex
           command -v conda && ret=$? || ret=$?
           if [[ "$ret" == "0" && -d /usr/local/miniconda ]]; then
               echo "CONDA_INSTALLED=1" >> $GITHUB_ENV
               echo "CONDA_HOME=/usr/local/miniconda" >> $GITHUB_ENV
           else
               echo "CONDA_INSTALLED=0" >> $GITHUB_ENV
+              if [[ "${{ matrix.cibw_arch }}" == "arm64" ]]; then
+                  MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-arm64.sh"
+              else
+                  MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-x86_64.sh"
+              fi
+              curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
+              # install miniforge
+              MINIFORGE_PATH=$HOME/miniforge
+              bash ./miniforge.sh -b -p $MINIFORGE_PATH
+              # echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
+              echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
           fi
-
-      - name: Install conda for macos arm64
-        if: ${{ matrix.cibw_arch == 'arm64' }}
-        run: |
-          set -ex
-          # check assumption that conda isn't already installed
-          [[ "$CONDA_INSTALLED" == "0" ]] || exit 1
-          command -v conda && exit 1
-          # macos arm64 runners do not have conda installed
-          MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Mambaforge-24.3.0-0-MacOSX-arm64.sh"
-          curl -L --retry 10 $MINIFORGE_URL -o miniforge.sh
-          # install miniforge
-          MINIFORGE_PATH=$HOME/miniforge
-          bash ./miniforge.sh -b -p $MINIFORGE_PATH
-          # echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
-          echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
 
       - name: Build wheels for CPython (macOS)
         run: |
