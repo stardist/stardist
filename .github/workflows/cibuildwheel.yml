@@ -30,10 +30,10 @@ jobs:
           - os: macos-14
             cibw_arch: arm64
         exclude:
-          - py: cp36
-            cibw_arch: arm64
-          - py: cp37
-            cibw_arch: arm64
+          - os: macos-14
+            py: cp36
+          - os: macos-14
+            py: cp37
 
     steps:
       - name: Checkout repository
