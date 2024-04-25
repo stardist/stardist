@@ -14,24 +14,17 @@ on:
       - published
 
 jobs:
-  build_wheels:
+  build_wheels_mac:
     name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # os: [ubuntu-latest, windows-latest, macos-latest]
         os: [macos-latest]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-          - os: macos-latest
-            cibw_arch: x86_64
-          - os: macos-latest
-            cibw_arch: arm64
-        #   - os: ubuntu-latest
-        #     py: cp37
-        #     cibw_test_requires: 'pytest tensorflow urllib3<2' # ImportError: urllib3 v2.0 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'OpenSSL 1.0.2k-fips  26 Jan 2017'. See: https://github.com/urllib3/urllib3/issues/2168
 
     steps:
       - name: Checkout repository
@@ -64,48 +57,16 @@ jobs:
           echo "$MINIFORGE_PATH/bin" >> $GITHUB_PATH
           echo "CONDA_HOME=$MINIFORGE_PATH" >> $GITHUB_ENV
 
-      #   # https://scikit-learn.org/stable/developers/advanced_installation.html#macos
-      # - name: Setup OpenMP (macOS)
-      #   if: startsWith(matrix.os, 'macos')
-      #   shell: bash
-      #   run: |
-      #     brew config
-      #     brew install libomp
-      #     eval `brew shellenv`
-      #     tee -a $GITHUB_ENV << END
-      #     CC=/usr/bin/clang
-      #     CXX=/usr/bin/clang++
-      #     CFLAGS=${CFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-      #     CXXFLAGS=${CXXFLAGS} -I${HOMEBREW_PREFIX}/opt/libomp/include
-      #     LDFLAGS=${LDFLAGS} -Wl,-rpath,${HOMEBREW_PREFIX}/opt/libomp/lib -L${HOMEBREW_PREFIX}/opt/libomp/lib -lomp
-      #     END
-
       - name: Build wheels for CPython (macOS)
-        if: startsWith(matrix.os, 'macos')
         run: |
           python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
-          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
           CIBW_BUILD_VERBOSITY: 1
           # CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # CIBW_TEST_SKIP: "*cp36*-macosx*" # Python crashes ¯\_(ツ)_/¯
-
-      - name: Build wheels for CPython (Linux and Windows)
-        if: startsWith(matrix.os, 'macos') == false
-        run: |
-          python -m cibuildwheel --output-dir dist
-        env:
-          # only build for platforms where tensorflow is available
-          CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
-          CIBW_SKIP: "*musllinux*"
-          # numba is a requirement and only has wheels for manylinux2014
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # CIBW_TEST_SKIP: "*musllinux*"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -114,46 +75,100 @@ jobs:
           path: ./dist/*.whl
 
 
-  build_sdist:
-    name: Build source distribution
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  # build_wheels:
+  #   name: Build ${{ matrix.py }} wheels on ${{ matrix.os }}
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [ubuntu-latest, windows-latest]
+  #       py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+  #       include:
+  #         - cibw_test_requires: 'pytest tensorflow'
+  #         - os: ubuntu-latest
+  #           py: cp37
+  #           cibw_test_requires: 'pytest tensorflow urllib3<2' # ImportError: urllib3 v2.0 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'OpenSSL 1.0.2k-fips  26 Jan 2017'. See: https://github.com/urllib3/urllib3/issues/2168
 
-      - name: Build sdist
-        run: pipx run build --sdist
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Upload sdist
-        uses: actions/upload-artifact@v3
-        with:
-          name: dist
-          path: dist/*.tar.gz
+  #     - name: Install Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.x'
+
+  #     - name: Install cibuildwheel
+  #       run: python -m pip install cibuildwheel
+
+  #     - name: Check if conda is installed
+  #       shell: bash
+  #       run: |
+  #         command -v conda && ret=$? || ret=$?
+  #         echo "CONDA_INSTALLED=$ret" >> $GITHUB_ENV
+
+  #     - name: Build wheels for CPython (Linux and Windows)
+  #       if: startsWith(matrix.os, 'macos') == false
+  #       run: |
+  #         python -m cibuildwheel --output-dir dist
+  #       env:
+  #         # only build for platforms where tensorflow is available
+  #         CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
+  #         CIBW_SKIP: "*musllinux*"
+  #         # numba is a requirement and only has wheels for manylinux2014
+  #         CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+  #         CIBW_BUILD_VERBOSITY: 1
+  #         CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
+  #         CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+  #         # CIBW_TEST_SKIP: "*musllinux*"
+
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: dist
+  #         path: ./dist/*.whl
 
 
-  upload_pypi:
-    name: Upload to PyPI
-    needs: [build_wheels, build_sdist]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - name: Download wheels and sdist
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-          path: dist
+  # build_sdist:
+  #   name: Build source distribution
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Check that package version matches git tag ${{ github.ref_name }}
-        shell: bash
-        run: |
-          ls -l dist
-          test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+  #     - name: Build sdist
+  #       run: pipx run build --sdist
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          verbose: true
-          # password: ${{ secrets.TESTPYPI_API_TOKEN }}
-          # repository-url: https://test.pypi.org/legacy/
+  #     - name: Upload sdist
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: dist
+  #         path: dist/*.tar.gz
+
+
+  # upload_pypi:
+  #   name: Upload to PyPI
+  #   needs: [build_wheels, build_wheels_mac, build_sdist]
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'release' && github.event.action == 'published'
+  #   steps:
+  #     - name: Download wheels and sdist
+  #       uses: actions/download-artifact@v3
+  #       with:
+  #         name: dist
+  #         path: dist
+
+  #     - name: Check that package version matches git tag ${{ github.ref_name }}
+  #       shell: bash
+  #       run: |
+  #         ls -l dist
+  #         test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+
+  #     - name: Publish to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         user: __token__
+  #         password: ${{ secrets.PYPI_API_TOKEN }}
+  #         verbose: true
+  #         # password: ${{ secrets.TESTPYPI_API_TOKEN }}
+  #         # repository-url: https://test.pypi.org/legacy/
