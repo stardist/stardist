@@ -15,32 +15,27 @@ on:
 
 jobs:
   build_wheels_mac:
+    # build wheels for macOS, using an x86_64-based runner to build both x86_64 and arm64 wheels
+    # (better would be to build arm64 wheels on an arm64-based runner, but c++ compilation throws errors and haven't debugged why)
+    # - arm64 wheels can only be build for python 3.7+
+    # - arm64 wheels cannot be tested on an x86_64-based runner, so they are tested in a separate job
+    # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
     name: Build ${{ matrix.py }}-${{ matrix.cibw_arch }} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # os: [macos-13, macos-14]
-        os: [macos-13]
-        # os: [macos-14]
+        os: [macos-13] # runner hardware is x86_64 (intel)
+        # os: [macos-14] # runner hardware is arm64 (apple silicon) -> compiling c++ throws error
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
-        # cibw_arch: [x86_64, arm64]
-        cibw_arch: [arm64]
+        cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
-          # - os: macos-13
-          #   cibw_arch: x86_64
-          # - os: macos-14
-          #   cibw_arch: arm64
         exclude:
           - py: cp36
             cibw_arch: arm64
           - py: cp37
             cibw_arch: arm64
-          # - os: macos-14
-          #   py: cp36
-          # - os: macos-14
-          #   py: cp37
 
     steps:
       - name: Checkout repository
@@ -91,8 +86,8 @@ jobs:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
           CIBW_BUILD_VERBOSITY: 1
-          # CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          # CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
+          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -102,26 +97,17 @@ jobs:
 
 
 
-  test_wheels_mac:
+  test_wheels_mac_arm64:
+    # test arm64 wheels for macOS using an arm64-based runner
     name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
     needs: [build_wheels_mac]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
-        # arch: [x86_64, arm64]
+        os: [macos-14] # runner hardware is arm64 (apple silicon)
         arch: [arm64]
-        include:
-          # - arch: x86_64
-          #   os: macos-13
-          - arch: arm64
-            os: macos-14
-        exclude:
-          - python-version: '3.6'
-            arch: arm64
-          - python-version: '3.7'
-            arch: arm64
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - name: Download wheels
@@ -154,6 +140,8 @@ jobs:
 
       - name: Run tests
         run: pytest -m "not gpu"
+        env:
+          PYTEST_ADDOPTS: '-W ignore::pytest.PytestReturnNotNoneWarning'
 
 
 
