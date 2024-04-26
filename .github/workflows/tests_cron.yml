@@ -116,7 +116,7 @@ jobs:
       - name: Install package from wheel
         shell: bash
         run: |
-          [[ -z $(pip list | grep stardist) ]] && pip uninstall -y stardist
+          [[ -z $(pip list | grep stardist) ]] || pip uninstall -y stardist
           pip install --no-cache-dir --only-binary stardist "stardist[${{ matrix.package-extras }}]>0"
 
       - name: Run extra commands (if any)
