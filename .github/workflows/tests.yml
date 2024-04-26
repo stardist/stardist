@@ -4,6 +4,7 @@ on:
   push:
     branches-ignore:
       - wheels
+      - pypi
   pull_request:
     branches:
       - main
