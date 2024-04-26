@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [macos-latest] # macos-latest is arm64-based
+        os: [ubuntu-20.04, windows-latest, macos-latest] # macos-latest is arm64-based
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         tensorflow: [1, 2]
         include:
