@@ -6,9 +6,9 @@
 
    see qh-geom_r.htm and geom_r.h
 
-   Copyright (c) 1993-2018 The Geometry Center.
-   $Id: //main/2015/qhull/src/libqhull_r/geom_r.c#14 $$Change: 2549 $
-   $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+   Copyright (c) 1993-2020 The Geometry Center.
+   $Id: //main/2019/qhull/src/libqhull_r/geom_r.c#5 $$Change: 2953 $
+   $DateTime: 2020/05/21 22:05:32 $$Author: bbarber $
 
    infrequent code goes into geom2_r.c
 */
@@ -80,7 +80,7 @@ void qh_distplane(qhT *qh, pointT *point, facetT *facet, realT *dist) {
       *dist += *coordp++ * *normal++;
     break;
   }
-  zinc_(Zdistplane);
+  zzinc_(Zdistplane);
   if (!qh->RANDOMdist && qh->IStracing < 4)
     return;
   if (qh->RANDOMdist) {
@@ -88,11 +88,13 @@ void qh_distplane(qhT *qh, pointT *point, facetT *facet, realT *dist) {
     *dist += (2.0 * randr / qh_RANDOMmax - 1.0) *
       qh->RANDOMfactor * qh->MAXabs_coord;
   }
+#ifndef qh_NOtrace
   if (qh->IStracing >= 4) {
     qh_fprintf(qh, qh->ferr, 8001, "qh_distplane: ");
     qh_fprintf(qh, qh->ferr, 8002, qh_REAL_1, *dist);
     qh_fprintf(qh, qh->ferr, 8003, "from p%d to f%d\n", qh_pointid(qh, point), facet->id);
   }
+#endif
   return;
 } /* distplane */
 
@@ -137,7 +139,7 @@ void qh_distplane(qhT *qh, pointT *point, facetT *facet, realT *dist) {
                  qh_check_bestdist(), qh_addpoint()
     indicated by !qh_ISnewfacets
     returns best facet in neighborhood of given facet
-      this is best facet overall if dist > -   qh.MAXcoplanar
+      this is best facet overall if dist >= -qh.MAXcoplanar
         or hull has at least a "spherical" curvature
 
   design:
@@ -163,18 +165,20 @@ facetT *qh_findbest(qhT *qh, pointT *point, facetT *startfacet,
   boolT testhorizon= True; /* needed if precise, e.g., rbox c D6 | qhull Q0 Tv */
 
   zinc_(Zfindbest);
+#ifndef qh_NOtrace
   if (qh->IStracing >= 4 || (qh->TRACElevel && qh->TRACEpoint >= 0 && qh->TRACEpoint == qh_pointid(qh, point))) {
     if (qh->TRACElevel > qh->IStracing)
       qh->IStracing= qh->TRACElevel;
-    qh_fprintf(qh, qh->ferr, 8004, "qh_findbest: point p%d starting at f%d isnewfacets? %d, unless %d exit if > %2.2g\n",
+    qh_fprintf(qh, qh->ferr, 8004, "qh_findbest: point p%d starting at f%d isnewfacets? %d, unless %d exit if > %2.2g,",
              qh_pointid(qh, point), startfacet->id, isnewfacets, bestoutside, qh->MINoutside);
-    qh_fprintf(qh, qh->ferr, 8005, "  testhorizon? %d noupper? %d", testhorizon, noupper);
-    qh_fprintf(qh, qh->ferr, 8006, "  Last point added was p%d.", qh->furthest_id);
-    qh_fprintf(qh, qh->ferr, 8007, "  Last merge was #%d.  max_outside %2.2g\n", zzval_(Ztotmerge), qh->max_outside);
+    qh_fprintf(qh, qh->ferr, 8005, " testhorizon? %d, noupper? %d,", testhorizon, noupper);
+    qh_fprintf(qh, qh->ferr, 8006, " Last qh_addpoint p%d,", qh->furthest_id);
+    qh_fprintf(qh, qh->ferr, 8007, " Last merge #%d, max_outside %2.2g\n", zzval_(Ztotmerge), qh->max_outside);
   }
+#endif
   if (isoutside)
     *isoutside= True;
-  if (!startfacet->flipped) {  /* test startfacet */
+  if (!startfacet->flipped) {  /* test startfacet before testing its neighbors */
     *numpart= 1;
     qh_distplane(qh, point, startfacet, dist);  /* this code is duplicated below */
     if (!bestoutside && *dist >= qh->MINoutside
@@ -227,7 +231,7 @@ facetT *qh_findbest(qhT *qh, pointT *point, facetT *startfacet,
       bestdist= -REALmax/2;
       bestfacet= qh_findbestnew(qh, point, qh->newfacet_list, &bestdist, bestoutside, isoutside, &numpartnew);
       testhorizon= False; /* qh_findbestnew calls qh_findbesthorizon */
-    }else if (!qh->findbest_notsharp && bestdist < - qh->DISTround) {
+    }else if (!qh->findbest_notsharp && bestdist < -qh->DISTround) {
       if (qh_sharpnewfacets(qh)) {
         /* seldom used, qh_findbestnew will retest all facets */
         zinc_(Zfindnewsharp);
@@ -240,7 +244,7 @@ facetT *qh_findbest(qhT *qh, pointT *point, facetT *startfacet,
   }
   if (!bestfacet)
     bestfacet= qh_findbestlower(qh, lastfacet, point, &bestdist, numpart); /* lastfacet is non-NULL because startfacet is non-NULL */
-  if (testhorizon)
+  if (testhorizon) /* qh_findbestnew not called */
     bestfacet= qh_findbesthorizon(qh, !qh_IScheckmax, point, bestfacet, noupper, &bestdist, &numpartnew);
   *dist= bestdist;
   if (isoutside && bestdist < qh->MINoutside)
@@ -260,19 +264,24 @@ LABELreturn_best:
   qh_findbesthorizon(qh, qh_IScheckmax, point, startfacet, qh_NOupper, &bestdist, &numpart )
     search coplanar and better horizon facets from startfacet/bestdist
     ischeckmax turns off statistics and minsearch update
-    all arguments must be initialized
+    all arguments must be initialized, including *bestdist and *numpart
     qh.coplanarfacetset used to maintain current search set, reset whenever best facet is substantially better
   returns(ischeckmax):
     best facet
     updates f.maxoutside for neighbors of searched facets (if qh_MAXoutside)
   returns(!ischeckmax):
-    best facet that is not upperdelaunay
+    best facet that is not upperdelaunay or newfacet (qh.first_newfacet)
     allows upperdelaunay that is clearly outside
   returns:
     bestdist is distance to bestfacet
     numpart -- updates number of distance tests
 
   notes:
+    called by qh_findbest if point is not outside a facet (directed search)
+    called by qh_findbestnew if point is not outside a new facet
+    called by qh_check_maxout for each point in hull
+    called by qh_check_bestdist for each point in hull (rarely used)
+
     no early out -- use qh_findbest() or qh_findbestnew()
     Searches coplanar or better horizon facets
 
@@ -299,10 +308,11 @@ facetT *qh_findbesthorizon(qhT *qh, boolT ischeckmax, pointT* point, facetT *sta
   realT dist;
   facetT *neighbor, **neighborp, *facet;
   facetT *nextfacet= NULL; /* optimize last facet of coplanarfacetset */
-  int numpartinit= *numpart, coplanarfacetset_size;
+  int numpartinit= *numpart, coplanarfacetset_size, numcoplanar= 0, numfacet= 0;
   unsigned int visitid= ++qh->visit_id;
   boolT newbest= False; /* for tracing */
   realT minsearch, searchdist;  /* skip facets that are too far from point */
+  boolT is_5x_minsearch;
 
   if (!ischeckmax) {
     zinc_(Zfindhorizon);
@@ -312,30 +322,30 @@ facetT *qh_findbesthorizon(qhT *qh, boolT ischeckmax, pointT* point, facetT *sta
       startfacet->maxoutside= *bestdist;
 #endif
   }
-  searchdist= qh_SEARCHdist; /* multiple of qh.max_outside and precision constants */
+  searchdist= qh_SEARCHdist; /* an expression, a multiple of qh.max_outside and precision constants */
   minsearch= *bestdist - searchdist;
   if (ischeckmax) {
     /* Always check coplanar facets.  Needed for RBOX 1000 s Z1 G1e-13 t996564279 | QHULL Tv */
     minimize_(minsearch, -searchdist);
   }
   coplanarfacetset_size= 0;
+  startfacet->visitid= visitid;
   facet= startfacet;
   while (True) {
-    trace4((qh, qh->ferr, 4002, "qh_findbesthorizon: neighbors of f%d bestdist %2.2g f%d ischeckmax? %d noupper? %d minsearch %2.2g searchdist %2.2g\n",
+    numfacet++;
+    is_5x_minsearch= (ischeckmax && facet->nummerge > 10 && qh_setsize(qh, facet->neighbors) > 100);  /* QH11033 FIX: qh_findbesthorizon: many tests for facets with many merges and neighbors.  Can hide coplanar facets, e.g., 'rbox 1000 s Z1 G1e-13' with 4400+ neighbors */
+    trace4((qh, qh->ferr, 4002, "qh_findbesthorizon: test neighbors of f%d bestdist %2.2g f%d ischeckmax? %d noupper? %d minsearch %2.2g is_5x? %d searchdist %2.2g\n",
                 facet->id, *bestdist, getid_(bestfacet), ischeckmax, noupper,
-                minsearch, searchdist));
+                minsearch, is_5x_minsearch, searchdist));
     FOREACHneighbor_(facet) {
       if (neighbor->visitid == visitid)
         continue;
       neighbor->visitid= visitid;
-      if (!neighbor->flipped) {
-        qh_distplane(qh, point, neighbor, &dist);
+      if (!neighbor->flipped) {  /* neighbors of flipped facets always searched via nextfacet */
+        qh_distplane(qh, point, neighbor, &dist); /* duplicate qh_distpane for new facets, they may be coplanar */
         (*numpart)++;
         if (dist > *bestdist) {
           if (!neighbor->upperdelaunay || ischeckmax || (!noupper && dist >= qh->MINoutside)) {
-            bestfacet= neighbor;
-            *bestdist= dist;
-            newbest= True;
             if (!ischeckmax) {
               minsearch= dist - searchdist;
               if (dist > *bestdist + searchdist) {
@@ -343,15 +353,22 @@ facetT *qh_findbesthorizon(qhT *qh, boolT ischeckmax, pointT* point, facetT *sta
                 coplanarfacetset_size= 0;
               }
             }
+            bestfacet= neighbor;
+            *bestdist= dist;
+            newbest= True;
           }
+        }else if (is_5x_minsearch) {
+          if (dist < 5 * minsearch)
+            continue; /* skip this neighbor, do not set nextfacet.  dist is negative */
         }else if (dist < minsearch)
-          continue;  /* if ischeckmax, dist can't be positive */
+          continue;  /* skip this neighbor, do not set nextfacet.  If ischeckmax, dist can't be positive */
 #if qh_MAXoutside
         if (ischeckmax && dist > neighbor->maxoutside)
           neighbor->maxoutside= dist;
 #endif
-      } /* end of !flipped */
+      } /* end of !flipped, need to search neighbor */
       if (nextfacet) {
+        numcoplanar++;
         if (!coplanarfacetset_size++) {
           SETfirst_(qh->coplanarfacetset)= nextfacet;
           SETtruncate_(qh->coplanarfacetset, 1);
@@ -370,15 +387,16 @@ facetT *qh_findbesthorizon(qhT *qh, boolT ischeckmax, pointT* point, facetT *sta
       facet= SETfirstt_(qh->coplanarfacetset, facetT);
       SETtruncate_(qh->coplanarfacetset, 0);
     }else
-      facet= (facetT*)qh_setdellast(qh->coplanarfacetset);
-  } /* while True, for each facet in qh.coplanarfacetset */
+      facet= (facetT *)qh_setdellast(qh->coplanarfacetset);
+  } /* while True, i.e., "for each facet in qh.coplanarfacetset" */
   if (!ischeckmax) {
     zadd_(Zfindhorizontot, *numpart - numpartinit);
     zmax_(Zfindhorizonmax, *numpart - numpartinit);
     if (newbest)
-      zinc_(Zparthorizon);
+      zinc_(Znewbesthorizon);
   }
-  trace4((qh, qh->ferr, 4003, "qh_findbesthorizon: newbest? %d bestfacet f%d bestdist %2.2g\n", newbest, getid_(bestfacet), *bestdist));
+  trace4((qh, qh->ferr, 4003, "qh_findbesthorizon: p%d, newbest? %d, bestfacet f%d, bestdist %2.2g, numfacet %d, coplanarfacets %d, numdist %d\n",
+    qh_pointid(qh, point), newbest, getid_(bestfacet), *bestdist, numfacet, numcoplanar, *numpart - numpartinit));
   return bestfacet;
 }  /* findbesthorizon */
 
@@ -436,31 +454,35 @@ facetT *qh_findbestnew(qhT *qh, pointT *point, facetT *startfacet,
   boolT testhorizon= True; /* needed if precise, e.g., rbox c D6 | qhull Q0 Tv */
 
   if (!startfacet || !startfacet->next) {
-    if (qh->MERGING)
-      qh_fprintf(qh, qh->ferr, 6001, "qhull precision error (qh_findbestnew): merging has formed and deleted a cone of new facets.  Can not continue.\n");
-    else
+    if (qh->MERGING) {
+      qh_fprintf(qh, qh->ferr, 6001, "qhull topology error (qh_findbestnew): merging has formed and deleted a cone of new facets.  Can not continue.\n");
+      qh_errexit(qh, qh_ERRtopology, NULL, NULL);
+    }else {
       qh_fprintf(qh, qh->ferr, 6002, "qhull internal error (qh_findbestnew): no new facets for point p%d\n",
               qh->furthest_id);
-    qh_errexit(qh, qh_ERRqhull, NULL, NULL);
+      qh_errexit(qh, qh_ERRqhull, NULL, NULL);
+    }
   }
   zinc_(Zfindnew);
   if (qh->BESToutside || bestoutside)
     isdistoutside= False;
   else {
     isdistoutside= True;
-    distoutside= qh_DISToutside; /* multiple of qh.MINoutside & qh.max_outside, see user.h */
+    distoutside= qh_DISToutside; /* multiple of qh.MINoutside & qh.max_outside, see user_r.h */
   }
   if (isoutside)
     *isoutside= True;
   *numpart= 0;
+#ifndef qh_NOtrace
   if (qh->IStracing >= 4 || (qh->TRACElevel && qh->TRACEpoint >= 0 && qh->TRACEpoint == qh_pointid(qh, point))) {
     if (qh->TRACElevel > qh->IStracing)
       qh->IStracing= qh->TRACElevel;
-    qh_fprintf(qh, qh->ferr, 8008, "qh_findbestnew: point p%d facet f%d. Stop? %d if dist > %2.2g\n",
+    qh_fprintf(qh, qh->ferr, 8008, "qh_findbestnew: point p%d facet f%d. Stop? %d if dist > %2.2g,",
              qh_pointid(qh, point), startfacet->id, isdistoutside, distoutside);
-    qh_fprintf(qh, qh->ferr, 8009, "  Last point added p%d qh.visit_id %d vertex_visit %d.",  qh->furthest_id, visitid, qh->vertex_visit);
-    qh_fprintf(qh, qh->ferr, 8010, "  Last merge was #%d.\n", zzval_(Ztotmerge));
+    qh_fprintf(qh, qh->ferr, 8009, " Last qh_addpoint p%d, qh.visit_id %d, vertex_visit %d,",  qh->furthest_id, visitid, qh->vertex_visit);
+    qh_fprintf(qh, qh->ferr, 8010, " Last merge #%d\n", zzval_(Ztotmerge));
   }
+#endif
   /* visit all new facets starting with startfacet, maybe qh->facet_list */
   for (i=0, facet=startfacet; i < 2; i++, facet= qh->newfacet_list) {
     FORALLfacet_(facet) {
@@ -490,7 +512,7 @@ facetT *qh_findbestnew(qhT *qh, pointT *point, facetT *startfacet,
 LABELreturn_bestnew:
   zadd_(Zfindnewtot, *numpart);
   zmax_(Zfindnewmax, *numpart);
-  trace4((qh, qh->ferr, 4004, "qh_findbestnew: bestfacet f%d bestdist %2.2g for p%d f%d bestoutside? %d \n", 
+  trace4((qh, qh->ferr, 4004, "qh_findbestnew: bestfacet f%d bestdist %2.2g for p%d f%d bestoutside? %d \n",
     getid_(bestfacet), *dist, qh_pointid(qh, point), startfacet->id, bestoutside));
   qh->IStracing= oldtrace;
   return bestfacet;
@@ -567,9 +589,9 @@ void qh_backnormal(qhT *qh, realT **rows, int numrow, int numcol, boolT sign,
     }
   }
   if (zerocol != -1) {
-    zzinc_(Zback0);
     *nearzero= True;
     trace4((qh, qh->ferr, 4005, "qh_backnormal: zero diagonal at column %d.\n", i));
+    zzinc_(Zback0);
     qh_joggle_restart(qh, "zero diagonal on back substitution");
   }
 } /* backnormal */
@@ -620,10 +642,12 @@ void qh_gausselim(qhT *qh, realT **rows, int numrow, int numcol, boolT *sign, bo
     if (pivot_abs <= qh->NEARzero[k]) {
       *nearzero= True;
       if (pivot_abs == 0.0) {   /* remainder of column == 0 */
+#ifndef qh_NOtrace
         if (qh->IStracing >= 4) {
           qh_fprintf(qh, qh->ferr, 8011, "qh_gausselim: 0 pivot at column %d. (%2.2g < %2.2g)\n", k, pivot_abs, qh->DISTround);
           qh_printmatrix(qh, qh->ferr, "Matrix:", rows, numrow, numcol);
         }
+#endif
         zzinc_(Zgauss0);
         qh_joggle_restart(qh, "zero pivot for Gaussian elimination");
         goto LABELnextcol;
@@ -713,27 +737,6 @@ pointT *qh_getcenter(qhT *qh, setT *vertices) {
 
   notes:
     allocates the centrum
-    FIXUP review -- for D4, an opposite vertex may be 4x off for adjacent simplicies that span the point set
-
-    x.t1538765758 rbox 175 C2,2e-13 t1538765758 | qhull d Tcv T4W0.00001z | head -20
-
-      822264:- p4(v319):   0.14   0.21    -0.13 0.081 newfacet
-      822267:- p190(v213): 0.031  0.19    -0.23 0.087 newfacet seen
-      822279:- p327(v215): 0.043  0.13     0.07 0.023 newfacet seen
-      822281:- p62(v166):  0.13   0.0048  -0.12 0.03 newfacet seen seen2
-
-      822869:qh_distplane: 1.387778780781446e-017 from p327 to f7042
-      822870:qh_distplane: 1.387778780781446e-017 from p190 to f7042
-      822871:qh_distplane: 1.040834085586084e-017 from p62 to f7042
-      822872:qh_setfacetplane: f7042 offset 0.0029 normal: 0.044 0.23 -0.16 -0.96 
-
-      823787:qh_getcentrum: for f7042, 4 vertices dist= 6.9e-018
-      823788:qh_distplane: -0.005019527449059064 from p-1 to f5219  # p4(v319)
-      824220:qh_distplane: -0.02007810979623617 from p4 to f5219
-      824262:    - center: 0.08510638653311674 0.1330338829504388 -0.09953420571939783 0.0550626596431951 
-
-      823798:qh_distplane: -0.001579289323094285 from p-1 to f7043 p62(v166)
-      824223:qh_distplane: -0.006317157292377095 from p62 to f7043
 */
 pointT *qh_getcentrum(qhT *qh, facetT *facet) {
   realT dist;
@@ -905,6 +908,7 @@ void qh_normalize2(qhT *qh, coordT *normal, int dim, boolT toporient,
           *colp= 0.0;
         *maxp= temp;
         zzinc_(Znearlysingular);
+        /* qh_joggle_restart ignored for Znearlysingular, normal part of qh_sethyperplane_gauss */
         trace0((qh, qh->ferr, 1, "qh_normalize: norm=%2.2g too small during p%d\n",
                norm, qh->furthest_id));
         return;
@@ -978,6 +982,7 @@ void qh_setfacetplane(qhT *qh, facetT *facet) {
   zzinc_(Zsetplane);
   if (!facet->normal)
     qh_memalloc_(qh, normsize, freelistp, facet->normal, coordT);
+#ifndef qh_NOtrace
   if (facet == qh->tracefacet) {
     oldtrace= qh->IStracing;
     qh->IStracing= 5;
@@ -988,6 +993,7 @@ void qh_setfacetplane(qhT *qh, facetT *facet) {
     qh_fprintf(qh, qh->ferr, 8015, "\n\nCurrent summary is:\n");
       qh_printsummary(qh, qh->ferr);
   }
+#endif
   if (qh->hull_dim <= 4) {
     i= 0;
     if (qh->RANDOMdist) {
@@ -1029,7 +1035,7 @@ void qh_setfacetplane(qhT *qh, facetT *facet) {
                 facet->normal, &facet->offset, &nearzero);
     if (nearzero) {
       if (qh_orientoutside(qh, facet)) {
-        trace0((qh, qh->ferr, 2, "qh_setfacetplane: flipped orientation after testing interior_point during p%d\n", qh->furthest_id));
+        trace0((qh, qh->ferr, 2, "qh_setfacetplane: flipped orientation due to nearzero gauss and interior_point test.  During p%d\n", qh->furthest_id));
       /* this is part of using Gaussian Elimination.  For example in 5-d
            1 1 1 1 0
            1 1 1 1 1
@@ -1074,7 +1080,7 @@ void qh_setfacetplane(qhT *qh, facetT *facet) {
         }else if (-dist > qh->TRACEdist)
           istrace= True;
         if (istrace) {
-          qh_fprintf(qh, qh->ferr, 8016, "qh_setfacetplane: ====== vertex p%d(v%d) increases max_outside to %2.2g for new facet f%d last p%d\n",
+          qh_fprintf(qh, qh->ferr, 3060, "qh_setfacetplane: ====== vertex p%d(v%d) increases max_outside to %2.2g for new facet f%d last p%d\n",
                 qh_pointid(qh, vertex->point), vertex->id, dist, facet->id, qh->furthest_id);
           qh_errprint(qh, "DISTANT", facet, NULL, NULL, NULL);
         }
@@ -1082,16 +1088,20 @@ void qh_setfacetplane(qhT *qh, facetT *facet) {
     }
     qh->RANDOMdist= qh->old_randomdist;
   }
-  if (qh->IStracing >= 3) {
+#ifndef qh_NOtrace
+  if (qh->IStracing >= 4) {
     qh_fprintf(qh, qh->ferr, 8017, "qh_setfacetplane: f%d offset %2.2g normal: ",
              facet->id, facet->offset);
     for (k=0; k < qh->hull_dim; k++)
       qh_fprintf(qh, qh->ferr, 8018, "%2.2g ", facet->normal[k]);
     qh_fprintf(qh, qh->ferr, 8019, "\n");
   }
+#endif
   qh_checkflipped(qh, facet, NULL, qh_ALL);
-  if (facet == qh->tracefacet)
+  if (facet == qh->tracefacet) {
     qh->IStracing= oldtrace;
+    qh_printfacet(qh, qh->ferr, facet);
+  }
 } /* setfacetplane */
 
 
@@ -1205,8 +1215,8 @@ void qh_sethyperplane_det(qhT *qh, int dim, coordT **rows, coordT *point0,
   }
   if (*nearzero) {
     zzinc_(Zminnorm);
+    /* qh_joggle_restart not needed, will call qh_sethyperplane_gauss instead */
     trace0((qh, qh->ferr, 3, "qh_sethyperplane_det: degenerate norm during p%d, use qh_sethyperplane_gauss instead.\n", qh->furthest_id));
-    zzinc_(Znearlysingular);
   }
 } /* sethyperplane_det */
 
@@ -1250,6 +1260,7 @@ void qh_sethyperplane_gauss(qhT *qh, int dim, coordT **rows, pointT *point0,
   }
   if (*nearzero) {
     zzinc_(Znearlysingular);
+    /* qh_joggle_restart ignored for Znearlysingular, normal part of qh_sethyperplane_gauss */
     trace0((qh, qh->ferr, 4, "qh_sethyperplane_gauss: nearly singular or axis parallel hyperplane during p%d.\n", qh->furthest_id));
     qh_backnormal(qh, rows, dim-1, dim, sign, normal, &nearzero2);
   }else {

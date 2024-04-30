@@ -6,9 +6,9 @@
 
    see README, libqhull_r.h and io_r.c
 
-   Copyright (c) 1993-2018 The Geometry Center.
-   $Id: //main/2015/qhull/src/libqhull_r/io_r.h#7 $$Change: 2549 $
-   $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+   Copyright (c) 1993-2020 The Geometry Center.
+   $Id: //main/2019/qhull/src/libqhull_r/io_r.h#3 $$Change: 2953 $
+   $DateTime: 2020/05/21 22:05:32 $$Author: bbarber $
 */
 
 #ifndef qhDEFio
@@ -81,12 +81,11 @@ typedef void (*printvridgeT)(qhT *qh, FILE *fp, vertexT *vertex, vertexT *vertex
 extern "C" {
 #endif
 
-void    qh_dfacet(qhT *qh, unsigned id);
-void    qh_dvertex(qhT *qh, unsigned id);
+void    qh_dfacet(qhT *qh, unsigned int id);
+void    qh_dvertex(qhT *qh, unsigned int id);
 int     qh_compare_facetarea(const void *p1, const void *p2);
-int     qh_compare_facetmerge(const void *p1, const void *p2);
 int     qh_compare_facetvisit(const void *p1, const void *p2);
-/* int  qh_compare_vertexpoint(const void *p1, const void *p2); Not useable since it depends on qh */
+int     qh_compare_nummerge(const void *p1, const void *p2);
 void    qh_copyfilename(qhT *qh, char *filename, int size, const char* source, int length);
 void    qh_countfacets(qhT *qh, facetT *facetlist, setT *facets, boolT printall,
               int *numfacetsp, int *numsimplicialp, int *totneighborsp,
@@ -132,7 +131,6 @@ void    qh_printfacets(qhT *qh, FILE *fp, qh_PRINT format, facetT *facetlist, se
 void    qh_printhyperplaneintersection(qhT *qh, FILE *fp, facetT *facet1, facetT *facet2,
                    setT *vertices, realT color[3]);
 void    qh_printline3geom(qhT *qh, FILE *fp, pointT *pointA, pointT *pointB, realT color[3]);
-void    qh_printlists(qhT *qh);
 void    qh_printneighborhood(qhT *qh, FILE *fp, qh_PRINT format, facetT *facetA, facetT *facetB, boolT printall);
 void    qh_printpoint(qhT *qh, FILE *fp, const char *string, pointT *point);
 void    qh_printpointid(qhT *qh, FILE *fp, const char *string, int dim, pointT *point, int id);

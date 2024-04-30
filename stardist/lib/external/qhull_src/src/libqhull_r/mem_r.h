@@ -11,9 +11,9 @@
        and
      qh_errexit(qhT *qh, qhmem_ERRqhull, NULL, NULL) otherwise
 
-   Copyright (c) 1993-2018 The Geometry Center.
-   $Id: //main/2015/qhull/src/libqhull_r/mem_r.h#7 $$Change: 2552 $
-   $DateTime: 2018/12/29 15:39:43 $$Author: bbarber $
+   Copyright (c) 1993-2020 The Geometry Center.
+   $Id: //main/2019/qhull/src/libqhull_r/mem_r.h#6 $$Change: 2953 $
+   $DateTime: 2020/05/21 22:05:32 $$Author: bbarber $
 */
 
 #ifndef qhDEFmem
@@ -43,7 +43,7 @@ typedef struct qhT qhT;          /* defined in libqhull_r.h */
     problem, and send the answer to qhull@qhull.org.  If this can
     not be done, define qh_NOmem to use malloc/free instead.
 
-   #define qh_NOmem
+    #define qh_NOmem
 */
 
 /*-<a                             href="qh-mem_r.htm#TOC"
@@ -66,7 +66,7 @@ Trace short and quick memory allocations at T5
     of machines (e.g., DEC Alpha) with large pointers.  If gcc is available,
     use __alignof__(double) or fmax_(__alignof__(float), __alignof__(void *)).
 
-   see <a href="user.h#MEMalign">qh_MEMalign</a> in user.h for qhull's alignment
+   see <a href="user_r.h#MEMalign">qh_MEMalign</a> in user_r.h for qhull's alignment
 */
 
 #define qhmem_ERRmem 4    /* matches qh_ERRmem in libqhull_r.h */
@@ -90,7 +90,7 @@ Trace short and quick memory allocations at T5
 */
 #if (defined(__MINGW64__)) && defined(_WIN64)
 typedef long long ptr_intT;
-#elif (_MSC_VER) && defined(_WIN64)
+#elif defined(_MSC_VER) && defined(_WIN64)
 typedef long long ptr_intT;
 #else
 typedef long ptr_intT;
@@ -116,7 +116,6 @@ typedef long ptr_intT;
 */
 typedef struct qhmemT qhmemT;
 
-/* Update qhmem in mem_r.c if add or remove fields */
 struct qhmemT {               /* global memory management variables */
   int      BUFsize;           /* size of memory allocation buffer */
   int      BUFinit;           /* initial size of memory allocation buffer */
@@ -164,21 +163,21 @@ struct qhmemT {               /* global memory management variables */
 #if defined qh_NOmem
 #define qh_memalloc_(qh, insize, freelistp, object, type) {\
   (void)freelistp; /* Avoid warnings */ \
-  object= (type*)qh_memalloc(qh, insize); }
+  object= (type *)qh_memalloc(qh, insize); }
 #elif defined qh_TRACEshort
 #define qh_memalloc_(qh, insize, freelistp, object, type) {\
   (void)freelistp; /* Avoid warnings */ \
-  object= (type*)qh_memalloc(qh, insize); }
+  object= (type *)qh_memalloc(qh, insize); }
 #else /* !qh_NOmem */
 
 #define qh_memalloc_(qh, insize, freelistp, object, type) {\
   freelistp= qh->qhmem.freelists + qh->qhmem.indextable[insize];\
-  if ((object= (type*)*freelistp)) {\
+  if ((object= (type *)*freelistp)) {\
     qh->qhmem.totshort += qh->qhmem.sizetable[qh->qhmem.indextable[insize]]; \
     qh->qhmem.totfree -= qh->qhmem.sizetable[qh->qhmem.indextable[insize]]; \
     qh->qhmem.cntquick++;  \
     *freelistp= *((void **)*freelistp);\
-  }else object= (type*)qh_memalloc(qh, insize);}
+  }else object= (type *)qh_memalloc(qh, insize);}
 #endif
 
 /*-<a                             href="qh-mem_r.htm#TOC"

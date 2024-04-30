@@ -6,9 +6,9 @@
 
    see qh-geom_r.htm and geom_r.c
 
-   Copyright (c) 1993-2018 The Geometry Center.
-   $Id: //main/2015/qhull/src/libqhull_r/geom_r.h#10 $$Change: 2549 $
-   $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+   Copyright (c) 1993-2020 The Geometry Center.
+   $Id: //main/2019/qhull/src/libqhull_r/geom_r.h#2 $$Change: 2953 $
+   $DateTime: 2020/05/21 22:05:32 $$Author: bbarber $
 */
 
 #ifndef qhDEFgeom
@@ -134,6 +134,7 @@ coordT *qh_copypoints(qhT *qh, coordT *points, int numpoints, int dimension);
 void    qh_crossproduct(int dim, realT vecA[3], realT vecB[3], realT vecC[3]);
 realT   qh_determinant(qhT *qh, realT **rows, int dim, boolT *nearzero);
 realT   qh_detjoggle(qhT *qh, pointT *points, int numpoints, int dimension);
+void    qh_detmaxoutside(qhT *qh);
 void    qh_detroundoff(qhT *qh);
 realT   qh_detsimplex(qhT *qh, pointT *apex, setT *points, int dim, boolT *nearzero);
 realT   qh_distnorm(int dim, pointT *point, pointT *normal, realT *offsetp);
@@ -176,7 +177,6 @@ boolT   qh_sethalfspace(qhT *qh, int dim, coordT *coords, coordT **nextp,
 coordT *qh_sethalfspace_all(qhT *qh, int dim, int count, coordT *halfspaces, pointT *feasible);
 coordT  qh_vertex_bestdist(qhT *qh, setT *vertices);
 coordT  qh_vertex_bestdist2(qhT *qh, setT *vertices, vertexT **vertexp, vertexT **vertexp2);
-boolT   qh_vertex_isbelow(qhT *qh, vertexT *vertexA, vertexT *vertexB);
 pointT *qh_voronoi_center(qhT *qh, int dim, setT *points);
 
 #ifdef __cplusplus

@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/RoadLogEvent.cpp#5 $$Change: 2549 $
-** $Date: 2018/12/28 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/RoadLogEvent.cpp#3 $$Change: 2961 $
+** $Date: 2020/06/01 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -13,6 +13,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <cstring>
 
 using std::cout;
 using std::endl;
@@ -22,20 +23,26 @@ using std::string;
 #ifdef _MSC_VER  // Microsoft Visual C++ -- warning level 4
 #endif
 
-namespace orgQhull {
+namespace orgQhull{
 
 #//!\name Conversion
 string RoadLogEvent::
 toString(const char *tag, int code) const
 {
     ostringstream os;
+    size_t n= 0;
     if(tag && code){
-        os << tag << code;
-        if(format_string){
-            os << " ";
+        n= strlen(tag);
+        if(format_string && strlen(format_string)>n+1 && isdigit(format_string[n+1]) && (strncmp(format_string, tag, n)==0 || strncmp(format_string+1, tag, n) == 0)){
+            // format_string already starts with tag and a code, e.g., QH6024 qhull input error, or [QH1049] qh_addpoint...
+        }else{
+            os << tag << code;
+            if(format_string && *format_string!='\0'){
+                os << " ";
+            }
         }
     }
-    if(!format_string){
+    if(format_string==NULL || *format_string=='\0'){
         return os.str();
     }
     const char *s= format_string;

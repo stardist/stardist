@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/Qhull.h#5 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/Qhull.h#5 $$Change: 2956 $
+** $DateTime: 2020/05/23 21:08:29 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -76,9 +76,10 @@ public:
     bool                initialized() const { return (qh_qh->hull_dim>0); }
     const char *        inputComment() const { return qh_qh->rbox_command; }
     QhullPoint          inputOrigin();
+    bool                isDelaunay() const { return qh_qh->DELAUNAY; }
                         //! non-const due to QhullPoint
     QhullPoint          origin() { QHULL_ASSERT(initialized()); return QhullPoint(qh_qh, origin_point.data()); }
-    QhullQh *           qh() const { return qh_qh; };
+    QhullQh *           qh() const { return qh_qh; }
     const char *        qhullCommand() const { return qh_qh->qhull_command; }
     const char *        rboxCommand() const { return qh_qh->rbox_command; }
     int                 rotateRandom() const { return qh_qh->ROTATErandom; } //!< Return QRn for repeating QR0 runs
@@ -118,6 +119,7 @@ public:
     double              area();
     void                outputQhull();
     void                outputQhull(const char * outputflags);
+    void                prepareVoronoi(bool *isLower, int *voronoiVertexCount);
     void                runQhull(const RboxPoints &rboxPoints, const char *qhullCommand2);
     void                runQhull(const char *inputComment2, int pointDimension, int pointCount, const realT *pointCoordinates, const char *qhullCommand2);
     double              volume();
