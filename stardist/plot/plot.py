@@ -5,11 +5,13 @@ from csbdeep.utils import normalize
 from ..utils import _normalize_grid
 from ..matching import matching
 
-def random_label_cmap(n=2**16, h = (0,1), l = (.4,1), s =(.2,.8)):
+def random_label_cmap(n=2**16, h = (0,1), l = (.4,1), s =(.2,.8), seed=None):
     import matplotlib
     import colorsys
     # cols = np.random.rand(n,3)
     # cols = np.random.uniform(0.1,1.0,(n,3))
+    if seed is not None:
+        np.random.seed(seed)
     h,l,s = np.random.uniform(*h,n), np.random.uniform(*l,n), np.random.uniform(*s,n)
     cols = np.stack([colorsys.hls_to_rgb(_h,_l,_s) for _h,_l,_s in zip(h,l,s)],axis=0)
     cols[0] = 0
