@@ -19,7 +19,11 @@ International Conference on Medical Image Computing and Computer-Assisted Interv
 
 - Martin Weigert, Uwe Schmidt, Robert Haase, Ko Sugawara, and Gene Myers.  
 [*Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy*](http://openaccess.thecvf.com/content_WACV_2020/papers/Weigert_Star-convex_Polyhedra_for_3D_Object_Detection_and_Segmentation_in_Microscopy_WACV_2020_paper.pdf).  
-The IEEE Winter Conference on Applications of Computer Vision (WACV), Snowmass Village, Colorado, March 2020
+The IEEE Winter Conference on Applications of Computer Vision (WACV), Snowmass Village, Colorado, March 2020.
+
+- Martin Weigert and Uwe Schmidt.  
+[*Nuclei Instance Segmentation and Classification in Histopathology Images with Stardist*](https://arxiv.org/abs/2203.02284).  
+The IEEE International Symposium on Biomedical Imaging Challenges (ISBIC), Kolkata, India, March 2022.
 
 Please [cite the paper(s)](#how-to-cite) if you are using this code in your research.
 
@@ -317,5 +321,13 @@ Based on the Fiji plugin, [Deborah Schmidt](https://github.com/frauzufall) made 
   month     = {March},
   year      = {2020},
   doi       = {10.1109/WACV45572.2020.9093435}
+}
+
+@inproceedings{weigert2022,
+  author    = {Martin Weigert and Uwe Schmidt},
+  title     = {Nuclei Instance Segmentation and Classification in Histopathology Images with Stardist},
+  booktitle = {The IEEE International Symposium on Biomedical Imaging Challenges (ISBIC)},
+  year      = {2022},
+  doi       = {10.1109/ISBIC56247.2022.9854534}
 }
 ```
