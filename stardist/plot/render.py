@@ -66,7 +66,7 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
 
     """
     from skimage.segmentation import find_boundaries
-    from matplotlib import cm
+    from matplotlib import colormaps as cm
     
     alpha = np.clip(alpha, 0, 1)
 
