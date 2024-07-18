@@ -601,7 +601,7 @@ class StarDist3D(StarDistBase):
 
         # sparse prediction
         if points is not None:
-            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, **nms_kwargs)
+            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, use_gravity=False,**nms_kwargs)
             if prob_class is not None:
                 prob_class = prob_class[indsi]
 

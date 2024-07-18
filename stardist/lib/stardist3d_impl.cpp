@@ -466,6 +466,238 @@ inline float bounding_radius_inner_isotropic(const float * const dist,
 
 }
 
+
+
+// calculate the offset of the center of gravity for a polygon 
+inline void calculate_poly_offset_gravity(const float * const dist,
+								    const float * const verts,
+								    const int n_rays,
+                                    const float * const point,
+                                    float * offset
+                                    ){
+
+  float pz=0, py=0, px=0, weight=0;
+
+
+  for (int i  = 0; i < n_rays; ++i) {
+    float r = dist[i];
+	float z = r*verts[3*i];
+	float y = r*verts[3*i+1];
+	float x = r*verts[3*i+2];
+
+    // weight by r to account for the volume element
+    pz += r*z;
+    py += r*y;
+    px += r*x;
+    weight += r;
+  }
+
+  offset[0] = pz/weight;
+  offset[1] = py/weight;
+  offset[2] = px/weight;
+    
+}
+
+
+
+// computes the outer radius wrt the center of gravity offset
+inline float bounding_radius_outer_gravity(const float * const dist,
+											 const float * const verts,
+											 const int n_rays,
+											 const float * aniso,
+                                             const float * const offset){
+                                             
+
+  float r_squared_max = 0;
+  for (int i=0; i<n_rays; i++){
+    float r = dist[i];
+	float z = aniso[0]*(r*verts[3*i]  -offset[0]);
+	float y = aniso[1]*(r*verts[3*i+1]-offset[1]);
+	float x = aniso[2]*(r*verts[3*i+2]-offset[2]);
+
+	float r_squared = z*z+y*y+x*x;
+
+	r_squared_max = fmax(r_squared, r_squared_max);
+  }
+
+  return sqrt(r_squared_max);
+}
+
+// computes the inner radius wrt the center of gravity offset
+
+inline float bounding_radius_inner_gravity(const float * const dist,
+											 const float * const verts,
+											 const int * const faces,
+											 const int n_rays,
+											 const int n_faces,
+											 const float * aniso,
+                                             const float * const offset){
+
+  float r_min = INFINITY;
+
+  // the point to which we want to find the closest point
+  const float Pz = aniso[0]*offset[0], Py = aniso[1]*offset[1], Px = aniso[2]*offset[2];
+	
+  for (int i  = 0; i < n_faces; ++i) {
+    float r = INFINITY;
+
+    // printf("face %d r_min %.1f\n",i,r_min);
+    // the face triangle defined by points A, B, C
+	int iA = faces[3*i];
+	int iB = faces[3*i+1];
+	int iC = faces[3*i+2];
+
+	float Az = aniso[0]*dist[iA]*verts[3*iA];
+	float Ay = aniso[1]*dist[iA]*verts[3*iA+1];
+	float Ax = aniso[2]*dist[iA]*verts[3*iA+2];
+
+	float Bz = aniso[0]*dist[iB]*verts[3*iB];
+	float By = aniso[1]*dist[iB]*verts[3*iB+1];
+	float Bx = aniso[2]*dist[iB]*verts[3*iB+2];
+
+	float Cz = aniso[0]*dist[iC]*verts[3*iC];
+	float Cy = aniso[1]*dist[iC]*verts[3*iC+1];
+	float Cx = aniso[2]*dist[iC]*verts[3*iC+2];
+
+    // find closest point to triangle ABC
+    // https://github.com/RenderKit/embree/blob/master/tutorials/common/math/closest_point.h
+    
+    // difference vector
+	float abz = Bz-Az, aby = By-Ay, abx = Bx-Ax;
+	float acz = Cz-Az, acy = Cy-Ay, acx = Cx-Ax;
+	float apz = Pz-Az, apy = Py-Ay, apx = Px-Ax;
+	
+
+    //const float d1 = dot(ab, ap);
+    const float d1 = abz*apz + aby*apy + abx*apx;
+    //const float d2 = dot(ac, ap);
+    const float d2 = acz*apz + acy*apy + acx*apx;
+
+    // printf("d1 %.1f d2 %.1f\n",d1,d2);
+
+    if (d1 <= 0.f && d2 <= 0.f){
+        // A is the closest point
+        // printf("A is the closest point\n");
+        const float sz=Az, sy=Ay, sx=Ax;
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue; 
+    }
+
+//   const Vec3fa bp = p - b;
+    float bpz = Pz-Bz, bpy = Py-By, bpx = Px-Bx;
+//   const float d3 = dot(ab, bp);
+    const float d3 = abz*bpz + aby*bpy + abx*bpx;
+//   const float d4 = dot(ac, bp);
+    const float d4 = acz*bpz + acy*bpy + acx*bpx;
+    if (d3 >= 0.f && d4 <= d3){
+        // B is the closest point
+        // printf("B is the closest point\n");
+        const float sz=Bz, sy=By, sx=Bx;
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue; 
+    }
+
+//   const Vec3fa cp = p - c;
+    float cpz = Pz-Cz, cpy = Py-Cy, cpx = Px-Cx;
+//   const float d5 = dot(ab, cp);
+    const float d5 = abz*cpz + aby*cpy + abx*cpx;
+//   const float d6 = dot(ac, cp);
+    const float d6 = acz*cpz + acy*cpy + acx*cpx;
+    if (d6 >= 0.f && d5 <= d6){
+        // C is the closest point
+        // printf("C is the closest point\n");
+        const float sz=Cz, sy=Cy, sx=Cx;
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue; 
+    }
+
+    // otherwise at edge 
+    const float vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.f && d1 >= 0.f && d3 <= 0.f){
+        const float v = d1 / (d1 - d3);
+        // printf("AB edge is the closest\n");
+        // a + v * ab  is closest 
+        const float sz=Az+v*abz, sy=Ay+v*aby, sx=Ax+v*abx;
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue; 
+    }
+    
+    const float vb = d5 * d2 - d1 * d6;
+
+    if (vb <= 0.f && d2 >= 0.f && d6 <= 0.f){
+        const float v = d2 / (d2 - d6);
+        // printf("AC edge is the closest\n");
+        // a + v * ac 
+        const float sz=Az+v*acz, sy=Ay+v*acy, sx=Ax+v*acx;
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue;
+
+    }
+    
+    const float va = d3 * d6 - d5 * d4;
+    if (va <= 0.f && (d4 - d3) >= 0.f && (d5 - d6) >= 0.f){
+        const float v = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        // printf("BC edge is the closest\n");
+        //b + v * (c - b) is closest
+        const float sz=Bz+v*(Cz-Bz), sy=By+v*(Cy-By), sx=Bx+v*(Cx-Bx);
+        r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+        r_min = fmin(r_min,r);
+        continue; 
+
+    }
+    // printf("Inside is the closest %.2f %.2f %.2f\n",va,vb,vc);
+    //other its inside 
+    const float denom = 1.f / (va + vb + vc);
+    const float v = vb * denom;
+    const float w = vc * denom;
+    // a + v * ab + w * ac is closest
+    const float sz=Az+v*abz+w*acz, sy=Ay+v*aby+w*acy, sx=Ax+v*abx+w*acx;
+    r = sqrt((sz-Pz)*(sz-Pz)+(sy-Py)*(sy-Py)+(sx-Px)*(sx-Px));
+    r_min = fmin(r_min,r);
+    }
+
+  return r_min;
+
+}
+
+
+inline float intersect_sphere_gravity(const float r1, const float * const p1, const float * const offset1,
+                                    const float r2, const float * const p2, const float * const offset2,
+                                    const float * const anisotropy){
+
+  float dz = anisotropy[0]*(p1[0]-p2[0]+offset1[0]-offset2[0]);
+  float dy = anisotropy[1]*(p1[1]-p2[1]+offset1[1]-offset2[1]);
+  float dx = anisotropy[2]*(p1[2]-p2[2]+offset1[2]-offset2[2]);
+  float d = sqrt(dz*dz+dy*dy+dx*dx);
+  float rmin = fmin(r1,r2), rmax = fmax(r1,r2);
+
+  if (d>(r1+r2))
+	return 0;
+
+  if (rmax>=d+rmin-1.e-10)
+	return M_PI*4.f/3*rmin*rmin*rmin;
+
+
+  float t = (r1+r2-d)/2/d;
+  float h1 = (r2-r1+d)*t;
+  float h2 = (r1-r2+d)*t;
+  float v1 = M_PI/3*h1*h1*(3*r1-h1);
+  float v2 = M_PI/3*h2*h2*(3*r2-h2);
+
+  // printf("r1: %.2f \t r2 = %.2f \n", r1, r2);
+  // printf("dz: %.2f \t dy = %.2f \t dx = %.2f \n", dz,dy,dx);
+
+  return (v1+v2)/(anisotropy[0]*anisotropy[1]*anisotropy[2]);
+}
+
+
+
+
 inline float intersect_sphere(const float r1, const float * const p1,
                               const float r2, const float * const p2){
 
@@ -958,6 +1190,7 @@ void _COMMON_non_maximum_suppression_sparse(
                     const int n_polys, const int n_rays, const int n_faces, 
                     const float* verts, const int* faces,
                     const float threshold, const int use_bbox, const int use_kdtree, 
+                    const int use_gravity, 
                     const int verbose, 
                     bool* result)
 {
@@ -966,13 +1199,14 @@ void _COMMON_non_maximum_suppression_sparse(
   
   if (verbose){
     printf("Non Maximum Suppression (3D) ++++ \n");
-    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \nNMS: use_kdtree = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox, use_kdtree);
+    printf("NMS: n_polys  = %d \nNMS: n_rays   = %d  \nNMS: n_faces  = %d \nNMS: thresh   = %.3f \nNMS: use_bbox = %d \nNMS: use_kdtree = %d \nNMS: use_gravity = %d \n", n_polys, n_rays, n_faces, threshold, use_bbox, use_kdtree, use_gravity);
 #ifdef _OPENMP
     printf("NMS: using OpenMP with %d thread(s)\n", omp_get_max_threads());
 #endif
     fflush(stdout);
   }
 
+  
   float * volumes = new float[n_polys];
   float * radius_inner = new float[n_polys];
   float * radius_outer = new float[n_polys];
@@ -980,6 +1214,9 @@ void _COMMON_non_maximum_suppression_sparse(
   float * radius_inner_isotropic = new float[n_polys];
   float * radius_outer_isotropic = new float[n_polys];
 
+  float * radius_inner_gravity = new float[n_polys];
+  float * radius_outer_gravity = new float[n_polys];
+  float * poly_offset_gravity = new float[3*n_polys];
 
   int * bbox = new int[6*n_polys];
   bool * suppressed = new bool[n_polys];
@@ -1016,7 +1253,7 @@ void _COMMON_non_maximum_suppression_sparse(
   }
   
   // normalize and invert anisotropy (to resemble pixelsizes)
-  // we would like to have anisotropy = (7,1,1) for highly axially anisotropic data
+  // e.g. we would like to have anisotropy = (7,1,1) for highly axially anisotropic data
   float _tmp = fmax(fmax(anisotropy[0],anisotropy[1]),anisotropy[2]);
   anisotropy[0] = _tmp/anisotropy[0];
   anisotropy[1] = _tmp/anisotropy[1] ;
@@ -1028,11 +1265,12 @@ void _COMMON_non_maximum_suppression_sparse(
   }
     
 
-  // calculate  bounding circles
+  // calculate bounding circles etc 
 #pragma omp parallel for
   for (int i=0; i<n_polys; i++) {
 
     const float * const curr_dist = &dist[i*n_rays];
+    const float * const curr_point = &points[3*i];
 
     // outer and inner bounding radius
     radius_outer[i] = bounding_radius_outer(curr_dist, n_rays);
@@ -1045,6 +1283,26 @@ void _COMMON_non_maximum_suppression_sparse(
     radius_inner_isotropic[i] = bounding_radius_inner_isotropic(curr_dist, verts,
                                                                 faces, n_rays,
                                                                 n_faces, anisotropy);
+
+    // calculate the polygons center of gravity
+    calculate_poly_offset_gravity(curr_dist, verts, n_rays, curr_point, &poly_offset_gravity[3*i]);
+
+    radius_outer_gravity[i] = bounding_radius_outer_gravity(curr_dist, verts,
+                                                                n_rays,anisotropy,
+                                                                &poly_offset_gravity[3*i]
+                                                            );
+
+    radius_inner_gravity[i] = bounding_radius_inner_gravity(curr_dist, verts,
+                                                                faces, n_rays,
+                                                                n_faces, anisotropy,
+                                                                &poly_offset_gravity[3*i]
+                                                                );
+
+
+    // printf("-----\npoint         : %.2f %.2f %.2f \n",points[3*i], points[3*i+1], points[3*i+2]);
+    // printf("offset gravity: %.2f %.2f %.2f \n",poly_offset_gravity[3*i], poly_offset_gravity[3*i+1], poly_offset_gravity[3*i+2]);
+    // printf("outer   : %.2f vs %.2f \n",radius_outer[i], radius_outer_gravity[i]);
+    // printf("inner   : %.2f vs %.2f \n",radius_inner[i], radius_inner_gravity[i]);
 
     // printf("r    : %.2f \t %.2f \n",radius_inner[i], radius_outer[i]);
     // printf("r_iso: %.2f \t %.2f \n",radius_inner_isotropic[i], radius_outer_isotropic[i]);
@@ -1209,13 +1467,25 @@ void _COMMON_non_maximum_suppression_sparse(
       // --------- first check: bounding box and inner sphere intersection  (cheap)
 
              
-      // upper  bound of intersection and IoU
-      A_inter = fmin(intersect_sphere_isotropic(radius_outer_isotropic[i],
+      // upper bound of intersection and IoU (bbox and outer sphere)
+      float A_sphere_outer;
+      if (use_gravity)
+        A_sphere_outer = intersect_sphere_gravity(radius_outer_gravity[i],
+                                                &points[3*i],
+                                                &poly_offset_gravity[3*i],
+                                                radius_outer_gravity[j],
+                                                &points[3*j],
+                                                &poly_offset_gravity[3*j],
+                                                anisotropy
+                                                );
+      else 
+        A_sphere_outer = intersect_sphere_isotropic(radius_outer_isotropic[i],
                                                 &points[3*i],
                                                 radius_outer_isotropic[j],
                                                 &points[3*j],
                                                 anisotropy
-                                                ),
+                                                );
+      A_inter = fmin(A_sphere_outer,
                      intersect_bbox(&bbox[6*i],&bbox[6*j]));
       count_call_upper++;
 
@@ -1228,8 +1498,17 @@ void _COMMON_non_maximum_suppression_sparse(
       }
 
 
-      // lower bound of intersection and IoU
-      A_inter = intersect_sphere_isotropic(radius_inner_isotropic[i],
+      if (use_gravity)
+        A_inter = intersect_sphere_gravity(radius_inner_gravity[i],
+                                                &points[3*i],
+                                                &poly_offset_gravity[3*i],
+                                                radius_inner_gravity[j],
+                                                &points[3*j],
+                                                &poly_offset_gravity[3*j],
+                                                anisotropy);
+      else
+        // lower bound of intersection and IoU
+        A_inter = intersect_sphere_isotropic(radius_inner_isotropic[i],
                                            &points[3*i],
                                            radius_inner_isotropic[j],
                                            &points[3*j],
@@ -1378,6 +1657,7 @@ void _COMMON_non_maximum_suppression_sparse(
   delete [] radius_outer;
   delete [] radius_inner_isotropic;
   delete [] radius_outer_isotropic;
+  delete [] poly_offset_gravity;
 
   // restore old SIGINT handler
   signal(SIGINT, old_sigint_handler);

@@ -14,6 +14,7 @@ void _COMMON_non_maximum_suppression_sparse(
                                             const float threshold,
                                             const int use_bbox,
                                             const int use_kdtree,
+                                            const int use_gravity, 
                                             const int verbose, 
                                             bool* result
                                             );
@@ -61,6 +62,7 @@ extern "C" {
                                            const float threshold,
                                            const int use_bbox,
                                            const int use_kdtree,
+                                           const int use_gravity,
                                            const int verbose, 
                                            bool* result
                                            );
