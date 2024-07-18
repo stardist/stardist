@@ -66,7 +66,11 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
 
     """
     from skimage.segmentation import find_boundaries
-    from matplotlib import colormaps as cm
+    try:
+        from matplotlib import colormaps as cm
+    except ImportError:
+        from matplotlib import cm
+        
     
     alpha = np.clip(alpha, 0, 1)
 
@@ -221,7 +225,10 @@ def render_label_pred(y_true, y_pred,
 
     """
     
-    from matplotlib import cm
+    try:
+        from matplotlib import colormaps as cm
+    except ImportError:
+        from matplotlib import cm
 
     assert y_true.shape == y_pred.shape
     
