@@ -67,9 +67,9 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
     """
     from skimage.segmentation import find_boundaries
     try:
-        from matplotlib import colormaps as cm
-    except ImportError:
-        from matplotlib import cm
+        from matplotlib.colormaps import get_cmap
+    except:
+        from matplotlib.cm import get_cmap
         
     
     alpha = np.clip(alpha, 0, 1)
@@ -84,8 +84,8 @@ def render_label(lbl, img = None, cmap = None, cmap_img = "gray", alpha = 0.5, a
     else:
         pass
         
-    cmap = cm.get_cmap(cmap) if isinstance(cmap, str) else cmap
-    cmap_img = cm.get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
+    cmap = get_cmap(cmap) if isinstance(cmap, str) else cmap
+    cmap_img = get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
 
     # render image if given
     if img is None:
@@ -226,9 +226,9 @@ def render_label_pred(y_true, y_pred,
     """
     
     try:
-        from matplotlib import colormaps as cm
-    except ImportError:
-        from matplotlib import cm
+        from matplotlib.colormaps import get_cmap
+    except:
+        from matplotlib.cm import get_cmap
 
     assert y_true.shape == y_pred.shape
     
@@ -278,7 +278,7 @@ def render_label_pred(y_true, y_pred,
     else:
         assert y_true.shape[:2] == img.shape[:2]
         img = normalize(img) if normalize_img else img
-        cmap_img = cm.get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
+        cmap_img = get_cmap(cmap_img) if isinstance(cmap_img, str) else cmap_img
         if img.ndim==2:
             im_img = cmap_img(img)
         elif img.ndim==3:
