@@ -292,7 +292,7 @@ We made a plugin for the Python-based multi-dimensional image viewer [napari](ht
 
 ### QuPath
 
-Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/advanced/stardist.html) for documentation and installation instructions.
+Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/deep/stardist.html) for documentation and installation instructions.
 
 ### Icy
 
