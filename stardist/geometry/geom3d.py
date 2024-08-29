@@ -4,7 +4,7 @@ import os
 
 from skimage.measure import regionprops
 from csbdeep.utils import _raise
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from ..utils import path_absolute, _normalize_grid
 from ..matching import _check_label_array

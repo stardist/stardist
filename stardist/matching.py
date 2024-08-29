@@ -1,7 +1,7 @@
 import numpy as np
 
 from numba import jit
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import regionprops
 from collections import namedtuple
