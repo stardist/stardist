@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullFacet.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullFacet.h#4 $$Change: 2963 $
+** $DateTime: 2020/06/03 19:31:01 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -67,8 +67,10 @@ public:
     facetT *            getBaseT() const { return getFacetT(); } //!< For QhullSet<QhullFacet>
                         // Do not define facetT().  It conflicts with return type facetT*
     facetT *            getFacetT() const { return qh_facet; }
+    bool                hasNext() const { return (qh_facet->next != NULL && qh_facet->next != qh_qh->facet_tail); }
+    bool                hasPrevious() const { return (qh_facet->previous != NULL); }
     QhullHyperplane     hyperplane() const { return QhullHyperplane(qh_qh, dimension(), qh_facet->normal, qh_facet->offset); }
-    countT              id() const { return (qh_facet ? qh_facet->id : (int)qh_IDunknown); }
+    countT              id() const { return (qh_facet ? qh_facet->id : static_cast<countT>(qh_IDunknown)); }
     QhullHyperplane     innerplane() const;
     bool                isValid() const { return qh_qh && qh_facet && qh_facet != &s_empty_facet; }
     bool                isGood() const { return qh_facet && qh_facet->good; }
@@ -77,12 +79,15 @@ public:
     bool                isTriCoplanar() const { return qh_facet && qh_facet->tricoplanar; }
     bool                isUpperDelaunay() const { return qh_facet && qh_facet->upperdelaunay; }
     QhullFacet          next() const { return QhullFacet(qh_qh, qh_facet->next); }
+    QhullFacet          nextFacet2d(QhullVertex *nextVertex) const;
     bool                operator==(const QhullFacet &other) const { return qh_facet==other.qh_facet; }
     bool                operator!=(const QhullFacet &other) const { return !operator==(other); }
     QhullHyperplane     outerplane() const;
     QhullFacet          previous() const { return QhullFacet(qh_qh, qh_facet->previous); }
     QhullQh *           qh() const { return qh_qh; }
+    void                setFacetT(QhullQh *qqh, facetT *facet) { qh_qh= qqh; qh_facet= facet; }
     QhullFacet          tricoplanarOwner() const;
+    int                 visitId() const { return (qh_facet ? qh_facet->visitid : -1); }
     QhullPoint          voronoiVertex();
 
 #//!\name value

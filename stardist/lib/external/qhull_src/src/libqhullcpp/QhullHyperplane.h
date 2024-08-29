@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullHyperplane.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullHyperplane.h#4 $$Change: 3008 $
+** $DateTime: 2020/07/30 13:54:27 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -23,10 +23,8 @@ namespace orgQhull {
     class QhullPoint;
 
 #//!\name Defined here
-    //! QhullHyperplane as an offset, dimension, and pointer to coordinates
-    class QhullHyperplane;
-    //! Java-style iterator for QhullHyperplane coordinates
-    class QhullHyperplaneIterator;
+    class QhullHyperplane;          //!< QhullHyperplane is a pointer to the normal vector, an offset from the origin, and dimension
+    class QhullHyperplaneIterator;  //!< Java-style iterator for QhullHyperplane coordinates    
 
 class QhullHyperplane { // Similar to QhullPoint
 public:
@@ -91,7 +89,7 @@ public:
     int                 count() { return hyperplane_dimension; }
     iterator            end() { return hyperplane_coordinates+hyperplane_dimension; }
     const_iterator      end() const { return hyperplane_coordinates+hyperplane_dimension; }
-    size_t              size() { return (size_t)hyperplane_dimension; }
+    size_t              size() { return static_cast<size_t>(hyperplane_dimension); }
 
 #//!\name Methods
     double              distance(const QhullPoint &p) const;
@@ -110,6 +108,7 @@ public:
 
 };//QhullHyperplane
 
+//! QhullHyperplaneIterator is a Java-style iterator for QhullHyperplane coordinates
 QHULL_DECLARE_SEQUENTIAL_ITERATOR(QhullHyperplane, coordT)
 
 }//namespace orgQhull

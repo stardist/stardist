@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullLinkedList.h#9 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullLinkedList.h#6 $$Change: 3009 $
+** $DateTime: 2020/07/30 19:25:22 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -172,7 +172,7 @@ public:
         const_iterator &operator=(const const_iterator &o) { i= o.i; return *this; }
 
         const T &       operator*() const { return i; }
-        const T *       operator->() const { return i; }
+        const T *       operator->() const { return &i; }
         bool            operator==(const const_iterator &o) const { return i == o.i; }
         bool            operator!=(const const_iterator &o) const { return !operator==(o); }
                         // No comparisons or iterator diff
@@ -189,25 +189,25 @@ public:
 };//QhullLinkedList
 
 template <typename T>
-class QhullLinkedListIterator // FIXUP QH11016 define QhullMutableLinkedListIterator
+class QhullLinkedListIterator // QH11016 FIX: define QhullMutableLinkedListIterator
 {
     typedef typename QhullLinkedList<T>::const_iterator const_iterator;
-    const QhullLinkedList<T> *c;
+    QhullLinkedList<T>  c;
     const_iterator      i;
 
 public:
-                        QhullLinkedListIterator(const QhullLinkedList<T> &container) : c(&container), i(c->constBegin()) {}
-    QhullLinkedListIterator & operator=(const QhullLinkedList<T> &container) { c= &container; i= c->constBegin(); return *this; }
+                        QhullLinkedListIterator(const QhullLinkedList<T> &container) : c(container), i(c.constBegin()) {}
+    QhullLinkedListIterator & operator=(const QhullLinkedList<T> &container) { c= container; i= c.constBegin(); return *this; }
     bool                findNext(const T &t);
     bool                findPrevious(const T &t);
-    bool                hasNext() const { return i != c->constEnd(); }
-    bool                hasPrevious() const { return i != c->constBegin(); }
+    bool                hasNext() const { return i != c.constEnd(); }
+    bool                hasPrevious() const { return i != c.constBegin(); }
     T                   next() { return *i++; }
     T                   peekNext() const { return *i; }
     T                   peekPrevious() const { const_iterator p= i; return *--p; }
     T                   previous() { return *--i; }
-    void                toFront() { i= c->constBegin(); }
-    void                toBack() { i= c->constEnd(); }
+    void                toFront() { i= c.constBegin(); }
+    void                toBack() { i= c.constEnd(); }
 };//QhullLinkedListIterator
 
 #//!\name == Definitions =========================================
@@ -350,7 +350,7 @@ bool QhullLinkedListIterator<T>::
 findNext(const T &t)
 {
     while(i != c->constEnd()){
-        if (*i++ == t){
+        if(*i++ == t){
             return true;
         }
     }

@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullVertex.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullVertex.h#4 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -61,7 +61,7 @@ public:
     explicit            QhullVertex(QhullQh *qqh) : qh_vertex(&s_empty_vertex), qh_qh(qqh) {}
                         QhullVertex(QhullQh *qqh, vertexT *v) : qh_vertex(v ? v : &s_empty_vertex), qh_qh(qqh) {}
                         // Creates an alias.  Does not copy QhullVertex.  Needed for return by value and parameter passing
-                        QhullVertex(const QhullVertex &other) : qh_vertex(other.qh_vertex), qh_qh(other.qh_qh) {}
+                        QhullVertex(const QhullVertex &other);
                         // Creates an alias.  Does not copy QhullVertex.  Needed for vector<QhullVertex>
     QhullVertex &       operator=(const QhullVertex &other) { qh_vertex= other.qh_vertex; qh_qh= other.qh_qh; return *this; }
                         ~QhullVertex() {}
@@ -70,6 +70,8 @@ public:
     int                 dimension() const { return (qh_qh ? qh_qh->hull_dim : 0); }
     vertexT *           getBaseT() const { return getVertexT(); } //!< For QhullSet<QhullVertex>
     vertexT *           getVertexT() const { return qh_vertex; }
+    bool                hasNext() const { return (qh_vertex->next != NULL && qh_vertex->next != qh_qh->vertex_tail); }
+    bool                hasPrevious() const { return (qh_vertex->previous != NULL); }
     countT              id() const { return qh_vertex->id; }
     bool                isValid() const { return (qh_qh && qh_vertex != &s_empty_vertex); }
                         //! True if defineVertexNeighborFacets() already called.  Auotomatically set for facet merging, Voronoi diagrams
@@ -80,6 +82,7 @@ public:
     QhullPoint          point() const { return QhullPoint(qh_qh, qh_vertex->point); }
     QhullVertex         previous() const { return QhullVertex(qh_qh, qh_vertex->previous); }
     QhullQh *           qh() const { return qh_qh; }
+    void                setVertexT(QhullQh *qqh, vertexT *vertex) { qh_qh= qqh; qh_vertex= vertex; }
 
 #//!\name foreach
     //See also QhullVertexList
