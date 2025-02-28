@@ -54,9 +54,9 @@ jobs:
           # CIBW_TEST_SKIP: "*musllinux*"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.os }}-${{ matrix.py }}
           path: ./dist/*.whl
 
 
@@ -136,9 +136,9 @@ jobs:
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.os }}-${{ matrix.py }}-${{ matrix.cibw_arch }}
           path: ./dist/*.whl
 
 
@@ -156,10 +156,11 @@ jobs:
 
     steps:
       - name: Download wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: dist-*
           path: dist
+          merge-multiple: true
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -193,9 +194,9 @@ jobs:
         run: pipx run build --sdist
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.os }}-${{ matrix.py }}
           path: dist/*.tar.gz
 
 
@@ -206,10 +207,11 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - name: Download wheels and sdist
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: dist-*
           path: dist
+          merge-multiple: true
 
       - name: Check that package version matches git tag ${{ github.ref_name }}
         shell: bash
