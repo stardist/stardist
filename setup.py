@@ -106,13 +106,13 @@ setup(
         Extension(
             'stardist.lib.stardist2d',
             sources = ['stardist/lib/stardist2d.cpp', 'stardist/lib/utils.cpp'] + clipper_src,
-            extra_compile_args = ['-std=c++11'],
+            extra_compile_args = ['-std=c++11', '-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION'],  # ADDED FLAG HERE
             include_dirs = get_numpy_include_dirs() + [clipper_root, nanoflann_root],
         ),
         Extension(
             'stardist.lib.stardist3d',
             sources = ['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp'] + qhull_src,
-            extra_compile_args = ['-std=c++11'],
+            extra_compile_args = ['-std=c++11', '-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION'],  # ADDED FLAG HERE
             include_dirs = get_numpy_include_dirs() + [qhull_root, nanoflann_root],
         ),
     ],
