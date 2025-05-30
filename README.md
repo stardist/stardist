@@ -303,6 +303,10 @@ Based on the Fiji plugin, [Deborah Schmidt](https://github.com/frauzufall) made 
 
 [Stefan Helfrich](https://github.com/stelfrich) has modified the Fiji plugin to be compatible with [KNIME](https://www.knime.com). Please see [this page](https://hub.knime.com/stelfrich/spaces/Public/latest/StarDist/StarDist%202D) for further details.
 
+### Cytomine
+
+[Cytomine](https://cytomine.com) use a StarDist 2D pre-trained model to perform cell detection on multi-gigapixel images. Please see [this page](https://doc.cytomine.org/) for documentation and [this page](https://github.com/cytomine/S_CellDetect_Stardist_HE_ROI) for code repository.
+
 ## How to cite
 ```bibtex
 @inproceedings{schmidt2018,
