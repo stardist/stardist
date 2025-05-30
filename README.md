@@ -251,11 +251,14 @@ A third alternative (and what we did until StarDist 0.8.1) is to install the Ope
 
 If you use `conda` on macOS and after `import stardist` see errors similar to `Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next`, please see [this issue](https://github.com/stardist/stardist/issues/19#issuecomment-535610758) for a temporary workaround.
 
+##### MacOS OpenMP symbol not found Error 
+
 If you encounter an `ImportError: dlopen(...): symbol not found in flat namespace ...` error on `import stardist`, you may try to install it like so:
 
 ```
 brew install libomp
-libomp_root=/opt/homebrew/Cellar/libomp/20.1.5/  # adapt this to your libomp locations that has a "include" and "lib" subfolder
+
+libomp_root=$(brew --prefix libomp)
 
 export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
 export CFLAGS="$CFLAGS -I$libomp_root/include"
