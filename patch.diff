@@ -1,0 +1,12 @@
+diff --git i/stardist/lib/external/qhull_src/src/libqhullcpp/usermem_r-cpp.cpp w/stardist/lib/external/qhull_src/src/libqhullcpp/usermem_r-cpp.cpp
+index be96337..a0d88fd 100644
+--- i/stardist/lib/external/qhull_src/src/libqhullcpp/usermem_r-cpp.cpp
++++ w/stardist/lib/external/qhull_src/src/libqhullcpp/usermem_r-cpp.cpp
+@@ -20,6 +20,7 @@
+ #include <stdarg.h>
+ #include <stdexcept>
+ #include <stdlib.h>
++#include <stdio.h>
+ 
+ 
+ extern "C" {

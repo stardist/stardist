@@ -251,20 +251,21 @@ A third alternative (and what we did until StarDist 0.8.1) is to install the Ope
 
 If you use `conda` on macOS and after `import stardist` see errors similar to `Symbol not found: _GOMP_loop_nonmonotonic_dynamic_next`, please see [this issue](https://github.com/stardist/stardist/issues/19#issuecomment-535610758) for a temporary workaround.
 
+##### MacOS OpenMP symbol not found Error 
+
 If you encounter an `ImportError: dlopen(...): symbol not found in flat namespace ...` error on `import stardist`, you may try to install it like so:
 
 ```
 brew install libomp
 
-export HOMEBREW_PREFIX=/opt/homebrew #set to your homebrew prefix
-export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
-export CFLAGS="$CFLAGS -I/usr/local/opt/libomp/include"
-export CXXFLAGS="$CXXFLAGS -I/usr/local/opt/libomp/include"
-export LDFLAGS="$LDFLAGS -Wl,-rpath,/usr/local/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp"
+libomp_root=$(brew --prefix libomp)
 
+export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+export CFLAGS="$CFLAGS -I$libomp_root/include"
+export CXXFLAGS="$CXXFLAGS -I$libomp_root/include"
+export LDFLAGS="$LDFLAGS -Wl,-rpath,$libomp_root/lib -L$libomp_root/lib -lomp"
 pip install stardist --no-binary :all:
 ```
-
 ##### Apple Silicon
 
 As of StarDist 0.8.2, we provide `arm64` wheels that should work with [macOS on Apple Silicon](https://support.apple.com/en-us/HT211814) (M1 chip or newer). 

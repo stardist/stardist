@@ -20,6 +20,7 @@
 #include <stdarg.h>
 #include <stdexcept>
 #include <stdlib.h>
+#include <stdio.h>
 
 
 extern "C" {
