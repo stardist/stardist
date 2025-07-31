@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/PointCoordinates.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/PointCoordinates.h#6 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -27,13 +27,17 @@ namespace orgQhull {
     //! Inherited by RboxPoints
     class PointCoordinates;
 
+    //! Java-style iterators are not implemented for PointCoordinates.  Expensive copy constructor and copy assignment for Coordinates (std::vector).
+    //! A pointer to PointCoordinates is vulnerable to mysterious overwrites (e.g., deleting a returned value and reusing its memory)
+    //! 'foreach' likewise makes a copy of point_coordinates and should be avoided
+
 class PointCoordinates : public QhullPoints {
 
 private:
 #//!\name Fields
     Coordinates         point_coordinates;      //! std::vector of point coordinates
                                                 //! may have extraCoordinates()
-    std::string         describe_points;          //! Comment describing PointCoordinates
+    std::string         describe_points;        //! Comment describing PointCoordinates
 
 public:
 #//!\name Construct
@@ -60,7 +64,7 @@ public:
 #//!\name Convert
     //! QhullPoints coordinates, constData, data, count, size
 #ifndef QHULL_NO_STL
-    void                append(const std::vector<coordT> &otherCoordinates) { if(!otherCoordinates.empty()){ append((int)otherCoordinates.size(), &otherCoordinates[0]); } }
+    void                append(const std::vector<coordT> &otherCoordinates) { if(!otherCoordinates.empty()){ append(static_cast<int>(otherCoordinates.size()), &otherCoordinates[0]); } }
     std::vector<coordT> toStdVector() const { return point_coordinates.toStdVector(); }
 #endif //QHULL_NO_STL
 #ifdef QHULL_USES_QT
@@ -101,7 +105,7 @@ public:
     PointCoordinates    operator+(const PointCoordinates &other) const;
 
 #//!\name Modify
-    //FIXUP QH11001: Add clear() and other modify operators from Coordinates.h.  Include QhullPoint::operator=()
+    // QH11001 FIX: Add clear() and other modify operators from Coordinates.h.  Include QhullPoint::operator=()
     void                append(countT coordinatesCount, const coordT *c);  //! Dimension previously defined
     void                append(const coordT &c) { append(1, &c); } //! Dimension previously defined
     void                append(const QhullPoint &p);
@@ -125,33 +129,6 @@ private:
 
 };//PointCoordinates
 
-// No references to QhullPoint.  Prevents use of QHULL_DECLARE_SEQUENTIAL_ITERATOR(PointCoordinates, QhullPoint)
-class PointCoordinatesIterator
-{
-    typedef PointCoordinates::const_iterator const_iterator;
-
-private:
-    const PointCoordinates *c;
-    const_iterator      i;
-
-public:
-                        PointCoordinatesIterator(const PointCoordinates &container) : c(&container), i(c->constBegin()) {}
-                        PointCoordinatesIterator &operator=(const PointCoordinates &container) { c = &container; i = c->constBegin(); return *this; }
-
-    void                toFront() { i = c->constBegin(); }
-    void                toBack() { i = c->constEnd(); }
-    bool                hasNext() const { return i != c->constEnd(); }
-    const QhullPoint    next() { return *i++; }
-    const QhullPoint    peekNext() const { return *i; }
-    bool                hasPrevious() const { return i != c->constBegin(); }
-    const QhullPoint    previous() { return *--i; }
-    const QhullPoint    peekPrevious() const { const_iterator p = i; return *--p; }
-    bool                findNext(const QhullPoint &t) { while(i != c->constEnd()){ if (*i++ == t) return true;} return false; }
-    bool                findPrevious(const QhullPoint &t) { while(i != c->constBegin()){ if (*(--i) == t) return true;} return false;  }
-};//CoordinatesIterator
-
-// FIXUP QH11002:  Add MutablePointCoordinatesIterator after adding modify operators
-\
 }//namespace orgQhull
 
 #//!\name Global

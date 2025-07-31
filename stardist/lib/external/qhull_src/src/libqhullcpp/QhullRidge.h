@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullRidge.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullRidge.h#4 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -28,9 +28,13 @@ namespace orgQhull {
 #//!\name Defined here
     //! QhullRidge -- Qhull's ridge structure, ridgeT [libqhull.h], as a C++ class
     class QhullRidge;
+
     typedef QhullSet<QhullRidge>  QhullRidgeSet;
+
+    //! QhullRidgeSetIterator is a Java-style iterator for QhullRidge in a QhullRidgeSet
+    //! QhullRidgeSetIterator may be used on temporary results.  It copies the pointers in QhullRidgeSet
+    //! Use QhullSets.h to avoid circular references to QhullRidgeSet and QhullRidgeSetIterator
     typedef QhullSetIterator<QhullRidge>  QhullRidgeSetIterator;
-    // see QhullSets.h for QhullRidgeSet and QhullRidgeSetIterator -- avoids circular references
 
 /************************
 a ridge is hull_dim-1 simplex between two neighboring facets.  If the
@@ -86,6 +90,8 @@ public:
     bool                operator==(const QhullRidge &other) const { return qh_ridge==other.qh_ridge; }
     bool                operator!=(const QhullRidge &other) const { return !operator==(other); }
     QhullFacet          otherFacet(const QhullFacet &f) const { return QhullFacet(qh_qh, (qh_ridge->top==f.getFacetT() ? qh_ridge->bottom : qh_ridge->top)); }
+    QhullQh *           qh() const { return qh_qh; }
+    void                setRidgeT(QhullQh *qqh, ridgeT *ridge) { qh_qh= qqh; qh_ridge= ridge; }
     QhullFacet          topFacet() const { return QhullFacet(qh_qh, qh_ridge->top); }
 
 #//!\name foreach

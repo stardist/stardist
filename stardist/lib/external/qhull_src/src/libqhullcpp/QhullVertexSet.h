@@ -1,14 +1,15 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullVertexSet.h#4 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullVertexSet.h#4 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
 #ifndef QHULLVERTEXSET_H
 #define QHULLVERTEXSET_H
 
+#include "libqhullcpp/QhullFacetList.h"
 #include "libqhullcpp/QhullSet.h"
 #include "libqhullcpp/QhullVertex.h"
 
@@ -19,9 +20,12 @@ namespace orgQhull {
 #//!\name Used here
 
 #//!\name Defined here
-    //! QhullVertexSet -- a set of Qhull Vertices, as a C++ class.
+    //! QhullVertexSet -- a set of QhullVertex, as a C++ class.
     //! See Qhull
     class QhullVertexSet;
+
+    //! QhullVertexSetIterator is a Java-style iterator for QhullVertex in a QhullVertexSet
+    //! QhullVertexSetIterator may be used on temporary results.  It copies the pointers in QhullVertexSet
     typedef QhullSetIterator<QhullVertex> QhullVertexSetIterator;
 
 class QhullVertexSet : public QhullSet<QhullVertex> {
@@ -56,6 +60,8 @@ public:
 #ifdef QHULL_USES_QT
     QList<QhullVertex>   toQList() const;
 #endif //QHULL_USES_QT
+
+#//!\name Methods
 
 #//!\name IO
     struct PrintVertexSet{

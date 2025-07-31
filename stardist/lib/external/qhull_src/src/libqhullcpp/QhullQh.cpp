@@ -1,8 +1,9 @@
+
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullQh.cpp#7 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullQh.cpp#7 $$Change: 3009 $
+** $DateTime: 2020/07/30 19:25:22 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -78,7 +79,7 @@ checkAndFreeQhullMemory()
     countT curlong;
     countT totlong;
     qh_memfreeshort(this, &curlong, &totlong);
-    if (curlong || totlong)
+    if(curlong || totlong)
         throw QhullError(10026, "Qhull error: qhull did not free %d bytes of long memory (%d pieces).", totlong, curlong);
 #endif
 }//checkAndFreeQhullMemory
@@ -88,7 +89,7 @@ checkAndFreeQhullMemory()
 void QhullQh::
 appendQhullMessage(const string &s)
 {
-    if(output_stream && use_output_stream && this->USEstdout){ 
+    if(output_stream && use_output_stream && this->USEstdout){
         *output_stream << s;
     }else if(error_stream){
         *error_stream << s;
@@ -111,7 +112,7 @@ bool QhullQh::
 hasQhullMessage() const
 {
     return (!qhull_message.empty() || qhull_status!=qh_ERRnone);
-    //FIXUP QH11006 -- inconsistent usage with Rbox.  hasRboxMessage just tests rbox_status.  No appendRboxMessage()
+    // QH11006 FIX: inconsistent usage with Rbox.  hasRboxMessage just tests rbox_status.  No appendRboxMessage()
 }
 
 void QhullQh::
@@ -134,7 +135,7 @@ maybeThrowQhullMessage(int exitCode)
     if(qhull_status!=qh_ERRnone){
         QhullError e(qhull_status, qhull_message);
         clearQhullMessage();
-        throw e; // FIXUP QH11007: copy constructor is expensive if logging
+        throw e; // QH11007 FIX: copy constructor is expensive if logging
     }
 }//maybeThrowQhullMessage
 
@@ -185,53 +186,3 @@ setOutputStream(ostream *os)
 
 }//namespace orgQhull
 
-/*-<a                             href="qh_qh-user.htm#TOC"
- >-------------------------------</a><a name="qh_fprintf">-</a>
-
-  qh_fprintf(qhT *qh, fp, msgcode, format, list of args )
-    replaces qh_fprintf() in userprintf_r.c
-
-notes:
-    only called from libqhull
-    same as fprintf() and RboxPoints.qh_fprintf_rbox()
-    fgets() is not trapped like fprintf()
-    Do not throw errors from here.  Use qh_errexit;
-*/
-extern "C"
-void qh_fprintf(qhT *qh, FILE *fp, int msgcode, const char *fmt, ... ) {
-    va_list args;
-
-    using namespace orgQhull;
-
-    if(!qh->ISqhullQh){
-        qh_fprintf_stderr(10025, "Qhull error: qh_fprintf called from a Qhull instance without QhullQh defined\n");
-        qh_exit(10025);
-    }
-    QhullQh *qhullQh= static_cast<QhullQh *>(qh);
-    va_start(args, fmt);
-    if(msgcode<MSG_OUTPUT || fp == qh_FILEstderr){
-        if(msgcode>=MSG_ERROR && msgcode<MSG_WARNING){
-            if(qhullQh->qhull_status<MSG_ERROR || qhullQh->qhull_status>=MSG_WARNING){
-                qhullQh->qhull_status= msgcode;
-            }
-        }
-        char newMessage[MSG_MAXLEN];
-        // RoadError will add the message tag
-        vsnprintf(newMessage, sizeof(newMessage), fmt, args);
-        qhullQh->appendQhullMessage(newMessage);
-        va_end(args);
-        return;
-    }
-    if(qhullQh->output_stream && qhullQh->use_output_stream){
-        char newMessage[MSG_MAXLEN];
-        vsnprintf(newMessage, sizeof(newMessage), fmt, args);
-        *qhullQh->output_stream << newMessage;
-        va_end(args);
-        return;
-    }
-    // FIXUP QH11008: how do users trap messages and handle input?  A callback?
-    char newMessage[MSG_MAXLEN];
-    vsnprintf(newMessage, sizeof(newMessage), fmt, args);
-    qhullQh->appendQhullMessage(newMessage);
-    va_end(args);
-} /* qh_fprintf */

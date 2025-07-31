@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullFacetList.h#4 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullFacetList.h#3 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -29,7 +29,7 @@ namespace orgQhull {
     //! QhullFacetList -- List of QhullFacet/facetT, as a C++ class.  
     //!\see QhullFacetSet.h
     class QhullFacetList;
-    //! QhullFacetListIterator -- if(f.isGood()){ ... }
+    //! QhullFacetListIterator is a Java-style iterator for QhullFacetList. -- if(f.isGood()){ ... }
     typedef QhullLinkedListIterator<QhullFacet> QhullFacetListIterator;
 
 class QhullFacetList : public QhullLinkedList<QhullFacet> {

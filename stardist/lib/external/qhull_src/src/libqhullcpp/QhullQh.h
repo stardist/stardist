@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullQh.h#4 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullQh.h#3 $$Change: 2963 $
+** $DateTime: 2020/06/03 19:31:01 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -66,6 +66,7 @@ private:
     double              factor_epsilon; //!< Factor to increase ANGLEround and DISTround for hyperplane equality
     bool                use_output_stream; //!< True if using output_stream
 
+    //! modified by qh_fprintf in QhullUser.cpp
     friend void         ::qh_fprintf(qhT *qh, FILE *fp, int msgcode, const char *fmt, ... );
 
     static const double default_factor_epsilon;  //!< Default factor_epsilon is 1.0, never updated

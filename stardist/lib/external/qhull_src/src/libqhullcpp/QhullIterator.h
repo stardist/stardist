@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullIterator.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullIterator.h#4 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -26,32 +26,33 @@ namespace orgQhull {
     //! QHULL_DECLARE_MUTABLE_SET_ITERATOR(C) -- Declare a mutable set iterator
     //! Derived from Qt/core/tools/qiterator.h and qset_r.h/FOREACHsetelement_()
 
-// Stores C* as done in Mutable...  Assumes the container is not deleted.
+//! Stores C as done in Qt's Q_DECLARE_SEQUENTIAL_ITERATOR.  Allows use with temporaries.
+//! Do not use for containers with deep-copy semantics (e.g., STL::vector)
 // C::const_iterator is an STL-style iterator that returns T&
 #define QHULL_DECLARE_SEQUENTIAL_ITERATOR(C, T) \
     \
     class C##Iterator \
     { \
         typedef C::const_iterator const_iterator; \
-        const C *c; \
+        C c; \
         const_iterator i; \
         public: \
         inline C##Iterator(const C &container) \
-        : c(&container), i(c->constBegin()) {} \
+        : c(container), i(c.constBegin()) {} \
         inline C##Iterator &operator=(const C &container) \
-        { c = &container; i = c->constBegin(); return *this; } \
-        inline void toFront() { i = c->constBegin(); } \
-        inline void toBack() { i = c->constEnd(); } \
-        inline bool hasNext() const { return i != c->constEnd(); } \
+        { c= container; i= c.constBegin(); return *this; } \
+        inline void toFront() { i= c.constBegin(); } \
+        inline void toBack() { i= c.constEnd(); } \
+        inline bool hasNext() const { return i != c.constEnd(); } \
         inline const T &next() { return *i++; } \
         inline const T &peekNext() const { return *i; } \
-        inline bool hasPrevious() const { return i != c->constBegin(); } \
+        inline bool hasPrevious() const { return i != c.constBegin(); } \
         inline const T &previous() { return *--i; } \
-        inline const T &peekPrevious() const { const_iterator p = i; return *--p; } \
+        inline const T &peekPrevious() const { const_iterator p= i; return *--p; } \
         inline bool findNext(const T &t) \
-        { while (i != c->constEnd()) if (*i++ == t) return true; return false; } \
+        { while (i != c.constEnd()) if (*i++ == t) return true; return false; } \
         inline bool findPrevious(const T &t) \
-        { while (i != c->constBegin()) if (*(--i) == t) return true; \
+        { while (i != c.constBegin()) if (*(--i) == t) return true; \
         return false;  } \
     };//C##Iterator
 
@@ -70,31 +71,31 @@ namespace orgQhull {
         public: \
         inline Mutable##C##Iterator(C &container) \
         : c(&container) \
-        { i = c->begin(); n = c->end(); } \
+        { i= c->begin(); n= c->end(); } \
         inline ~Mutable##C##Iterator() \
         {} \
         inline Mutable##C##Iterator &operator=(C &container) \
-        { c = &container; \
-        i = c->begin(); n = c->end(); return *this; } \
-        inline void toFront() { i = c->begin(); n = c->end(); } \
-        inline void toBack() { i = c->end(); n = i; } \
+        { c= &container; \
+        i= c->begin(); n= c->end(); return *this; } \
+        inline void toFront() { i= c->begin(); n= c->end(); } \
+        inline void toBack() { i= c->end(); n= i; } \
         inline bool hasNext() const { return c->constEnd() != const_iterator(i); } \
-        inline T &next() { n = i++; return *n; } \
+        inline T &next() { n= i++; return *n; } \
         inline T &peekNext() const { return *i; } \
         inline bool hasPrevious() const { return c->constBegin() != const_iterator(i); } \
-        inline T &previous() { n = --i; return *n; } \
-        inline T &peekPrevious() const { iterator p = i; return *--p; } \
+        inline T &previous() { n= --i; return *n; } \
+        inline T &peekPrevious() const { iterator p= i; return *--p; } \
         inline void remove() \
-        { if (c->constEnd() != const_iterator(n)) { i = c->erase(n); n = c->end(); } } \
-        inline void setValue(const T &t) const { if (c->constEnd() != const_iterator(n)) *n = t; } \
+        { if (c->constEnd() != const_iterator(n)) { i= c->erase(n); n= c->end(); } } \
+        inline void setValue(const T &t) const { if (c->constEnd() != const_iterator(n)) *n= t; } \
         inline T &value() { QHULL_ASSERT(item_exists()); return *n; } \
         inline const T &value() const { QHULL_ASSERT(item_exists()); return *n; } \
-        inline void insert(const T &t) { n = i = c->insert(i, t); ++i; } \
+        inline void insert(const T &t) { n= i= c->insert(i, t); ++i; } \
         inline bool findNext(const T &t) \
-        { while (c->constEnd() != const_iterator(n = i)) if (*i++ == t) return true; return false; } \
+        { while (c->constEnd() != const_iterator(n= i)) if (*i++ == t) return true; return false; } \
         inline bool findPrevious(const T &t) \
-        { while (c->constBegin() != const_iterator(i)) if (*(n = --i) == t) return true; \
-        n = c->end(); return false;  } \
+        { while (c->constBegin() != const_iterator(i)) if (*(n= --i) == t) return true; \
+        n= c->end(); return false;  } \
     };//Mutable##C##Iterator
 
 // Not used in libqhullcpp.
@@ -110,15 +111,15 @@ namespace orgQhull {
         inline Qhull##C##Iterator(const Qhull##C<T> &container) \
         : c(container), i(c.constBegin()) {} \
         inline Qhull##C##Iterator &operator=(const Qhull##C<T> &container) \
-        { c = container; i = c.constBegin(); return *this; } \
-        inline void toFront() { i = c.constBegin(); } \
-        inline void toBack() { i = c.constEnd(); } \
+        { c= container; i= c.constBegin(); return *this; } \
+        inline void toFront() { i= c.constBegin(); } \
+        inline void toBack() { i= c.constEnd(); } \
         inline bool hasNext() const { return i != c.constEnd(); } \
         inline const T &next() { return *i++; } \
         inline const T &peekNext() const { return *i; } \
         inline bool hasPrevious() const { return i != c.constBegin(); } \
         inline const T &previous() { return *--i; } \
-        inline const T &peekPrevious() const { const_iterator p = i; return *--p; } \
+        inline const T &peekPrevious() const { const_iterator p= i; return *--p; } \
         inline bool findNext(const T &t) \
         { while (i != c.constEnd()) if (*i++ == t) return true; return false; } \
         inline bool findPrevious(const T &t) \
@@ -140,31 +141,31 @@ class QhullMutable##C##Iterator \
 public: \
     inline Mutable##C##Iterator(Qhull##C &container) \
         : c(&container) \
-    { c->setSharable(false); i = c->begin(); n = c->end(); } \
+    { c->setSharable(false); i= c->begin(); n= c->end(); } \
     inline ~Mutable##C##Iterator() \
     { c->setSharable(true); } \
     inline Mutable##C##Iterator &operator=(Qhull##C &container) \
-    { c->setSharable(true); c = &container; c->setSharable(false); \
-      i = c->begin(); n = c->end(); return *this; } \
-    inline void toFront() { i = c->begin(); n = c->end(); } \
-    inline void toBack() { i = c->end(); n = i; } \
+    { c->setSharable(true); c= &container; c->setSharable(false); \
+      i= c->begin(); n= c->end(); return *this; } \
+    inline void toFront() { i= c->begin(); n= c->end(); } \
+    inline void toBack() { i= c->end(); n= i; } \
     inline bool hasNext() const { return c->constEnd() != const_iterator(i); } \
-    inline T &next() { n = i++; return *n; } \
+    inline T &next() { n= i++; return *n; } \
     inline T &peekNext() const { return *i; } \
     inline bool hasPrevious() const { return c->constBegin() != const_iterator(i); } \
-    inline T &previous() { n = --i; return *n; } \
-    inline T &peekPrevious() const { iterator p = i; return *--p; } \
+    inline T &previous() { n= --i; return *n; } \
+    inline T &peekPrevious() const { iterator p= i; return *--p; } \
     inline void remove() \
-    { if (c->constEnd() != const_iterator(n)) { i = c->erase(n); n = c->end(); } } \
-    inline void setValue(const T &t) const { if (c->constEnd() != const_iterator(n)) *n = t; } \
+    { if (c->constEnd() != const_iterator(n)) { i= c->erase(n); n= c->end(); } } \
+    inline void setValue(const T &t) const { if (c->constEnd() != const_iterator(n)) *n= t; } \
     inline T &value() { Q_ASSERT(item_exists()); return *n; } \
     inline const T &value() const { Q_ASSERT(item_exists()); return *n; } \
-    inline void insert(const T &t) { n = i = c->insert(i, t); ++i; } \
+    inline void insert(const T &t) { n= i= c->insert(i, t); ++i; } \
     inline bool findNext(const T &t) \
-    { while (c->constEnd() != const_iterator(n = i)) if (*i++ == t) return true; return false; } \
+    { while (c->constEnd() != const_iterator(n= i)) if (*i++ == t) return true; return false; } \
     inline bool findPrevious(const T &t) \
-    { while (c->constBegin() != const_iterator(i)) if (*(n = --i) == t) return true; \
-      n = c->end(); return false;  } \
+    { while (c->constBegin() != const_iterator(i)) if (*(n= --i) == t) return true; \
+      n= c->end(); return false;  } \
 };//QhullMutable##C##Iterator
 
 }//namespace orgQhull

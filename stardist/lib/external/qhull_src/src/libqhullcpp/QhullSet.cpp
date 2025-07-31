@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullSet.cpp#5 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullSet.cpp#4 $$Change: 3009 $
+** $DateTime: 2020/07/30 19:25:22 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -26,7 +26,7 @@ s_empty_set;
 #//!\name Constructors
 
 QhullSetBase::
-QhullSetBase(const Qhull &q, setT *s) 
+QhullSetBase(const Qhull &q, setT *s)
 : qh_set(s ? s : &s_empty_set)
 , qh_qh(q.qh())
 {
@@ -41,14 +41,14 @@ count(const setT *set)
     countT size;
     const setelemT *sizep;
 
-    if (!set){
+    if(!set){
         return(0);
     }
     sizep= SETsizeaddr_(set);
-    if ((size= sizep->i)) {
+    if((size= sizep->i)){
         size--;
-        if (size > set->maxsize) {
-            // FIXUP QH11022 How to add additional output to a error? -- qh_setprint(qhmem.ferr, "set: ", set);
+        if(size > set->maxsize){
+            // QH11022 FIX: How to add additional output to a error? -- qh_setprint(qhmem.ferr, "set: ", set);
             throw QhullError(10032, "QhullSet internal error: current set size %d is greater than maximum size %d\n",
                 size, set->maxsize);
         }

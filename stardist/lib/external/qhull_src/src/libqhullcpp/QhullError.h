@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2008-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullError.h#4 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2008-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullError.h#4 $$Change: 2953 $
+** $DateTime: 2020/05/21 22:05:32 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -29,24 +29,24 @@ public:
 #//!\name Constants
     enum {
         QHULLfirstError= 10000, //MSG_QHULL_ERROR in Qhull's user.h
-        QHULLlastError= 10078,
+        QHULLlastError= 10081,
         NOthrow= 1 //! For flag to indexOf()
     };
 
 #//!\name Constructors
     // default constructors
-    QhullError() : RoadError() {};
+    QhullError() : RoadError() {}
     QhullError(const QhullError &other) : RoadError(other) {}
-    QhullError(int code, const std::string &message) : RoadError(code, message) {};
-    QhullError(int code, const char *fmt) : RoadError(code, fmt) {};
-    QhullError(int code, const char *fmt, int d) : RoadError(code, fmt, d) {};
-    QhullError(int code, const char *fmt, int d, int d2) : RoadError(code, fmt, d, d2) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f) : RoadError(code, fmt, d, d2, f) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f, const char *s) : RoadError(code, fmt, d, d2, f, s) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f, const void *x) : RoadError(code, fmt, d, d2, f, x) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f, int i) : RoadError(code, fmt, d, d2, f, i) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f, long long i) : RoadError(code, fmt, d, d2, f, i) {};
-    QhullError(int code, const char *fmt, int d, int d2, float f, double e) : RoadError(code, fmt, d, d2, f, e) {};
+    QhullError(int code, const std::string &message) : RoadError(code, message) {}
+    QhullError(int code, const char *fmt) : RoadError(code, fmt) {}
+    QhullError(int code, const char *fmt, int d) : RoadError(code, fmt, d) {}
+    QhullError(int code, const char *fmt, int d, int d2) : RoadError(code, fmt, d, d2) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f) : RoadError(code, fmt, d, d2, f) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f, const char *s) : RoadError(code, fmt, d, d2, f, s) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f, const void *x) : RoadError(code, fmt, d, d2, f, x) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f, int i) : RoadError(code, fmt, d, d2, f, i) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f, long long i) : RoadError(code, fmt, d, d2, f, i) {}
+    QhullError(int code, const char *fmt, int d, int d2, float f, double e) : RoadError(code, fmt, d, d2, f, e) {}
     QhullError &operator=(const QhullError &other) { this->RoadError::operator=(other); return *this; }
     ~QhullError() throw() {}
 

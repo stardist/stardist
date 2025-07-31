@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (c) 2009-2018 C.B. Barber. All rights reserved.
-** $Id: //main/2015/qhull/src/libqhullcpp/QhullPointSet.h#6 $$Change: 2549 $
-** $DateTime: 2018/12/28 22:24:20 $$Author: bbarber $
+** Copyright (c) 2009-2020 C.B. Barber. All rights reserved.
+** $Id: //main/2019/qhull/src/libqhullcpp/QhullPointSet.h#3 $$Change: 3001 $
+** $DateTime: 2020/07/24 20:43:28 $$Author: bbarber $
 **
 ****************************************************************************/
 
@@ -23,8 +23,12 @@ namespace orgQhull {
 
 #//!\name Defined here
     //! QhullPointSet -- a set of coordinate pointers with input dimension
-    // with const_iterator and iterator
+    //! Includes const_iterator and iterator
     class QhullPointSet;
+
+    //! QhullPointSetIterator is a Java-style iterator for QhullPoint in a QhullPointSet
+    //! QhullPointSetIterator may be used on temporary results.  It copies the pointers in QhullPointSet
+    typedef QhullSetIterator<QhullPoint>  QhullPointSetIterator;
 
 class QhullPointSet : public QhullSet<QhullPoint> {
 
@@ -64,8 +68,6 @@ public:
     PrintPointSet       print(const char *message) const { return PrintPointSet(message, *this); }
 
 };//QhullPointSet
-
-typedef QhullSetIterator<QhullPoint>  QhullPointSetIterator;
 
 }//namespace orgQhull
 
