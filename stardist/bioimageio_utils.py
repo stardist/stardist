@@ -533,7 +533,7 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
             ],
             data=IntervalOrRatioDataDescr(type="float32"),
             test_tensor=FileDescr(source=(datapath / "test_input.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_input_0.tif")),
+            sample_tensor=FileDescr(source=(datapath / "sample_input_0.tif")) if (datapath / "sample_input_0.tif").exists() else None,
         )
     ]
 
@@ -560,7 +560,7 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
                 ChannelAxis(channel_names=[Identifier(name) for name in channel_names_out]),
             ],
             test_tensor=FileDescr(source=(datapath / "test_output.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_output_0.tif")),
+            sample_tensor=FileDescr(source=(datapath / "sample_output_0.tif")) if (datapath / "sample_output_0.tif").exists() else None,
         )
     ]
 
@@ -699,7 +699,7 @@ def export_bioimageio(
         if overwrite_spec_kwargs is not None:
             kwargs.update(overwrite_spec_kwargs)
 
-        # bioimageio.spec.model.v0_4
+        # bioimageio.core < 0.6.0 (legacy models)
         try:
             from bioimageio.core import build_model as _build_model_legacy
             model = _build_model_legacy(
@@ -711,7 +711,7 @@ def export_bioimageio(
                 **kwargs,
             )
             print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
-        # bioimageio.spec.model.v0_5
+        # bioimageio.core >= 0.6.0
         except ImportError:
             model = _build_model(
                 name=name,
