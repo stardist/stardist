@@ -547,15 +547,15 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
                 BatchAxis(),
                 SpaceOutputAxisWithHalo(
                     id=AxisId("y"),
-                    halo=halo if not upsample_grid else halo / grid[1],
+                    halo=halo if not upsample_grid else halo / grid[0],
                     size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("y")),
-                    scale=grid[1] if not upsample_grid else 1
+                    scale=grid[0] if not upsample_grid else 1
                 ),
                 SpaceOutputAxisWithHalo(
                     id=AxisId("x"),
-                    halo=halo if not upsample_grid else halo / grid[0],
+                    halo=halo if not upsample_grid else halo / grid[1],
                     size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("x")),
-                    scale=grid[0] if not upsample_grid else 1
+                    scale=grid[1] if not upsample_grid else 1
                 ),
                 ChannelAxis(channel_names=[Identifier(name) for name in channel_names_out]),
             ],
