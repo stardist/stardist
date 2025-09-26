@@ -558,8 +558,6 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     ]
 
     # Build output tensor description
-    # assert isinstance(model.outputs[0].axes[1], ChannelAxis)
-
     spatial_output_axes = []
     for i, axis_name in enumerate(spatial_axes):
         spatial_output_axes.append(
