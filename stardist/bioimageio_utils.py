@@ -517,11 +517,10 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     step_y = kwargs.get('input_step', {})[0][1]
     step_x = kwargs.get('input_step', {})[0][2]
 
-    # TODO: change channel names to input/output
     n_channels_in = stardist_config.get('n_channel_in', {})
-    channel_names_in = [f"channel_{i}" for i in range(n_channels_in)]
+    channel_names_in = [f"input_{i:02d}" for i in range(n_channels_in)] if n_channels_in > 1 else ["input"]
     # n_channels_out = stardist_config.get('n_channel_out', {})
-    channel_names_out = ["prob"] + [f"dist_{i}" for i in range(n_rays)]
+    channel_names_out = ["prob"] + [f"dist_{i:02d}" for i in range(n_rays)]
 
     # check if StarDist2D or StarDist3D model
     is_2d = n_dim == 2
