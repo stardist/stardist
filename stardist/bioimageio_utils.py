@@ -506,8 +506,9 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     # Extract config information
     stardist_config = kwargs.get('config', {}).get('stardist', {}).get('config', {})
     n_rays = stardist_config.get('n_rays', {})
-    halo = kwargs.get('halo', {})[0][1]
-    grid = kwargs.get('grid', (2,2))
+    halo = kwargs.get('halo', {})[0] # list
+    grid = stardist_config.get('grid', {}) #. tuple
+    n_dim = stardist_config.get('n_dim', {}) # 2D or 3D
 
     upsample_grid = kwargs.get('upsample_grid', True)
 
@@ -516,19 +517,38 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     step_y = kwargs.get('input_step', {})[0][1]
     step_x = kwargs.get('input_step', {})[0][2]
 
+    # TODO: change channel names to input/output
     n_channels_in = stardist_config.get('n_channel_in', {})
     channel_names_in = [f"channel_{i}" for i in range(n_channels_in)]
     # n_channels_out = stardist_config.get('n_channel_out', {})
     channel_names_out = ["prob"] + [f"dist_{i}" for i in range(n_rays)]
 
+    # check if StarDist2D or StarDist3D model
+    is_2d = n_dim == 2
+
     # Build input tensor description
+    axes = stardist_config.get('axes', {})
+    spatial_axes = [axis.lower() for axis in axes if axis in 'ZYX']
+    grid_indices = list(range(len(spatial_axes)))
+    min_in_shape = kwargs.get('input_min_shape', {})[0] # list
+    steps = kwargs.get('input_step', {})[0] # list
+
+    spatial_input_axes = []
+    for i, axis_name in enumerate(spatial_axes):
+        spatial_input_axes.append(
+            SpaceInputAxis(
+                id=AxisId(axis_name),
+                size=ParameterizedSize(min=min_in_shape[i+1], step=steps[i+1]),
+                scale=grid[grid_indices[i]] if not upsample_grid else 1
+            )
+        )
+
     model_inputs = [
         InputTensorDescr(
             id=TensorId("raw"),
             axes=[
                 BatchAxis(),
-                SpaceInputAxis(id=AxisId("y"), size=ParameterizedSize(min=min_size_y, step=step_y)),
-                SpaceInputAxis(id=AxisId("x"), size=ParameterizedSize(min=min_size_x, step=step_x)),
+                *spatial_input_axes,
                 ChannelAxis(channel_names=[Identifier(name) for name in channel_names_in]),
             ],
             data=IntervalOrRatioDataDescr(type="float32"),
@@ -540,23 +560,23 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     # Build output tensor description
     # assert isinstance(model.outputs[0].axes[1], ChannelAxis)
 
+    spatial_output_axes = []
+    for i, axis_name in enumerate(spatial_axes):
+        spatial_output_axes.append(
+            SpaceOutputAxisWithHalo(
+                id=AxisId(axis_name),
+                halo=halo[i+1] if not upsample_grid else halo[i+1] / grid[grid_indices[i]],
+                size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId(axis_name)),
+                scale=grid[grid_indices[i]] if not upsample_grid else 1
+            )
+        )
+
     model_outputs = [
         OutputTensorDescr(
             id=TensorId("predictions"),
             axes=[
                 BatchAxis(),
-                SpaceOutputAxisWithHalo(
-                    id=AxisId("y"),
-                    halo=halo if not upsample_grid else halo / grid[0],
-                    size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("y")),
-                    scale=grid[0] if not upsample_grid else 1
-                ),
-                SpaceOutputAxisWithHalo(
-                    id=AxisId("x"),
-                    halo=halo if not upsample_grid else halo / grid[1],
-                    size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("x")),
-                    scale=grid[1] if not upsample_grid else 1
-                ),
+                *spatial_output_axes,
                 ChannelAxis(channel_names=[Identifier(name) for name in channel_names_out]),
             ],
             test_tensor=FileDescr(source=(datapath / "test_output.npy")),
