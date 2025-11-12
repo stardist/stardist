@@ -112,7 +112,7 @@ def stardist_postprocessing_3D(
             img_shape: Shape of the input image (D, H, W)
             prob: Probability map from StarDist 3D prediction
             dist: Distance predictions from StarDist 3D
-            rays: Rays configuration (JSON string, rays object, or None for default 96 rays)
+            rays: Rays configuration (JSON string, rays object, or None for default 64 rays)
             grid: Network output scaling factor, default (1,1,1)
             points: Optional points for sparse prediction
             prob_class: Optional class probabilities for multi-class prediction
@@ -130,7 +130,7 @@ def stardist_postprocessing_3D(
         """
         # Handle rays configuration
         if rays is None:
-            rays = Rays_GoldenSpiral(96)
+            rays = Rays_GoldenSpiral(64)
         elif isinstance(rays, str):
             rays = rays_from_json(rays)
         elif isinstance(rays, int):
