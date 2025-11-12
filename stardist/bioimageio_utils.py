@@ -2,6 +2,9 @@ import tempfile
 from pathlib import Path
 from typing import Union
 from zipfile import ZipFile, is_zipfile
+import copy
+import keras
+import tensorflow as tf
 
 import numpy as np
 from csbdeep.utils import _raise, axes_check_and_normalize, normalize
@@ -242,6 +245,41 @@ def _predict_tf(model_path, test_input):
     return output
 
 
+# Additional Maximum layer to avoid small dist values to prevent problems with Qhull (taken from _predict_generator() base.py).
+
+# @keras.saving.register_keras_serializable(name="MaximumDistLayer", package="stardist")
+# class MaximumDistLayer(keras.layers.Layer):
+#     """Distance activation layer to avoid small dist values that cause problems with Qhull."""
+#     def __init__(self, min_dist_val=1e-3, **kwargs):
+#         super().__init__(**kwargs)
+#         self.min_val = float(min_dist_val)
+
+#     def call(self, inputs):
+#         return tf.maximum(inputs, self.min_val)
+    
+#     def get_config(self):
+#         config = super().get_config()
+#         config.update({"min_dist_val": self.min_val})
+#         return config
+    
+#     @classmethod
+#     def from_config(cls, config):
+#         return cls(**config)
+
+
+# try:
+#     # Keras 3.x.x and newer TensorFlow versions
+#     if hasattr(keras.saving, 'register_keras_serializable'):
+#         keras.saving.register_keras_serializable(name="MaximumDistLayer", package="stardist")(MaximumDistLayer)
+#     elif hasattr(keras.utils, 'register_keras_serializable'):
+#         keras.utils.register_keras_serializable(name="MaximumDistLayer", package="stardist")(MaximumDistLayer)
+#     else:
+#         # Fallback for older versions
+#         keras.utils.get_custom_objects()["MaximumDistLayer"] = MaximumDistLayer
+# except AttributeError:
+#     pass
+
+
 def _get_weights_and_model_metadata(
     outdir,
     model,
@@ -254,16 +292,34 @@ def _get_weights_and_model_metadata(
     upsample_grid=True,
 ):
 
+    # Additional Maximum layer to avoid small dist values to prevent problems with Qhull (taken from _predict_generator() base.py).
+    
+    model_sd = copy.copy(model)
+    
+    outputs = model_sd.keras_model.outputs
+
+    prob_output = outputs[0]
+    dist_output = outputs[1]
+
+    subtract_threshold = keras.layers.Lambda(lambda x: x - 1e-3)(dist_output)
+    relu_layer = keras.layers.ReLU()(subtract_threshold)
+    dist_output_processed = keras.layers.Lambda(lambda x: x + 1e-3, name="dist_processed")(relu_layer)
+
+    model_sd.keras_model = keras.Model(
+            inputs=model_sd.keras_model.input,
+            outputs=[prob_output, dist_output_processed]
+    )
+
     # get the path to the exported model assets (saved in outdir)
     if mode == "keras_hdf5":
         raise NotImplementedError("Export to keras format is not supported yet")
     elif mode == "keras_v3":
         assets_uri = outdir / "model.keras"
-        model_keras = model.keras_model
+        model_keras = model_sd.keras_model
         model_keras.save(assets_uri)
     elif mode == "tensorflow_saved_model_bundle":
         assets_uri = outdir / "TF_SavedModel.zip"
-        model_csbdeep = model.export_TF(
+        model_csbdeep = model_sd.export_TF(
             assets_uri, single_output=True, upsample_grid=upsample_grid
             # assets_uri, single_output=True, upsample_grid=True
         )
@@ -328,7 +384,7 @@ def _get_weights_and_model_metadata(
         output_offset = [0] * (ndim_tensor)
 
     elif mode == "keras_v3":
-        import keras
+        # import keras
         if not hasattr(keras, "__version__") or Version(keras.__version__) < Version("3.0.0"):
             raise NotImplementedError(
                 "Keras v3 export requires Keras 3.0.0 or higher"
