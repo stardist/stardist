@@ -95,7 +95,8 @@ def stardist_postprocessing_3D(
         img_shape: Tuple[int, ...],
         prob: np.ndarray,
         dist: np.ndarray,
-        rays: Optional[Union[str, Any]] = None,
+        rays: Optional[Union[str, Any, int]] = None,
+        anisotropy: Optional[Tuple[float, float, float]] = None,
         grid: Tuple[int, ...] = (1, 1, 1),
         points: Optional[np.ndarray] = None,
         prob_class: Optional[np.ndarray] = None,
@@ -113,6 +114,7 @@ def stardist_postprocessing_3D(
             prob: Probability map from StarDist 3D prediction
             dist: Distance predictions from StarDist 3D
             rays: Rays configuration (JSON string, rays object, or None for default 64 rays)
+            anisotropy: Anisotropy tuple (Z, Y, X) for rays generation if rays is int or None
             grid: Network output scaling factor, default (1,1,1)
             points: Optional points for sparse prediction
             prob_class: Optional class probabilities for multi-class prediction
@@ -130,17 +132,23 @@ def stardist_postprocessing_3D(
         """
         # Handle rays configuration
         if rays is None:
-            rays = Rays_GoldenSpiral(64)
+            rays = Rays_GoldenSpiral(64, anisotropy=anisotropy)
         elif isinstance(rays, str):
             rays = rays_from_json(rays)
+            # ignore anisotropy parameter when rays_json is provided
+            if anisotropy is not None:
+                import warnings
+                warnings.warn("anisotropy parameter ignored when rays is provided as JSON string")
         elif isinstance(rays, int):
-            rays = Rays_GoldenSpiral(rays)
+            # fallback to default anisotropy if None
+            if anisotropy is None:
+                import warnings
+                warnings.warn("Using default isotropic rays (1,1,1) as anisotropy is None."
+                              "Consider providing anisotropy tuple or the full rays_json configuration for accurate 3D reconstruction.")
+                anisotropy = (1,1,1)
+            rays = Rays_GoldenSpiral(rays, anisotropy=anisotropy)
         else:
-            # Assume it's already a rays object or can be converted
-            if hasattr(rays, 'vertices'):
-                pass  # Already a rays object
-            else:
-                rays = rays_from_json(rays)
+            rays = rays_from_json(rays)
 
         # sparse prediction
         if points is not None:
