@@ -641,6 +641,6 @@ static struct PyModuleDef moduledef = {
 };
 
 PyMODINIT_FUNC PyInit_stardist2d(void) {
-  import_array();
+  import_array();  // In NumPy 2.0, this is void on success, throws error otherwise
   return PyModule_Create(&moduledef);
 }

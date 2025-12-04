@@ -74,6 +74,7 @@ compatible with the respective version of TensorFlow. (If you need help and can 
 - Depending on your Python installation, you may need to use `pip3` instead of `pip`.
 - You can find out which version of TensorFlow is installed via `pip show tensorflow`.
 - We provide pre-compiled binaries ("wheels") that should work for most Linux, Windows, and macOS platforms. If you're having problems, please see the [troubleshooting](#installation-1) section below.
+- **NumPy 2.0 Support:** StarDist now supports both NumPy 1.x (≥1.20) and NumPy 2.x. If you're building from source or need to recompile the C extensions, see [NUMPY2_COMPATIBILITY.md](NUMPY2_COMPATIBILITY.md) for detailed instructions.
 - *(Optional)* You need to install [gputools](https://github.com/maweigert/gputools) if you want to use OpenCL-based computations on the GPU to speed up training.
 - *(Optional)* You might experience improved performance during training if you additionally install the [Multi-Label Anisotropic 3D Euclidean Distance Transform (MLAEDT-3D)](https://github.com/seung-lab/euclidean-distance-transform-3d).
 

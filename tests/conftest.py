@@ -2,8 +2,12 @@ import pytest
 
 
 def _limit_tf_gpu_memory():
-    from csbdeep.utils.tf import IS_TF_1, limit_gpu_memory
-    limit_gpu_memory(0.75, total_memory=(None if IS_TF_1 else 8000))
+    try:
+        from csbdeep.utils.tf import IS_TF_1, limit_gpu_memory
+        limit_gpu_memory(0.75, total_memory=(None if IS_TF_1 else 8000))
+    except ImportError:
+        # TensorFlow not installed, skip GPU memory limiting
+        pass
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "gpu: run opencl-based tests on the gpu")

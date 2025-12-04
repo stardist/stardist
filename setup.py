@@ -86,6 +86,9 @@ nanoflann_root = path.join(external_root, 'nanoflann')
 clipper_root = path.join(external_root, 'clipper')
 clipper_src = sorted(glob(path.join(clipper_root, '*.cpp*')))[::-1]
 
+# Common compile args for NumPy 2.0 compatibility
+numpy2_compile_args = ['-std=c++11', '-DNPY_NO_DEPRECATED_API=NPY_2_0_API_VERSION', '-DNPY_TARGET_VERSION=NPY_2_0_API_VERSION']
+
 
 setup(
     name='stardist',
@@ -106,13 +109,13 @@ setup(
         Extension(
             'stardist.lib.stardist2d',
             sources = ['stardist/lib/stardist2d.cpp', 'stardist/lib/utils.cpp'] + clipper_src,
-            extra_compile_args = ['-std=c++11', '-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION'],
+            extra_compile_args = numpy2_compile_args,
             include_dirs = get_numpy_include_dirs() + [clipper_root, nanoflann_root],
         ),
         Extension(
             'stardist.lib.stardist3d',
             sources = ['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp'] + qhull_src,
-            extra_compile_args = ['-std=c++11', '-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION'],
+            extra_compile_args = numpy2_compile_args,
             include_dirs = get_numpy_include_dirs() + [qhull_root, nanoflann_root],
         ),
     ],
