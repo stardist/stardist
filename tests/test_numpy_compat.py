@@ -13,8 +13,8 @@ class TestNumPy2Compatibility:
         """Verify NumPy version is accessible"""
         assert hasattr(np, '__version__')
         version = tuple(int(x) for x in np.__version__.split('.')[:2])
-        # Test should work with both NumPy 1.x and 2.x
-        assert version >= (1, 20) or version >= (2, 0)
+        # Test should work with both NumPy 1.x (>= 1.20) and 2.x
+        assert version >= (1, 20)
     
     def test_stardist2d_import(self):
         """Test that stardist2d C extension can be imported"""
@@ -81,10 +81,15 @@ class TestNumPy2Compatibility:
         grid_y = 1
         grid_z = 1
         
-        # Create direction vectors (simplified)
+        # Create normalized direction vectors
         pdz = np.random.randn(n_rays).astype(np.float32)
         pdy = np.random.randn(n_rays).astype(np.float32)
         pdx = np.random.randn(n_rays).astype(np.float32)
+        # Normalize direction vectors
+        norm = np.sqrt(pdx**2 + pdy**2 + pdz**2)
+        pdx /= norm
+        pdy /= norm
+        pdz /= norm
         
         result = c_star_dist3d(img, pdz, pdy, pdx, n_rays, grid_z, grid_y, grid_x)
         
