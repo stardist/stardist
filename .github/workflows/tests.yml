@@ -58,10 +58,10 @@ jobs:
             python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          # - os: macos-15-intel
-          #   python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
-          #   tensorflow: 2
-          #   package-extras: 'test'
+          - os: macos-15-intel
+            python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
+            tensorflow: 2
+            package-extras: 'test'
         exclude:
           # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'

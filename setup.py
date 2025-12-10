@@ -134,14 +134,18 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
 
     install_requires=[
         'csbdeep>=0.8.0',
         # https://numpy.org/doc/2.3/dev/depending_on_numpy.html#adding-a-dependency-on-numpy
-        "numpy<3; python_version>='3.9'",
+        'numpy<3; python_version>="3.9"',
         'scikit-image',
-        'numba',
+        'numba;            platform_system!="Darwin" or  platform_machine=="arm64"',
+        # newer versions of numba and llvmlite don't have prebuilt wheels for macOS x86_64
+        'numba<=0.62.1;    platform_system=="Darwin" and platform_machine!="arm64"',
+        'llvmlite<=0.45.1; platform_system=="Darwin" and platform_machine!="arm64"',
         'imageio',
     ],
 
