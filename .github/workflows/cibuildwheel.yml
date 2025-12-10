@@ -55,9 +55,9 @@ jobs:
           # CIBW_TEST_SKIP: "*musllinux*"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-linux-windows
           path: ./dist/*.whl
 
 
@@ -138,9 +138,9 @@ jobs:
           CIBW_TEST_SKIP: "*"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-macos
           path: ./dist/*.whl
 
 
@@ -195,9 +195,9 @@ jobs:
         run: pipx run build --sdist
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-sdist
           path: dist/*.tar.gz
 
 
@@ -208,10 +208,11 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - name: Download wheels and sdist
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
           path: dist
+          pattern: dist-*
+          merge-multiple: true          
 
       - name: Check that package version matches git tag ${{ github.ref_name }}
         shell: bash
