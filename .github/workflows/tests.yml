@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [ubuntu-22.04, windows-latest, macos-13]
+        os: [ubuntu-22.04, windows-latest, macos-14-large]
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         tensorflow: [1, 2]
         include:
@@ -41,24 +41,24 @@ jobs:
             package-extras: 'test'
             deps-extra: 'tf_keras'
             exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
-          # cases for using x86_64-based runner (macos-13)
-          - os: macos-13
+          # cases for using x86_64-based runner (macos-14-large)
+          - os: macos-14-large
             python-version: '3.6'  # no tensorflow arm64 wheels
             tensorflow: 1
             package-extras: 'test,tf1'
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.6'  # no tensorflow arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 1
             package-extras: 'test,tf1'
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
             tensorflow: 2
             package-extras: 'test'
@@ -78,9 +78,9 @@ jobs:
             tensorflow: 1
           - os: windows-latest
             tensorflow: 1
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.6'
-          - os: macos-13
+          - os: macos-14-large
             python-version: '3.7'
           - os: ubuntu-22.04
             python-version: '3.6'  # https://github.com/actions/setup-python/issues/1048
