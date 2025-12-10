@@ -138,6 +138,8 @@ setup(
 
     install_requires=[
         'csbdeep>=0.8.0',
+        # https://numpy.org/doc/2.3/dev/depending_on_numpy.html#adding-a-dependency-on-numpy
+        "numpy<3; python_version>='3.9'",
         'scikit-image',
         'numba',
         'imageio',
