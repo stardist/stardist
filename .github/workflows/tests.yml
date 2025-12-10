@@ -58,10 +58,10 @@ jobs:
             python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          - os: macos-15-intel
-            python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
-            tensorflow: 2
-            package-extras: 'test'
+          # - os: macos-15-intel
+          #   python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
+          #   tensorflow: 2
+          #   package-extras: 'test'
         exclude:
           # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
@@ -100,13 +100,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # should also work with clang, but there are
-      # openmp-related symbol issues just when using Python 3.6?
+      # doesn't work with clang anymore?
       - name: Use GCC on macOS
         if: startsWith(matrix.os, 'macos')
         run: |
-          # brew config
-          # brew install gcc@9
           echo "CC=gcc-13" >> $GITHUB_ENV
           echo "CXX=g++-13" >> $GITHUB_ENV
 
@@ -127,5 +124,5 @@ jobs:
         run: echo "PYTEST_ADDOPTS='-W ignore::pytest.PytestReturnNotNoneWarning'" >> $GITHUB_ENV
         shell: bash
 
-      # - name: Run tests
-      #   run: pytest -m "not gpu"
+      - name: Run tests
+        run: pytest -m "not gpu"
