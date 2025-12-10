@@ -57,7 +57,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: dist-linux-windows
+          name: dist-linux-windows-${{ matrix.py }}
           path: ./dist/*.whl
 
 
@@ -140,7 +140,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: dist-macos
+          name: dist-macos-${{ matrix.cibw_arch }}-${{ matrix.py }}
           path: ./dist/*.whl
 
 
