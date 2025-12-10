@@ -43,20 +43,25 @@ jobs:
             exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
           # cases for using x86_64-based runner (macos-15-intel)
           - os: macos-15-intel
-            python-version: '3.6'  # no arm64 wheels
+            python-version: '3.6'  # no tensorflow arm64 wheels
             tensorflow: 1
+            package-extras: 'test,tf1'
           - os: macos-15-intel
-            python-version: '3.6'  # no arm64 wheels
+            python-version: '3.6'  # no tensorflow arm64 wheels
             tensorflow: 2
+            package-extras: 'test'
           - os: macos-15-intel
-            python-version: '3.7'  # no arm64 wheels
+            python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 1
+            package-extras: 'test,tf1'
           - os: macos-15-intel
-            python-version: '3.7'  # no arm64 wheels
+            python-version: '3.7'  # no tensorflow arm64 wheels
             tensorflow: 2
+            package-extras: 'test'
           - os: macos-15-intel
             python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
             tensorflow: 2
+            package-extras: 'test'
         exclude:
           # https://www.tensorflow.org/install/source#tested_build_configurations
           - python-version: '3.8'
