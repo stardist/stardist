@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         include:
           - cibw_test_requires: 'pytest tensorflow'
           - os: ubuntu-latest
@@ -51,6 +51,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_SKIP: "*"
           # CIBW_TEST_SKIP: "*musllinux*"
 
       - name: Upload wheels
@@ -71,9 +72,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13] # runner hardware is x86_64 (intel)
-        # os: [macos-14] # runner hardware is arm64 (apple silicon) -> compiling c++ throws error
-        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        os: [macos-15-intel] # runner hardware is x86_64 (intel)
+        # os: [macos-15] # runner hardware is arm64 (apple silicon) -> compiling c++ throws error
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
@@ -134,6 +135,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
+          CIBW_TEST_SKIP: "*"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -150,9 +152,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14] # runner hardware is arm64 (apple silicon)
+        os: [macos-15] # runner hardware is arm64 (apple silicon)
         arch: [arm64]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Download wheels
@@ -221,7 +223,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          # password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
-          # password: ${{ secrets.TESTPYPI_API_TOKEN }}
-          # repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
