@@ -107,8 +107,8 @@ jobs:
         run: |
           # brew config
           # brew install gcc@9
-          echo "CC=/usr/local/bin/gcc-13" >> $GITHUB_ENV
-          echo "CXX=/usr/local/bin/g++-13" >> $GITHUB_ENV
+          echo "CC=gcc-13" >> $GITHUB_ENV
+          echo "CXX=g++-13" >> $GITHUB_ENV
 
       - name: Install extra dependencies (if any)
         if: ${{ matrix.deps-extra }}
