@@ -86,10 +86,10 @@ jobs:
           - cibw_test_requires: 'pytest tensorflow'
           # cibuildwheel 3.x only works with python 3.8+
           - cibw_version: '>=3'
-          - py: cp36
-            cibw_version: '<3'
-          - py: cp37
-            cibw_version: '<3'
+          # - py: cp36
+          #   cibw_version: '<3'
+          # - py: cp37
+          #   cibw_version: '<3'
         exclude:
           # - py: cp36
           #   cibw_arch: arm64
