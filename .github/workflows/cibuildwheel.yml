@@ -114,14 +114,15 @@ jobs:
           path: dist/*.whl
 
 
-  # arm64 wheels: build natively on ARM runner using GCC-13
+  # arm64 wheels: cross-compile on Intel runner using llvm@14 + conda-forge openmp
+  # This allows MACOSX_DEPLOYMENT_TARGET=12.0 (conda-forge libs support older targets)
   build_wheels_mac_arm64:
     name: Build ${{ matrix.py }}-arm64 wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15]  # ARM runner
+        os: [macos-15-intel]  # Intel runner for cross-compilation
         # Reduced matrix for debugging - restore after fix
         py: [cp312]
         include:
@@ -140,19 +141,39 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
+      - name: Install conda
+        run: |
+          MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-$(uname -m).sh"
+          curl -L --retry 10 $MINIFORGE_URL -o ./miniforge.sh
+          bash ./miniforge.sh -b -p $HOME/miniforge
+          echo "CONDA_HOME=$HOME/miniforge" >> $GITHUB_ENV
+
       - name: Build wheels for CPython (macOS arm64)
-        run: python -m cibuildwheel --output-dir dist
+        run: |
+          # Install llvm@14 for cross-compilation
+          brew install llvm@14
+
+          # Install conda-forge llvm-openmp for arm64 (supports older deployment targets)
+          OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+          sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL -y
+          PREFIX="$CONDA_HOME/envs/build"
+
+          export CC=$(brew --prefix llvm@14)/bin/clang
+          export CXX=$(brew --prefix llvm@14)/bin/clang++
+          export CFLAGS="$CFLAGS -I$PREFIX/include"
+          export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
+          export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
+          export MACOSX_DEPLOYMENT_TARGET=12.0
+
+          python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: arm64
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # GCC-13 works reliably with OpenMP on macOS
-          CIBW_ENVIRONMENT: >-
-            CC=gcc-13
-            CXX=g++-13
-            MACOSX_DEPLOYMENT_TARGET=12.0
+          # Cannot test arm64 on Intel runner
+          CIBW_TEST_SKIP: "*-macosx_arm64"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -161,45 +182,45 @@ jobs:
           path: dist/*.whl
 
 
-  # test_wheels_mac_arm64:
-  #   # No longer needed - cibuildwheel tests on native ARM runner
-  #   name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
-  #   needs: [build_wheels_mac_arm64]
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [macos-15] # runner hardware is arm64
-  #       arch: [arm64]
-  #       python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+  # Test arm64 wheels on native ARM runner (can't test during cross-compile build)
+  test_wheels_mac_arm64:
+    name: Test py${{ matrix.python-version }}-arm64 wheels on ${{ matrix.os }}
+    needs: [build_wheels_mac_arm64]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15]  # ARM runner
+        # Reduced matrix for debugging - restore after fix
+        python-version: ['3.12']
 
-  #   steps:
-  #     - name: Download wheels
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         pattern: cibw-*
-  #         path: dist
-  #         merge-multiple: true
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-*-arm64
+          path: dist
+          merge-multiple: true
 
-  #     - name: Install Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: ${{ matrix.python-version }}
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-  #     - name: Upgrade pip
-  #       run: python -m pip install --upgrade pip
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
-  #     - name: Install TensorFlow and PyTest
-  #       run: pip install pytest tensorflow
+      - name: Install TensorFlow and PyTest
+        run: pip install pytest tensorflow
 
-  #     - name: Install wheel
-  #       run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
+      - name: Install wheel
+        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*arm64*.whl
 
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  #     - name: Run tests
-  #       run: pytest -v -m "not gpu"
+      - name: Run tests
+        run: pytest -v -m "not gpu"
 
 
   # build_sdist:
