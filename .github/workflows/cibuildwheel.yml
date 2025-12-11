@@ -79,7 +79,8 @@ jobs:
       matrix:
         os: [macos-15-intel] # runner hardware is x86_64 (intel)
         # os: [macos-15] # runner hardware is arm64 (apple silicon)
-        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
+        py: [cp38, cp39, cp310, cp311, cp312, cp313]
+        # py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
@@ -90,10 +91,10 @@ jobs:
           - py: cp37
             cibw_version: '<3'
         exclude:
-          - py: cp36
-            # cibw_arch: arm64
-          - py: cp37
-            # cibw_arch: arm64
+          # - py: cp36
+          #   cibw_arch: arm64
+          # - py: cp37
+          #   cibw_arch: arm64
           # no tensorflow x86_64 wheels for python 3.13+
           - py: cp313
             cibw_arch: x86_64
