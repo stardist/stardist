@@ -77,7 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel] # runner hardware is x86_64 (intel)
+        os: [macos-14-large] # runner hardware is x86_64 (intel)
+        # macos-14-large uses clang 15. clang 17 causes problems with openmp?
         # os: [macos-15] # runner hardware is arm64 (apple silicon)
         py: [cp38, cp39, cp310, cp311, cp312, cp313]
         # py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
