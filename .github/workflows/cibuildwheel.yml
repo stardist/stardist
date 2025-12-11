@@ -77,8 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel] # runner hardware is x86_64 (intel)
-        # os: [macos-15] # runner hardware is arm64 (apple silicon) -> compiling c++ throws error
+        # os: [macos-15-intel] # runner hardware is x86_64 (intel)
+        os: [macos-15] # runner hardware is arm64 (apple silicon)
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         cibw_arch: [x86_64, arm64]
         include:
@@ -154,45 +154,45 @@ jobs:
           path: dist/*.whl
 
 
-  test_wheels_mac_arm64:
-    # test arm64 wheels for macOS using an arm64-based runner
-    name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
-    needs: [build_wheels_mac]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15] # runner hardware is arm64 (apple silicon)
-        arch: [arm64]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+  # test_wheels_mac_arm64:
+  #   # test arm64 wheels for macOS using an arm64-based runner
+  #   name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
+  #   needs: [build_wheels_mac]
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [macos-15] # runner hardware is arm64 (apple silicon)
+  #       arch: [arm64]
+  #       python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
 
-    steps:
-      - name: Download wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: cibw-*
-          path: dist
-          merge-multiple: true          
+  #   steps:
+  #     - name: Download wheels
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: cibw-*
+  #         path: dist
+  #         merge-multiple: true
 
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+  #     - name: Install Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+  #     - name: Upgrade pip
+  #       run: python -m pip install --upgrade pip
 
-      - name: Install TensorFlow and PyTest
-        run: pip install pytest tensorflow
+  #     - name: Install TensorFlow and PyTest
+  #       run: pip install pytest tensorflow
 
-      - name: Install wheel
-        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
+  #     - name: Install wheel
+  #       run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Run tests
-        run: pytest -v -m "not gpu"
+  #     - name: Run tests
+  #       run: pytest -v -m "not gpu"
 
 
   build_sdist:
@@ -212,30 +212,30 @@ jobs:
           path: dist/*.tar.gz
 
 
-  upload_pypi:
-    name: Upload to PyPI
-    needs: [build_wheels_linux_windows, test_wheels_mac_arm64, build_sdist]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - name: Download wheels and sdist
-        uses: actions/download-artifact@v4
-        with:
-          pattern: cibw-*
-          path: dist
-          merge-multiple: true          
+  # upload_pypi:
+  #   name: Upload to PyPI
+  #   needs: [build_wheels_linux_windows, test_wheels_mac_arm64, build_sdist]
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'release' && github.event.action == 'published'
+  #   steps:
+  #     - name: Download wheels and sdist
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: cibw-*
+  #         path: dist
+  #         merge-multiple: true
 
-      - name: Check that package version matches git tag ${{ github.ref_name }}
-        shell: bash
-        run: |
-          ls -l dist
-          test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
+  #     - name: Check that package version matches git tag ${{ github.ref_name }}
+  #       shell: bash
+  #       run: |
+  #         ls -l dist
+  #         test -f "dist/stardist-${{ github.ref_name }}.tar.gz"
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          # password: ${{ secrets.PYPI_API_TOKEN }}
-          verbose: true
-          password: ${{ secrets.TESTPYPI_API_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
+  #     - name: Publish to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         user: __token__
+  #         # password: ${{ secrets.PYPI_API_TOKEN }}
+  #         verbose: true
+  #         password: ${{ secrets.TESTPYPI_API_TOKEN }}
+  #         repository-url: https://test.pypi.org/legacy/
