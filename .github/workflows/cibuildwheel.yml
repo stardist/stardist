@@ -67,64 +67,18 @@ jobs:
   #         path: dist/*.whl
 
 
-  # x86_64 wheels: use GCC-13 (same as tests.yml) with MACOSX_DEPLOYMENT_TARGET=14.0
-  build_wheels_mac_x86_64:
-    name: Build ${{ matrix.py }}-x86_64 wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15-intel]
-        py: [cp38, cp39, cp310, cp311, cp312, cp313]
-        include:
-          - cibw_test_requires: 'pytest tensorflow'
-          - cibw_version: '>=3'
+  # ============================================================================
+  # arm64 wheels (listed first so they run first in the UI)
+  # ============================================================================
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install cibuildwheel
-        run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
-
-      - name: Build wheels for CPython (macOS x86_64)
-        run: python -m cibuildwheel --output-dir dist
-        env:
-          CIBW_BUILD: "${{ matrix.py }}-*"
-          CIBW_ARCHS_MACOS: x86_64
-          CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # GCC-13 works reliably with OpenMP on macOS, Homebrew libs require 14.0
-          CIBW_ENVIRONMENT: >-
-            CC=gcc-13
-            CXX=g++-13
-            MACOSX_DEPLOYMENT_TARGET=14.0
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-${{ matrix.py }}-${{ matrix.os }}-x86_64
-          path: dist/*.whl
-
-
-  # arm64 wheels: build on macos-14 with Homebrew GCC-13
+  # arm64 build: build wheels on macos-14 with Homebrew GCC-13
   build_wheels_mac_arm64:
-    name: Build ${{ matrix.py }}-arm64 wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.py }}-arm64 wheels
+    runs-on: macos-14
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14]  # ARM runner
         py: [cp38, cp39, cp310, cp311, cp312, cp313]
-        include:
-          - cibw_test_requires: 'pytest tensorflow'
-          - cibw_version: '>=3'
 
     steps:
       - name: Checkout repository
@@ -136,7 +90,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install cibuildwheel
-        run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
+        run: python -m pip install "cibuildwheel>=3"
 
       - name: Build wheels for CPython (macOS arm64)
         run: python -m cibuildwheel --output-dir dist
@@ -144,9 +98,7 @@ jobs:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: arm64
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
-          CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # Homebrew GCC-13 works reliably with OpenMP, libs require target 14.0
+          CIBW_TEST_SKIP: "*"
           CIBW_ENVIRONMENT: >-
             CC=gcc-13
             CXX=g++-13
@@ -155,11 +107,144 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-${{ matrix.py }}-${{ matrix.os }}-arm64
+          name: cibw-${{ matrix.py }}-macos-14-arm64
           path: dist/*.whl
 
+  # arm64 test: test wheels on macos-14
+  test_wheels_mac_arm64:
+    name: Test ${{ matrix.py }}-arm64 wheels
+    needs: build_wheels_mac_arm64
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        py: [cp38, cp39, cp310, cp311, cp312, cp313]
+        include:
+          - py: cp38
+            python-version: '3.8'
+          - py: cp39
+            python-version: '3.9'
+          - py: cp310
+            python-version: '3.10'
+          - py: cp311
+            python-version: '3.11'
+          - py: cp312
+            python-version: '3.12'
+          - py: cp313
+            python-version: '3.13'
 
-  # No separate test job needed - cibuildwheel tests on the build runner (macos-14)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: cibw-${{ matrix.py }}-macos-14-arm64
+          path: dist
+
+      - name: Install wheel and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest tensorflow
+          python -m pip install dist/*.whl
+
+      - name: Run tests
+        run: pytest -v -m "not gpu" .
+
+
+  # ============================================================================
+  # x86_64 wheels
+  # ============================================================================
+
+  # x86_64 build: use GCC-13 with MACOSX_DEPLOYMENT_TARGET=14.0
+  build_wheels_mac_x86_64:
+    name: Build ${{ matrix.py }}-x86_64 wheels
+    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        py: [cp38, cp39, cp310, cp311, cp312]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install cibuildwheel
+        run: python -m pip install "cibuildwheel>=3"
+
+      - name: Build wheels for CPython (macOS x86_64)
+        run: python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "${{ matrix.py }}-*"
+          CIBW_ARCHS_MACOS: x86_64
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_SKIP: "*"
+          CIBW_ENVIRONMENT: >-
+            CC=gcc-13
+            CXX=g++-13
+            MACOSX_DEPLOYMENT_TARGET=14.0
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: cibw-${{ matrix.py }}-macos-15-intel-x86_64
+          path: dist/*.whl
+
+  # x86_64 test: test wheels on macos-15-intel
+  test_wheels_mac_x86_64:
+    name: Test ${{ matrix.py }}-x86_64 wheels
+    needs: build_wheels_mac_x86_64
+    runs-on: macos-15-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        py: [cp38, cp39, cp310, cp311, cp312]
+        include:
+          - py: cp38
+            python-version: '3.8'
+          - py: cp39
+            python-version: '3.9'
+          - py: cp310
+            python-version: '3.10'
+          - py: cp311
+            python-version: '3.11'
+          - py: cp312
+            python-version: '3.12'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: cibw-${{ matrix.py }}-macos-15-intel-x86_64
+          path: dist
+
+      - name: Install wheel and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest tensorflow
+          python -m pip install dist/*.whl
+
+      - name: Run tests
+        run: pytest -v -m "not gpu" .
 
 
   # build_sdist:
