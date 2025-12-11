@@ -139,7 +139,7 @@ jobs:
           echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
 
           # Use conda-forge compilers instead of Homebrew llvm (avoids libunwind 14.0 target issue)
-          sudo "$CONDA_HOME/bin/conda" create -n build -y $OPENMP_URL compilers -c conda-forge
+          sudo "$CONDA_HOME/bin/conda" create -n build -y -c conda-forge compilers llvm-openmp=11.1.0
           PREFIX="$CONDA_HOME/envs/build"
           export CC=$PREFIX/bin/clang
           export CXX=$PREFIX/bin/clang++
