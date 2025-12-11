@@ -163,10 +163,12 @@ jobs:
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
           # Use fxcoudert's GCC which supports older deployment targets
+          # SDKROOT needed for GCC to find system headers (wchar.h, etc)
           CIBW_ENVIRONMENT: >-
             CC=/usr/local/gfortran/bin/gcc
             CXX=/usr/local/gfortran/bin/g++
             MACOSX_DEPLOYMENT_TARGET=12.0
+            SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
