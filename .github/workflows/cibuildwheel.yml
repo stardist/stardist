@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - wheels
+      - mw/wheels
   release:
     types:
       - published
@@ -80,9 +81,11 @@ jobs:
         os: [macos-15-intel] # runner hardware is x86_64 (intel)
         # macos-14(-large) uses clang 15. clang 17 causes problems with openmp?
         # os: [macos-15] # runner hardware is arm64 (apple silicon)
-        py: [cp38, cp39, cp310, cp311, cp312, cp313]
+        # py: [cp38, cp39, cp310, cp311, cp312, cp313]
+        py: [cp312]  # DEBUG: single version for faster iteration
         # py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
-        cibw_arch: [x86_64, arm64]
+        # cibw_arch: [x86_64, arm64]
+        cibw_arch: [x86_64]  # DEBUG: only x86_64 for now
         include:
           - cibw_test_requires: 'pytest tensorflow'
           # cibuildwheel 3.x only works with python 3.8+
@@ -165,45 +168,46 @@ jobs:
           path: dist/*.whl
 
 
-  test_wheels_mac_arm64:
-    # test arm64 wheels for macOS using an arm64-based runner
-    name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
-    needs: [build_wheels_mac]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15] # runner hardware is arm64
-        arch: [arm64]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
-
-    steps:
-      - name: Download wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: cibw-*
-          path: dist
-          merge-multiple: true
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Install TensorFlow and PyTest
-        run: pip install pytest tensorflow
-
-      - name: Install wheel
-        run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run tests
-        run: pytest -v -m "not gpu"
+  # DEBUG: disabled while only building x86_64
+  # test_wheels_mac_arm64:
+  #   # test arm64 wheels for macOS using an arm64-based runner
+  #   name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
+  #   needs: [build_wheels_mac]
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [macos-15] # runner hardware is arm64
+  #       arch: [arm64]
+  #       python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+  #
+  #   steps:
+  #     - name: Download wheels
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: cibw-*
+  #         path: dist
+  #         merge-multiple: true
+  #
+  #     - name: Install Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
+  #
+  #     - name: Upgrade pip
+  #       run: python -m pip install --upgrade pip
+  #
+  #     - name: Install TensorFlow and PyTest
+  #       run: pip install pytest tensorflow
+  #
+  #     - name: Install wheel
+  #       run: pip install ./dist/*cp$(echo "${{ matrix.python-version }}" | tr -d .)*${{ matrix.arch }}*.whl
+  #
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Run tests
+  #       run: pytest -v -m "not gpu"
 
 
   # build_sdist:
