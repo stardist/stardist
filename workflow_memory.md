@@ -51,3 +51,8 @@
 **Trade-off:**
 - Wheel requires macOS 14.0+ (Sonoma)
 - Users on older macOS must build from source
+
+## Next Steps
+- Full matrix build running (11 jobs: cp38-cp313 × x86_64+arm64)
+- If all pass, merge to `wheels` branch for final verification
+- Then create PR to main
