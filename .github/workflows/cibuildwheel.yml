@@ -114,8 +114,7 @@ jobs:
           path: dist/*.whl
 
 
-  # arm64 wheels: build on macos-14 with custom gfortran (like SciPy)
-  # Use gfortran from fxcoudert which supports older deployment targets
+  # arm64 wheels: build on macos-14 with Homebrew GCC-13
   build_wheels_mac_arm64:
     name: Build ${{ matrix.py }}-arm64 wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -141,18 +140,14 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
-      - name: Install custom GCC (supports older deployment targets)
+      - name: Check Homebrew GCC
         run: |
-          # Use GCC from fxcoudert (same as SciPy) - supports macOS 12+
-          # Includes gcc, g++, gfortran all built with older deployment targets
-          curl -L https://github.com/fxcoudert/gfortran-for-macOS/releases/download/12.1-monterey/gfortran-ARM-12.1-Monterey.dmg -o gfortran.dmg
-          hdiutil attach -mountpoint /Volumes/gfortran gfortran.dmg
-          sudo installer -pkg /Volumes/gfortran/gfortran.pkg -target /
-          hdiutil detach /Volumes/gfortran
-
-          # Verify installation - GCC installs to /usr/local/gfortran
-          ls -la /usr/local/gfortran/bin/
-          /usr/local/gfortran/bin/gcc --version
+          # Check what GCC versions are available
+          which gcc-13 || echo "gcc-13 not found"
+          gcc-13 --version || echo "gcc-13 version failed"
+          # Check library minimum targets
+          otool -l $(brew --prefix gcc)/lib/gcc/current/libgomp.dylib 2>/dev/null | grep -A2 LC_BUILD_VERSION || echo "No LC_BUILD_VERSION"
+          otool -l $(brew --prefix gcc)/lib/gcc/current/libgomp.dylib 2>/dev/null | grep -A2 LC_VERSION_MIN || echo "No LC_VERSION_MIN"
 
       - name: Build wheels for CPython (macOS arm64)
         run: python -m cibuildwheel --output-dir dist
@@ -162,14 +157,11 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # Use fxcoudert's GCC which supports older deployment targets
-          # SDKROOT needed for GCC to find system headers (wchar.h, etc)
-          # fxcoudert GCC 12.1 libs require target 12.3 minimum
+          # Try Homebrew GCC-13 on macos-14 - check what target it allows
           CIBW_ENVIRONMENT: >-
-            CC=/usr/local/gfortran/bin/gcc
-            CXX=/usr/local/gfortran/bin/g++
-            MACOSX_DEPLOYMENT_TARGET=12.3
-            SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+            CC=gcc-13
+            CXX=g++-13
+            MACOSX_DEPLOYMENT_TARGET=14.0
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
