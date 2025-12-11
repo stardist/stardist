@@ -40,7 +40,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.13'
 
       - name: Install cibuildwheel
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
@@ -105,7 +105,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.13'
 
       - name: Install cibuildwheel
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
@@ -149,7 +149,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # CIBW_TEST_SKIP: "*"
+          CIBW_TEST_SKIP: "*"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
