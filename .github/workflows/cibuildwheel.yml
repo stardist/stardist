@@ -51,8 +51,8 @@ jobs:
           # only build for platforms where tensorflow is available
           CIBW_BUILD: "${{ matrix.py }}-*{x86_64,win_amd64}"
           CIBW_SKIP: "*musllinux*"
-          # numba is a requirement and only has wheels for manylinux2014
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          # numba is a requirement and only has wheels for manylinux2014 (?)
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
@@ -77,8 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: [macos-15-intel] # runner hardware is x86_64 (intel)
-        os: [macos-15] # runner hardware is arm64 (apple silicon)
+        os: [macos-15-intel] # runner hardware is x86_64 (intel)
+        # os: [macos-15] # runner hardware is arm64 (apple silicon)
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         cibw_arch: [x86_64, arm64]
         include:
@@ -155,17 +155,17 @@ jobs:
           path: dist/*.whl
 
 
-  test_wheels_mac_x86_64:
-    # test x86_64 wheels for macOS using an x86_64-based runner
+  test_wheels_mac_arm64:
+    # test arm64 wheels for macOS using an arm64-based runner
     name: Test py${{ matrix.python-version }}-${{ matrix.arch }} wheels on ${{ matrix.os }}
     needs: [build_wheels_mac]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15-intel] # runner hardware is x86_64
-        arch: [x86_64]
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        os: [macos-15] # runner hardware is arm64
+        arch: [arm64]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Download wheels
