@@ -114,15 +114,15 @@ jobs:
           path: dist/*.whl
 
 
-  # arm64 wheels: build natively on macos-14 ARM runner with GCC-13
-  # macos-14 has Homebrew libs with lower deployment targets than macos-15
+  # arm64 wheels: build on macos-14 with custom gfortran (like SciPy)
+  # Use gfortran from fxcoudert which supports older deployment targets
   build_wheels_mac_arm64:
     name: Build ${{ matrix.py }}-arm64 wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14]  # ARM runner (has older Homebrew libs than macos-15)
+        os: [macos-14]  # ARM runner
         # Reduced matrix for debugging - restore after fix
         py: [cp312]
         include:
@@ -141,6 +141,19 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
+      - name: Install custom GCC (supports older deployment targets)
+        run: |
+          # Use GCC from fxcoudert (same as SciPy) - supports macOS 12+
+          # Includes gcc, g++, gfortran all built with older deployment targets
+          curl -L https://github.com/fxcoudert/gfortran-for-macOS/releases/download/12.1-monterey/gfortran-ARM-12.1-Monterey.dmg -o gfortran.dmg
+          hdiutil attach -mountpoint /Volumes/gfortran gfortran.dmg
+          sudo installer -pkg /Volumes/gfortran/gfortran.pkg -target /
+          hdiutil detach /Volumes/gfortran
+
+          # Verify installation - GCC installs to /usr/local/gfortran
+          ls -la /usr/local/gfortran/bin/
+          /usr/local/gfortran/bin/gcc --version
+
       - name: Build wheels for CPython (macOS arm64)
         run: python -m cibuildwheel --output-dir dist
         env:
@@ -149,10 +162,10 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # GCC-13 on macos-14 - check what deployment target the libs require
+          # Use fxcoudert's GCC which supports older deployment targets
           CIBW_ENVIRONMENT: >-
-            CC=gcc-13
-            CXX=g++-13
+            CC=/usr/local/gfortran/bin/gcc
+            CXX=/usr/local/gfortran/bin/g++
             MACOSX_DEPLOYMENT_TARGET=12.0
 
       - name: Upload wheels
