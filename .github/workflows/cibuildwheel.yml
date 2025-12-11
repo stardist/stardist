@@ -23,6 +23,11 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         include:
+          - cibw_version: '>=3'
+          - py: cp36
+            cibw_version: '<3'
+          - py: cp37
+            cibw_version: '<3'
           - cibw_test_requires: 'pytest tensorflow'
           - os: ubuntu-latest
             py: cp37
@@ -38,7 +43,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
+        run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
       - name: Build wheels for CPython (Linux and Windows)
         run: python -m cibuildwheel --output-dir dist
@@ -57,8 +62,8 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: dist-linux-windows-${{ matrix.py }}
-          path: ./dist/*.whl
+          name: cibw-${{ matrix.py }}-${{ matrix.os }}
+          path: dist/*.whl
 
 
   build_wheels_mac:
@@ -77,6 +82,11 @@ jobs:
         py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312, cp313]
         cibw_arch: [x86_64, arm64]
         include:
+          - cibw_version: '>=3'
+          - py: cp36
+            cibw_version: '<3'
+          - py: cp37
+            cibw_version: '<3'
           - cibw_test_requires: 'pytest tensorflow'
         exclude:
           - py: cp36
@@ -94,7 +104,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
+        run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
       - name: Install conda
         shell: bash
@@ -140,8 +150,8 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: dist-macos-${{ matrix.cibw_arch }}-${{ matrix.py }}
-          path: ./dist/*.whl
+          name: cibw-${{ matrix.py }}-${{ matrix.os }}-${{ matrix.cibw_arch }}
+          path: dist/*.whl
 
 
   test_wheels_mac_arm64:
@@ -158,10 +168,11 @@ jobs:
 
     steps:
       - name: Download wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: cibw-*
           path: dist
+          merge-multiple: true          
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -197,7 +208,7 @@ jobs:
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: dist-sdist
+          name: cibw-sdist
           path: dist/*.tar.gz
 
 
@@ -210,8 +221,8 @@ jobs:
       - name: Download wheels and sdist
         uses: actions/download-artifact@v4
         with:
+          pattern: cibw-*
           path: dist
-          pattern: dist-*
           merge-multiple: true          
 
       - name: Check that package version matches git tag ${{ github.ref_name }}
