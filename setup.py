@@ -16,7 +16,8 @@ class build_ext_openmp(build_ext):
     openmp_compile_args = {
         'msvc':  [['/openmp']],
         'intel': [['-qopenmp']],
-        '*':     [['-fopenmp'], ['-Xpreprocessor','-fopenmp']],
+        # '*':     [['-fopenmp'], ['-Xpreprocessor','-fopenmp']],
+        '*':     [['-fopenmp']],
     }
     openmp_link_args = openmp_compile_args # ?
 
