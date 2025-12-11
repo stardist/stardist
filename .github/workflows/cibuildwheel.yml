@@ -77,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14] # runner hardware is x86_64 (intel)
+        os: [macos-15-intel] # runner hardware is x86_64 (intel)
         # macos-14(-large) uses clang 15. clang 17 causes problems with openmp?
         # os: [macos-15] # runner hardware is arm64 (apple silicon)
         py: [cp38, cp39, cp310, cp311, cp312, cp313]
@@ -135,11 +135,16 @@ jobs:
           fi
           echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
 
+          brew info
+          brew install llvm@14
+          export CC=$(brew --prefix llvm@14)/bin/clang
+          export CXX=$(brew --prefix llvm@14)/bin/clang++
+
           # use conda to install llvm-openmp and use it for building
           sudo "$CONDA_HOME/bin/conda" create -n build $OPENMP_URL
           PREFIX="$CONDA_HOME/envs/build"
-          export CC=/usr/bin/clang
-          export CXX=/usr/bin/clang++
+          # export CC=/usr/bin/clang
+          # export CXX=/usr/bin/clang++
           export CFLAGS="$CFLAGS -I$PREFIX/include"
           export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
           export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
@@ -151,7 +156,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          CIBW_TEST_SKIP: "*"
+          # CIBW_TEST_SKIP: "*"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
