@@ -52,7 +52,14 @@
 - Wheel requires macOS 14.0+ (Sonoma)
 - Users on older macOS must build from source
 
+## Attempt 7: Fix CC/CXX environment for cibuildwheel
+- **Issue**: Full matrix build failed for x86_64 (arm64 passed)
+- **Root cause**: CC/CXX were exported in shell but not passed to cibuildwheel's isolated build environment
+- Logs showed cibuildwheel still using `/usr/local/opt/llvm@14/bin/clang++` instead of gcc-13
+- **Fix**: Use `CIBW_ENVIRONMENT` to pass CC, CXX, and MACOSX_DEPLOYMENT_TARGET to cibuildwheel
+- Reduced matrix to cp312 only for faster debugging
+
 ## Next Steps
-- Full matrix build running (11 jobs: cp38-cp313 × x86_64+arm64)
-- If all pass, merge to `wheels` branch for final verification
-- Then create PR to main
+- Verify cp312 × x86_64+arm64 both pass with CIBW_ENVIRONMENT fix
+- If pass, restore full matrix (cp38-cp313)
+- Then merge to `wheels` branch for final verification

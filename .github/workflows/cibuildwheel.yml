@@ -79,15 +79,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15-intel] # runner hardware is x86_64 (intel)
-        py: [cp38, cp39, cp310, cp311, cp312, cp313]
+        # Reduced matrix for debugging - restore after fix
+        py: [cp312]
         cibw_arch: [x86_64, arm64]
         include:
           - cibw_test_requires: 'pytest tensorflow'
           - cibw_version: '>=3'
-        exclude:
-          # no tensorflow x86_64 wheels for python 3.13+
-          - py: cp313
-            cibw_arch: x86_64
+        # exclude:
+        #   # no tensorflow x86_64 wheels for python 3.13+
+        #   - py: cp313
+        #     cibw_arch: x86_64
 
     steps:
       - name: Checkout repository
@@ -102,29 +103,19 @@ jobs:
         run: python -m pip install "cibuildwheel${{ matrix.cibw_version }}"
 
       - name: Build wheels for CPython (macOS)
-        run: |
-          if [[ "$CIBW_ARCHS_MACOS" == "arm64" ]]; then
-              # SciPy requires 12.0 on arm to prevent kernel panics
-              # https://github.com/scipy/scipy/issues/14688
-              export MACOSX_DEPLOYMENT_TARGET=12.0
-          else
-              # Homebrew GCC libs on macOS 15 require 14.0
-              export MACOSX_DEPLOYMENT_TARGET=14.0
-          fi
-          echo MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
-
-          # Use GCC-13 (same as tests.yml) - works reliably with OpenMP on macOS
-          export CC=gcc-13
-          export CXX=g++-13
-
-          python -m cibuildwheel --output-dir dist
+        run: python -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "${{ matrix.py }}-*"
           CIBW_ARCHS_MACOS: ${{ matrix.cibw_arch }}
           CIBW_BUILD_VERBOSITY: 1
           CIBW_TEST_REQUIRES: "${{ matrix.cibw_test_requires }}"
           CIBW_TEST_COMMAND: pytest -v -m "not gpu" {project}
-          # CIBW_TEST_SKIP: "*"
+          # Use GCC-13 (same as tests.yml) - works reliably with OpenMP on macOS
+          # MACOSX_DEPLOYMENT_TARGET: 14.0 for x86_64 (Homebrew GCC libs require it), 12.0 for arm64
+          CIBW_ENVIRONMENT: >-
+            CC=gcc-13
+            CXX=g++-13
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.cibw_arch == 'arm64' && '12.0' || '14.0' }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -143,7 +134,8 @@ jobs:
       matrix:
         os: [macos-15] # runner hardware is arm64
         arch: [arm64]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        # Reduced matrix for debugging - restore after fix
+        python-version: ['3.12']
 
     steps:
       - name: Download wheels
