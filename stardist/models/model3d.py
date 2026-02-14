@@ -201,6 +201,8 @@ class Config3D(BaseConfig):
         Batch size for training.
     train_tensorboard : bool
         Enable TensorBoard for monitoring training progress.
+    train_wandb_project : str or None
+        Set to a Weights & Biases project name to enable mirroring of TensorBoard logs.
     train_n_val_patches : int
         Number of patches to be extracted from validation images (``None`` = one patch per image).
     train_reduce_lr : dict
@@ -290,6 +292,7 @@ class Config3D(BaseConfig):
         self.train_batch_size          = 1
         self.train_n_val_patches       = None
         self.train_tensorboard         = True
+        self.train_wandb_project       = None
         # the parameter 'min_delta' was called 'epsilon' for keras<=2.1.5
         # keras.__version__ was removed in tensorflow 2.13.0
         min_delta_key = 'epsilon' if Version(getattr(keras, '__version__', '9.9.9'))<=Version('2.1.5') else 'min_delta'
@@ -576,12 +579,15 @@ class StarDist3D(StarDistBase):
                                                            n_images=3, prob_out=False, input_slices=input_slices, output_slices=output_slices))
 
         fit = self.keras_model.fit_generator if (IS_TF_1 and not IS_KERAS_3_PLUS) else self.keras_model.fit
-        history = fit(iter(self.data_train), validation_data=data_val,
-                      epochs=epochs, steps_per_epoch=steps_per_epoch,
-                      **fit_kwargs,
-                      callbacks=self.callbacks, verbose=1,
-                      # set validation batchsize to training batchsize (only works in tf 2.x)
-                      **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
+        try:
+            history = fit(iter(self.data_train), validation_data=data_val,
+                          epochs=epochs, steps_per_epoch=steps_per_epoch,
+                          **fit_kwargs,
+                          callbacks=self.callbacks, verbose=1,
+                          # set validation batchsize to training batchsize (only works in tf 2.x)
+                          **(dict(validation_batch_size = self.config.train_batch_size) if _tf_version_at_least("2.2.0") else {}))
+        finally:
+            self._wandb_finish()
         self._training_finished()
 
         return history

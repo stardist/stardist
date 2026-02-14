@@ -229,6 +229,7 @@ class StarDistBase(BaseModel):
 
     def __init__(self, config, name=None, basedir='.'):
         super().__init__(config=config, name=name, basedir=basedir)
+        self._wandb_run = None
         threshs = dict(prob=None, nms=None)
         if basedir is not None:
             try:
@@ -358,6 +359,8 @@ class StarDistBase(BaseModel):
                 else:
                     self.callbacks.append(TensorBoard(log_dir=str(self.logdir/'logs'), write_graph=False, profile_batch=0))
 
+        self._wandb_prepare()
+
         if self.config.train_reduce_lr is not None:
             rlrop_params = self.config.train_reduce_lr
             if 'verbose' not in rlrop_params:
@@ -366,6 +369,48 @@ class StarDistBase(BaseModel):
             self.callbacks.insert(0,ReduceLROnPlateau(**rlrop_params))
 
         self._model_prepared = True
+
+
+    def _wandb_prepare(self):
+        """Start optional W&B run that mirrors existing TensorBoard logs."""
+        project = getattr(self.config, 'train_wandb_project', None)
+        if not project or self._wandb_run is not None:
+            return
+
+        if self.basedir is None:
+            raise RuntimeError(
+                "W&B mirroring requires a model 'basedir' so TensorBoard logs can be written."
+            )
+        if not self.config.train_tensorboard:
+            raise RuntimeError(
+                "W&B mirroring requires 'train_tensorboard=True'."
+            )
+        try:
+            import wandb
+        except ImportError as e:
+            raise RuntimeError(
+                "W&B support requested via 'train_wandb_project', but 'wandb' is not installed.\n"
+                "Install it with: pip install wandb"
+            ) from e
+        logdir = str(self.logdir)
+        wandb.tensorboard.patch(root_logdir=str(self.logdir / 'logs'))
+        self._wandb_run = wandb.init(
+            project=str(project),
+            name=self.logdir.name,
+            dir=logdir,
+            config=vars(self.config),
+        )
+
+
+    def _wandb_finish(self):
+        """Finish active W&B run started by ``_wandb_prepare``."""
+        if self._wandb_run is None:
+            return
+        try:
+            import wandb
+            wandb.finish()
+        finally:
+            self._wandb_run = None
 
 
     def _predict_setup(self, img, axes, normalizer, n_tiles, show_tile_progress, predict_kwargs):
