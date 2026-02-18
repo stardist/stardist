@@ -9,7 +9,6 @@ import keras
 import numpy as np
 from csbdeep.utils import _raise, axes_check_and_normalize, normalize, save_json
 from packaging.version import Version
-from pkg_resources import get_distribution
 from typing_extensions import assert_never
 
 from .models.model2d import Config2D, StarDist2D
@@ -79,43 +78,6 @@ def _import(error=True):
     return metadata, ModelDescr, bioimageio.core, xr
 
 
-def _create_stardist_dependencies(outdir):
-    from ruamel.yaml import YAML
-    from tensorflow import __version__ as tf_version
-
-    from . import __version__ as stardist_version
-
-    pkg_info = get_distribution("stardist")
-    # dependencies that start with the name "bioimageio" will be added as conda dependencies
-    reqs_conda = [
-        f"{req.project_name}{req.specifier}"
-        for req in pkg_info.requires(extras=["bioimageio"])
-        if req.key.startswith("bioimageio")
-    ]
-    # only stardist and tensorflow as pip dependencies
-    v_tf = Version(tf_version)
-    reqs_pip = (
-        f"stardist>={stardist_version}",
-        f"tensorflow>={v_tf.major}.{v_tf.minor},<{v_tf.major + 1}",
-    )
-    # conda environment
-    env = dict(
-        name="stardist",
-        channels=["defaults", "conda-forge"],
-        dependencies=[
-            ("python>=3.7,<3.8" if v_tf.major == 1 else "python>=3.7"),
-            *reqs_conda,
-            "pip",
-            {"pip": reqs_pip},
-        ],
-    )
-    yaml = YAML(typ="safe")
-    path = outdir / "environment.yaml"
-    with open(path, "w") as f:
-        yaml.dump(env, f)
-    return f"conda:{path}"
-
-
 def _create_stardist_doc(outdir):
     doc_path = outdir / "README.md"
     text = (
@@ -128,7 +90,7 @@ def _create_stardist_doc(outdir):
     return doc_path
 
 
-def _get_stardist_metadata_legacy(outdir, model, generate_default_deps):
+def _get_stardist_metadata_legacy(outdir, model):
     metadata, *_ = _import()
     package_data = metadata("stardist")
     # doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
@@ -173,13 +135,11 @@ def _get_stardist_metadata_legacy(outdir, model, generate_default_deps):
         ],
         documentation=_create_stardist_doc(outdir),
     )
-    if generate_default_deps:  # only if requested, as not required for bioimage.io
-        data["dependencies"] = _create_stardist_dependencies(outdir)
 
     return data
 
 
-def _get_stardist_metadata(outdir, model, generate_default_deps):
+def _get_stardist_metadata(outdir, model):
     from bioimageio.spec.model.v0_5 import Author, CiteEntry, Doi, HttpUrl, LicenseId
     from importlib_metadata import metadata
 
@@ -221,8 +181,6 @@ def _get_stardist_metadata(outdir, model, generate_default_deps):
         ),
         documentation=_create_stardist_doc(outdir),
     )
-    if generate_default_deps:  # only if requested, as not required for bioimage.io
-        data["dependencies"] = _create_stardist_dependencies(outdir)
 
     return data
 
@@ -729,11 +687,10 @@ def export_bioimageio(
     test_input_axes=None,
     test_input_norm_axes="ZYX",
     name=None,
-    mode="tensorflow_saved_model_bundle",
+    mode="keras",
     min_percentile=1.0,
     max_percentile=99.8,
     overwrite_spec_kwargs=None,
-    generate_default_deps=False,
     upsample_grid=True,
 ):
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
@@ -763,10 +720,6 @@ def export_bioimageio(
         max percentile to be used for image normalization (default: 99.8)
     overwrite_spec_kwargs: dict or None
         spec keywords that should be overloaded (default: None)
-    generate_default_deps: bool
-        not required for bioimage.io, i.e. StarDist models don't need a dependencies field in rdf.yaml (default: False)
-        if True, generate an environment.yaml file recording the python, bioimageio.core, stardist and tensorflow requirements
-        from which a conda environment can be recreated to run this export
     """
     from bioimageio.spec import save_bioimageio_package
 
@@ -794,7 +747,7 @@ def export_bioimageio(
 
     with tempfile.TemporaryDirectory() as _tmp_dir:
         tmp_dir = Path(_tmp_dir)
-        kwargs = _get_stardist_metadata(tmp_dir, model, generate_default_deps)
+        kwargs = _get_stardist_metadata(tmp_dir, model)
         model_kwargs = _get_weights_and_model_metadata(
             tmp_dir,
             model,
