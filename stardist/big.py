@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 import math
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from skimage.measure import regionprops
 from skimage.draw import polygon
 from csbdeep.utils import _raise, axes_check_and_normalize, axes_dict

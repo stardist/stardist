@@ -8,7 +8,7 @@ Command line script to perform prediction in 3D
 import os
 import sys
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import json 
 import argparse
 import pprint 

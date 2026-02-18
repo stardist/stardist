@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 import os
 import datetime
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from collections import defaultdict
 from zipfile import ZipFile, ZIP_DEFLATED
 from scipy.ndimage import distance_transform_edt, binary_fill_holes
