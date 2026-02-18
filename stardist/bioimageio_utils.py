@@ -1,19 +1,17 @@
+import copy
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Union
-from zipfile import ZipFile, is_zipfile
-import copy
-import keras
-import tensorflow as tf
+from zipfile import ZipFile
 
+import keras
 import numpy as np
-from csbdeep.utils import _raise, axes_check_and_normalize, normalize
+from csbdeep.utils import _raise, axes_check_and_normalize, normalize, save_json
 from packaging.version import Version
 from pkg_resources import get_distribution
 from typing_extensions import assert_never
 
-import shutil
-from csbdeep.utils import save_json
 from .models.model2d import Config2D, StarDist2D
 from .models.model3d import Config3D, StarDist3D
 
@@ -98,7 +96,7 @@ def _create_stardist_dependencies(outdir):
     v_tf = Version(tf_version)
     reqs_pip = (
         f"stardist>={stardist_version}",
-        f"tensorflow>={v_tf.major}.{v_tf.minor},<{v_tf.major+1}",
+        f"tensorflow>={v_tf.major}.{v_tf.minor},<{v_tf.major + 1}",
     )
     # conda environment
     env = dict(
@@ -180,37 +178,48 @@ def _get_stardist_metadata_legacy(outdir, model, generate_default_deps):
 
     return data
 
+
 def _get_stardist_metadata(outdir, model, generate_default_deps):
     from bioimageio.spec.model.v0_5 import Author, CiteEntry, Doi, HttpUrl, LicenseId
     from importlib_metadata import metadata
 
     package_data = metadata("stardist")
-    
+
     data = dict(
-        authors = [Author(name="Martin Weigert", github_user="maweigert"),
-                Author(name="Uwe Schmidt", github_user="uschmidt83")],
-        git_repo = HttpUrl(package_data["Home-Page"]),
-        license=LicenseId(package_data["License"]),
-        cite = [
-            CiteEntry(text="Cell Detection with Star-Convex Polygons", doi=Doi("10.1007/978-3-030-00934-2_30")),
-            CiteEntry(text="Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy", doi=Doi("10.1109/WACV45572.2020.9093435"))
+        authors=[
+            Author(name="Martin Weigert", github_user="maweigert"),
+            Author(name="Uwe Schmidt", github_user="uschmidt83"),
         ],
-        tags = [
-                "fluorescence-light-microscopy",
-                "whole-slide-imaging",
-                "other",  # modality
-                f"{model.config.n_dim}d",  # dims
-                "cells",
-                "nuclei",  # content
-                "tensorflow",  # framework
-                "fiji",  # software
-                "unet",  # network
-                "instance-segmentation",
-                "object-detection",  # task
-                "stardist",
-            ],
-        covers = HttpUrl("https://raw.githubusercontent.com/stardist/stardist/main/images/stardist_logo.jpg"),
-        documentation = _create_stardist_doc(outdir)
+        git_repo=HttpUrl(package_data["Home-Page"]),
+        license=LicenseId(package_data["License"]),
+        cite=[
+            CiteEntry(
+                text="Cell Detection with Star-Convex Polygons",
+                doi=Doi("10.1007/978-3-030-00934-2_30"),
+            ),
+            CiteEntry(
+                text="Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy",
+                doi=Doi("10.1109/WACV45572.2020.9093435"),
+            ),
+        ],
+        tags=[
+            "fluorescence-light-microscopy",
+            "whole-slide-imaging",
+            "other",  # modality
+            f"{model.config.n_dim}d",  # dims
+            "cells",
+            "nuclei",  # content
+            "tensorflow",  # framework
+            "fiji",  # software
+            "unet",  # network
+            "instance-segmentation",
+            "object-detection",  # task
+            "stardist",
+        ],
+        covers=HttpUrl(
+            "https://raw.githubusercontent.com/stardist/stardist/main/images/stardist_logo.jpg"
+        ),
+        documentation=_create_stardist_doc(outdir),
     )
     if generate_default_deps:  # only if requested, as not required for bioimage.io
         data["dependencies"] = _create_stardist_dependencies(outdir)
@@ -256,12 +265,12 @@ def _predict_tf(model_path, test_input):
 
 #     def call(self, inputs):
 #         return tf.maximum(inputs, self.min_val)
-    
+
 #     def get_config(self):
 #         config = super().get_config()
 #         config.update({"min_dist_val": self.min_val})
 #         return config
-    
+
 #     @classmethod
 #     def from_config(cls, config):
 #         return cls(**config)
@@ -293,9 +302,9 @@ def _get_weights_and_model_metadata(
 ):
 
     # Additional Maximum layer to avoid small dist values to prevent problems with Qhull (taken from _predict_generator() base.py).
-    
+
     model_sd = copy.copy(model)
-    
+
     outputs = model_sd.keras_model.outputs
 
     prob_output = outputs[0]
@@ -303,11 +312,12 @@ def _get_weights_and_model_metadata(
 
     subtract_threshold = keras.layers.Lambda(lambda x: x - 1e-3)(dist_output)
     relu_layer = keras.layers.ReLU()(subtract_threshold)
-    dist_output_processed = keras.layers.Lambda(lambda x: x + 1e-3, name="dist_processed")(relu_layer)
+    dist_output_processed = keras.layers.Lambda(
+        lambda x: x + 1e-3, name="dist_processed"
+    )(relu_layer)
 
     model_sd.keras_model = keras.Model(
-            inputs=model_sd.keras_model.input,
-            outputs=[prob_output, dist_output_processed]
+        inputs=model_sd.keras_model.input, outputs=[prob_output, dist_output_processed]
     )
 
     # get the path to the exported model assets (saved in outdir)
@@ -320,7 +330,9 @@ def _get_weights_and_model_metadata(
     elif mode == "tensorflow_saved_model_bundle":
         assets_uri = outdir / "TF_SavedModel.zip"
         model_csbdeep = model_sd.export_TF(
-            assets_uri, single_output=True, upsample_grid=upsample_grid
+            assets_uri,
+            single_output=True,
+            upsample_grid=upsample_grid,
             # assets_uri, single_output=True, upsample_grid=True
         )
     else:
@@ -385,18 +397,18 @@ def _get_weights_and_model_metadata(
 
     elif mode == "keras_v3":
         # import keras
-        if not hasattr(keras, "__version__") or Version(keras.__version__) < Version("3.0.0"):
-            raise NotImplementedError(
-                "Keras v3 export requires Keras 3.0.0 or higher"
-            )
-    
+        if not hasattr(keras, "__version__") or Version(keras.__version__) < Version(
+            "3.0.0"
+        ):
+            raise NotImplementedError("Keras v3 export requires Keras 3.0.0 or higher")
+
         input_names = ["input"]
         output_names = ["output"]
         output_n_channels = (1 + model.config.n_rays,)
 
         output_scale = [1] * (ndim_tensor)
         output_scale[output_axes.index("c")] = 0
-        
+
         output_offset = [0.0] * (ndim_tensor)
         output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
 
@@ -418,9 +430,9 @@ def _get_weights_and_model_metadata(
         output_offset = [0.0] * (ndim_tensor)
         output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
 
-    assert all(
-        s in (0, 1) for s in output_scale
-    ), "halo computation assumption violated"
+    assert all(s in (0, 1) for s in output_scale), (
+        "halo computation assumption violated"
+    )
     halo = model._axes_tile_overlap(output_axes.replace("b", "s"))
     halo = [
         int(np.ceil(v / 8) * 8) for v in halo
@@ -538,7 +550,7 @@ def _get_weights_and_model_metadata(
 
 def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     """Build a bioimage.io model using the ModelDescr specification.
-    
+
     Parameters
     ----------
     name: str
@@ -552,29 +564,45 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     """
 
     from bioimageio.spec.model.v0_5 import (
-        ModelDescr, InputTensorDescr, OutputTensorDescr,
-        BatchAxis, ChannelAxis, SpaceInputAxis, SpaceOutputAxisWithHalo,
-        AxisId, TensorId, Identifier, ParameterizedSize,
-        IntervalOrRatioDataDescr, FileDescr, SizeReference, WeightsDescr,
-        Version, TensorflowSavedModelBundleWeightsDescr,
+        AxisId,
+        BatchAxis,
+        ChannelAxis,
+        FileDescr,
+        Identifier,
+        InputTensorDescr,
+        IntervalOrRatioDataDescr,
+        ModelDescr,
+        OutputTensorDescr,
+        ParameterizedSize,
+        SizeReference,
+        SpaceInputAxis,
+        SpaceOutputAxisWithHalo,
+        TensorflowSavedModelBundleWeightsDescr,
+        TensorId,
+        Version,
+        WeightsDescr,
     )
-    
+
     # Extract config information
-    stardist_config = kwargs.get('config', {}).get('stardist', {}).get('config', {})
-    n_rays = stardist_config.get('n_rays', {})
-    halo = kwargs.get('halo', {})[0] # list
-    grid = stardist_config.get('grid', {}) #. tuple
-    n_dim = stardist_config.get('n_dim', {}) # 2D or 3D
+    stardist_config = kwargs.get("config", {}).get("stardist", {}).get("config", {})
+    n_rays = stardist_config.get("n_rays", {})
+    halo = kwargs.get("halo", {})[0]  # list
+    grid = stardist_config.get("grid", {})  # . tuple
+    n_dim = stardist_config.get("n_dim", {})  # 2D or 3D
 
-    upsample_grid = kwargs.get('upsample_grid', True)
+    upsample_grid = kwargs.get("upsample_grid", True)
 
-    min_size_y = kwargs.get('input_min_shape', {})[0][1]
-    min_size_x = kwargs.get('input_min_shape', {})[0][2]
-    step_y = kwargs.get('input_step', {})[0][1]
-    step_x = kwargs.get('input_step', {})[0][2]
+    min_size_y = kwargs.get("input_min_shape", {})[0][1]
+    min_size_x = kwargs.get("input_min_shape", {})[0][2]
+    step_y = kwargs.get("input_step", {})[0][1]
+    step_x = kwargs.get("input_step", {})[0][2]
 
-    n_channels_in = stardist_config.get('n_channel_in', {})
-    channel_names_in = [f"input_{i:02d}" for i in range(n_channels_in)] if n_channels_in > 1 else ["input"]
+    n_channels_in = stardist_config.get("n_channel_in", {})
+    channel_names_in = (
+        [f"input_{i:02d}" for i in range(n_channels_in)]
+        if n_channels_in > 1
+        else ["input"]
+    )
     # n_channels_out = stardist_config.get('n_channel_out', {})
     channel_names_out = ["prob"] + [f"dist_{i:02d}" for i in range(n_rays)]
 
@@ -582,19 +610,19 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     is_2d = n_dim == 2
 
     # Build input tensor description
-    axes = stardist_config.get('axes', {})
-    spatial_axes = [axis.lower() for axis in axes if axis in 'ZYX']
+    axes = stardist_config.get("axes", {})
+    spatial_axes = [axis.lower() for axis in axes if axis in "ZYX"]
     grid_indices = list(range(len(spatial_axes)))
-    min_in_shape = kwargs.get('input_min_shape', {})[0] # list
-    steps = kwargs.get('input_step', {})[0] # list
+    min_in_shape = kwargs.get("input_min_shape", {})[0]  # list
+    steps = kwargs.get("input_step", {})[0]  # list
 
     spatial_input_axes = []
     for i, axis_name in enumerate(spatial_axes):
         spatial_input_axes.append(
             SpaceInputAxis(
                 id=AxisId(axis_name),
-                size=ParameterizedSize(min=min_in_shape[i+1], step=steps[i+1]),
-                scale=grid[grid_indices[i]] if not upsample_grid else 1
+                size=ParameterizedSize(min=min_in_shape[i + 1], step=steps[i + 1]),
+                scale=grid[grid_indices[i]] if not upsample_grid else 1,
             )
         )
 
@@ -604,11 +632,15 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
             axes=[
                 BatchAxis(),
                 *spatial_input_axes,
-                ChannelAxis(channel_names=[Identifier(name) for name in channel_names_in]),
+                ChannelAxis(
+                    channel_names=[Identifier(name) for name in channel_names_in]
+                ),
             ],
             data=IntervalOrRatioDataDescr(type="float32"),
             test_tensor=FileDescr(source=(datapath / "test_input.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_input_0.tif")) if (datapath / "sample_input_0.tif").exists() else None,
+            sample_tensor=FileDescr(source=(datapath / "sample_input_0.tif"))
+            if (datapath / "sample_input_0.tif").exists()
+            else None,
         )
     ]
 
@@ -618,9 +650,13 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
         spatial_output_axes.append(
             SpaceOutputAxisWithHalo(
                 id=AxisId(axis_name),
-                halo=halo[i+1] if not upsample_grid else halo[i+1] / grid[grid_indices[i]],
-                size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId(axis_name)),
-                scale=grid[grid_indices[i]] if not upsample_grid else 1
+                halo=halo[i + 1]
+                if not upsample_grid
+                else halo[i + 1] / grid[grid_indices[i]],
+                size=SizeReference(
+                    tensor_id=TensorId("raw"), axis_id=AxisId(axis_name)
+                ),
+                scale=grid[grid_indices[i]] if not upsample_grid else 1,
             )
         )
 
@@ -630,10 +666,14 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
             axes=[
                 BatchAxis(),
                 *spatial_output_axes,
-                ChannelAxis(channel_names=[Identifier(name) for name in channel_names_out]),
+                ChannelAxis(
+                    channel_names=[Identifier(name) for name in channel_names_out]
+                ),
             ],
             test_tensor=FileDescr(source=(datapath / "test_output.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_output_0.tif")) if (datapath / "sample_output_0.tif").exists() else None,
+            sample_tensor=FileDescr(source=(datapath / "sample_output_0.tif"))
+            if (datapath / "sample_output_0.tif").exists()
+            else None,
         )
     ]
 
@@ -647,8 +687,8 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
     #     )
     # else:
     tensorflow_saved_model_bundle_weights = TensorflowSavedModelBundleWeightsDescr(
-        source=str(kwargs.get('weight_uri')),
-        tensorflow_version=Version(kwargs.get('tensorflow_version')),
+        source=str(kwargs.get("weight_uri")),
+        tensorflow_version=Version(kwargs.get("tensorflow_version")),
     )
 
     weights = WeightsDescr(
@@ -657,23 +697,21 @@ def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
 
     # Attachments
     attachments = []
-    if kwargs.get('attachments').get('files'):
-        for file_path in kwargs['attachments']['files']:
-            attachments.append(FileDescr(
-                source=str(file_path)
-            ))
+    if kwargs.get("attachments").get("files"):
+        for file_path in kwargs["attachments"]["files"]:
+            attachments.append(FileDescr(source=str(file_path)))
 
     # Create model description
     model = ModelDescr(
         name=name,
-        description=kwargs.get('description', 'StarDist model'),
-        documentation=kwargs.get('documentation', None),
-        authors=kwargs.get('authors', []),
-        cite=kwargs.get('cite', []),
-        license=kwargs.get('license', []),
-        git_repo=kwargs.get('git_repo', 'https://github.com/stardist/stardist'),
-        tags=kwargs.get('tags', ['instance-segmentation', 'stardist']),
-        config=kwargs.get('config', {}),
+        description=kwargs.get("description", "StarDist model"),
+        documentation=kwargs.get("documentation", None),
+        authors=kwargs.get("authors", []),
+        cite=kwargs.get("cite", []),
+        license=kwargs.get("license", []),
+        git_repo=kwargs.get("git_repo", "https://github.com/stardist/stardist"),
+        tags=kwargs.get("tags", ["instance-segmentation", "stardist"]),
+        config=kwargs.get("config", {}),
         inputs=model_inputs,
         outputs=model_outputs,
         weights=weights,
@@ -775,6 +813,7 @@ def export_bioimageio(
         # bioimageio.core < 0.6.0 (legacy models)
         try:
             from bioimageio.core import build_model as _build_model_legacy
+
             model = _build_model_legacy(
                 name=name,
                 outpath=zip_path,
@@ -787,11 +826,8 @@ def export_bioimageio(
         # bioimageio.core >= 0.6.0
         except ImportError:
             model = _build_model(
-                name=name,
-                outpath=zip_path,
-                datapath=datapath,
-                mode=mode,
-                **kwargs)
+                name=name, outpath=zip_path, datapath=datapath, mode=mode, **kwargs
+            )
             print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
 
         save_bioimageio_package(model, output_path=outpath)
@@ -818,6 +854,7 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     """
 
     from io import BytesIO
+
     try:
         from bioimageio.spec import load_model_description
         from bioimageio.spec.model import v0_4, v0_5
@@ -839,7 +876,7 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
             stardist_config = biomodel.config.stardist
     else:
         assert_never(biomodel)
-    
+
     if stardist_config is None:
         raise RuntimeError("bioimage.io model not compatible, no stardist config found")
 
@@ -876,22 +913,31 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     save_json(config, str(outpath / "config.json"))
     save_json(thresholds, str(outpath / "thresholds.json"))
 
-    _has_keras_hdf5 = isinstance(biomodel, v0_4.ModelDescr or v0_5.ModelDescr) and hasattr(biomodel.weights, "keras_hdf5") and biomodel.weights.keras_hdf5 is not None
+    _has_keras_hdf5 = (
+        isinstance(biomodel, v0_4.ModelDescr or v0_5.ModelDescr)
+        and hasattr(biomodel.weights, "keras_hdf5")
+        and biomodel.weights.keras_hdf5 is not None
+    )
 
     # if _has_keras_hdf5:
     #     # extract .keras file for keras_v3 models
     #     with ZipFile(source) as source_zip:
     #         source_zip.extract(str(weights_source), outpath)
     # else:
-        # copy h5 weights for legacy models
-    with BytesIO(get_reader(weights_source).read()) as f, (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
+    # copy h5 weights for legacy models
+    with (
+        BytesIO(get_reader(weights_source).read()) as f,
+        (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f,
+    ):
         shutil.copyfileobj(f, out_f)
         # with download(weights_source).path.open(mode="rb") as f, (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
         #     shutil.copyfileobj(f, out_f)
 
     model_config = Config2D(**config) if config["n_dim"] == 2 else Config3D(**config)
     model_class = StarDist2D if config["n_dim"] == 2 else StarDist3D
-    model = model_class(name=outpath.name, basedir=str(outpath.parent), config=model_config)
+    model = model_class(
+        name=outpath.name, basedir=str(outpath.parent), config=model_config
+    )
 
     # automatically load weights
     # if _has_keras_hdf5:
@@ -899,11 +945,11 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     #         import keras
     #     except ImportError:
     #         raise ImportError("Keras v3 export requires Keras 3.0.0 or higher")
-        
+
     #     keras_file = outpath / str(weights_source)
     #     if not keras_file.exists():
     #         raise FileNotFoundError(f"Keras model file '{weights_source}' not found'")
-        
+
     #     _keras_model = keras.models.load_model(keras_file)
     #     model.keras_model.set_weights(_keras_model.get_weights())
     # else:
