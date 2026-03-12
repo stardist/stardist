@@ -1,18 +1,41 @@
-import copy
 import shutil
 import tempfile
+import warnings
+from io import BytesIO
 from pathlib import Path
-from typing import Union
-from zipfile import ZipFile
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
-import keras
 import numpy as np
-from csbdeep.utils import _raise, axes_check_and_normalize, normalize, save_json
-from packaging.version import Version
-from typing_extensions import assert_never
+from csbdeep.data import PercentileNormalizer
+from csbdeep.utils import save_json
+from csbdeep.utils.tf import IS_KERAS_3_PLUS, IS_TF_1, export_SavedModel
 
 from .models.model2d import Config2D, StarDist2D
 from .models.model3d import Config3D, StarDist3D
+
+if TYPE_CHECKING:
+    from typing import TypedDict
+
+    import keras.models
+    from bioimageio.core import Tensor
+    from bioimageio.spec.model.v0_5 import Author, SpaceUnit
+    from numpy.typing import NDArray
+    from typing_extensions import Literal, NotRequired
+
+    class _AuthorDict(TypedDict):
+        name: str
+        github_user: NotRequired[Optional[str]]
+        affiliation: NotRequired[Optional[str]]
+        email: NotRequired[Optional[str]]
+
 
 DEEPIMAGEJ_MACRO = """
 //*******************************************************************
@@ -58,641 +81,33 @@ run("Command From Macro", "command=[de.csbdresden.stardist.StarDist2DNMS], args=
 """
 
 _BIOIMAGEIO_LIBRARIES_ARE_MISSING = (
-    "Required libraries are missing for bioimage.io model export.\n"
+    "Required libraries are missing for bioimage.io model export/import.\n"
     "Please install StarDist as follows: pip install 'stardist[bioimageio]'\n"
     "(You do not need to uninstall StarDist first.)"
 )
 
 
-def _import(error=True):
-    try:
-        import bioimageio.core
-        import xarray as xr
-        from bioimageio.spec.model.v0_5 import ModelDescr
-        from importlib_metadata import metadata
-    except ImportError:
-        if error:
-            raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING)
-        else:
-            return None
-    return metadata, ModelDescr, bioimageio.core, xr
-
-
-def _create_stardist_doc(outdir):
-    doc_path = outdir / "README.md"
-    text = (
-        "# StarDist Model\n"
-        "This is a model for object detection with star-convex shapes.\n"
-        "Please see the [StarDist repository](https://github.com/stardist/stardist) for details."
-    )
-    with open(doc_path, "w") as f:
-        f.write(text)
-    return doc_path
-
-
-def _get_stardist_metadata_legacy(outdir, model):
-    metadata, *_ = _import()
-    package_data = metadata("stardist")
-    # doi_2d = "https://doi.org/10.1007/978-3-030-00934-2_30"
-    # doi_3d = "https://doi.org/10.1109/WACV45572.2020.9093435"
-    doi_2d = "10.1007/978-3-030-00934-2_30"
-    doi_3d = "10.1109/WACV45572.2020.9093435"
-    authors = {
-        "Martin Weigert": dict(name="Martin Weigert", github_user="maweigert"),
-        "Uwe Schmidt": dict(name="Uwe Schmidt", github_user="uschmidt83"),
-    }
-    data = dict(
-        description=package_data["Summary"],
-        authors=list(
-            authors.get(name.strip(), dict(name=name.strip()))
-            for name in package_data["Author"].split(",")
-        ),
-        git_repo=package_data["Home-Page"],
-        license=package_data["License"],
-        cite=[
-            {"text": "Cell Detection with Star-Convex Polygons", "doi": doi_2d},
-            {
-                "text": "Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy",
-                "doi": doi_3d,
-            },
-        ],
-        tags=[
-            "fluorescence-light-microscopy",
-            "whole-slide-imaging",
-            "other",  # modality
-            f"{model.config.n_dim}d",  # dims
-            "cells",
-            "nuclei",  # content
-            "tensorflow",  # framework
-            "fiji",  # software
-            "unet",  # network
-            "instance-segmentation",
-            "object-detection",  # task
-            "stardist",
-        ],
-        covers=[
-            "https://raw.githubusercontent.com/stardist/stardist/main/images/stardist_logo.jpg"
-        ],
-        documentation=_create_stardist_doc(outdir),
-    )
-
-    return data
-
-
-def _get_stardist_metadata(outdir, model):
-    from bioimageio.spec.model.v0_5 import Author, CiteEntry, Doi, HttpUrl, LicenseId
-    from importlib_metadata import metadata
-
-    package_data = metadata("stardist")
-
-    data = dict(
-        authors=[
-            Author(name="Martin Weigert", github_user="maweigert"),
-            Author(name="Uwe Schmidt", github_user="uschmidt83"),
-        ],
-        git_repo=HttpUrl(package_data["Home-Page"]),
-        license=LicenseId(package_data["License"]),
-        cite=[
-            CiteEntry(
-                text="Cell Detection with Star-Convex Polygons",
-                doi=Doi("10.1007/978-3-030-00934-2_30"),
-            ),
-            CiteEntry(
-                text="Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy",
-                doi=Doi("10.1109/WACV45572.2020.9093435"),
-            ),
-        ],
-        tags=[
-            "fluorescence-light-microscopy",
-            "whole-slide-imaging",
-            "other",  # modality
-            f"{model.config.n_dim}d",  # dims
-            "cells",
-            "nuclei",  # content
-            "tensorflow",  # framework
-            "fiji",  # software
-            "unet",  # network
-            "instance-segmentation",
-            "object-detection",  # task
-            "stardist",
-        ],
-        covers=HttpUrl(
-            "https://raw.githubusercontent.com/stardist/stardist/main/images/stardist_logo.jpg"
-        ),
-        documentation=_create_stardist_doc(outdir),
-    )
-
-    return data
-
-
-def _predict_tf(model_path, test_input):
-    import tensorflow as tf
-    from csbdeep.utils.tf import IS_TF_1
-
-    # need to unzip the model assets
-    model_assets = model_path.parent / "tf_model"
-    with ZipFile(model_path, "r") as f:
-        f.extractall(model_assets)
-    if IS_TF_1:
-        # make a new graph, i.e. don't use the global default graph
-        with tf.Graph().as_default():
-            with tf.Session() as sess:
-                tf_model = tf.saved_model.load_v2(str(model_assets))
-                x = tf.convert_to_tensor(test_input, dtype=tf.float32)
-                model = tf_model.signatures["serving_default"]
-                y = model(x)
-                sess.run(tf.global_variables_initializer())
-                output = sess.run(y["output"])
-    else:
-        tf_model = tf.saved_model.load(str(model_assets))
-        x = tf.convert_to_tensor(test_input, dtype=tf.float32)
-        model = tf_model.signatures["serving_default"]
-        y = model(x)
-        output = y["output"].numpy()
-    return output
-
-
-# Additional Maximum layer to avoid small dist values to prevent problems with Qhull (taken from _predict_generator() base.py).
-
-# @keras.saving.register_keras_serializable(name="MaximumDistLayer", package="stardist")
-# class MaximumDistLayer(keras.layers.Layer):
-#     """Distance activation layer to avoid small dist values that cause problems with Qhull."""
-#     def __init__(self, min_dist_val=1e-3, **kwargs):
-#         super().__init__(**kwargs)
-#         self.min_val = float(min_dist_val)
-
-#     def call(self, inputs):
-#         return tf.maximum(inputs, self.min_val)
-
-#     def get_config(self):
-#         config = super().get_config()
-#         config.update({"min_dist_val": self.min_val})
-#         return config
-
-#     @classmethod
-#     def from_config(cls, config):
-#         return cls(**config)
-
-
-# try:
-#     # Keras 3.x.x and newer TensorFlow versions
-#     if hasattr(keras.saving, 'register_keras_serializable'):
-#         keras.saving.register_keras_serializable(name="MaximumDistLayer", package="stardist")(MaximumDistLayer)
-#     elif hasattr(keras.utils, 'register_keras_serializable'):
-#         keras.utils.register_keras_serializable(name="MaximumDistLayer", package="stardist")(MaximumDistLayer)
-#     else:
-#         # Fallback for older versions
-#         keras.utils.get_custom_objects()["MaximumDistLayer"] = MaximumDistLayer
-# except AttributeError:
-#     pass
-
-
-def _get_weights_and_model_metadata(
-    outdir,
-    model,
-    test_input,
-    test_input_axes,
-    test_input_norm_axes,
-    mode,
-    min_percentile,
-    max_percentile,
-    upsample_grid=True,
-):
-
-    # Additional Maximum layer to avoid small dist values to prevent problems with Qhull (taken from _predict_generator() base.py).
-
-    model_sd = copy.copy(model)
-
-    outputs = model_sd.keras_model.outputs
-
-    prob_output = outputs[0]
-    dist_output = outputs[1]
-
-    subtract_threshold = keras.layers.Lambda(lambda x: x - 1e-3)(dist_output)
-    relu_layer = keras.layers.ReLU()(subtract_threshold)
-    dist_output_processed = keras.layers.Lambda(
-        lambda x: x + 1e-3, name="dist_processed"
-    )(relu_layer)
-
-    model_sd.keras_model = keras.Model(
-        inputs=model_sd.keras_model.input, outputs=[prob_output, dist_output_processed]
-    )
-
-    # get the path to the exported model assets (saved in outdir)
-    if mode == "keras_hdf5":
-        raise NotImplementedError("Export to keras format is not supported yet")
-    elif mode == "keras_v3":
-        assets_uri = outdir / "model.keras"
-        model_keras = model_sd.keras_model
-        model_keras.save(assets_uri)
-    elif mode == "tensorflow_saved_model_bundle":
-        assets_uri = outdir / "TF_SavedModel.zip"
-        model_csbdeep = model_sd.export_TF(
-            assets_uri,
-            single_output=True,
-            upsample_grid=upsample_grid,
-            # assets_uri, single_output=True, upsample_grid=True
-        )
-    else:
-        raise ValueError(f"Unsupported mode: {mode}")
-
-    # to force "inputs.data_type: float32" in the spec (bonus: disables normalization warning in model._predict_setup)
-    test_input = test_input.astype(np.float32)
-
-    # convert test_input to axes_net semantics and shape, also resize if necessary (to adhere to axes_net_div_by)
-    test_input, axes_img, axes_net, axes_net_div_by, *_ = model._predict_setup(
-        img=test_input,
-        axes=test_input_axes,
-        normalizer=None,
-        n_tiles=None,
-        show_tile_progress=False,
-        predict_kwargs={},
-    )
-
-    # normalization axes string and numeric indices
-    axes_norm = set(axes_net).intersection(
-        set(axes_check_and_normalize(test_input_norm_axes, disallowed="S"))
-    )
-    axes_norm = "".join(
-        a for a in axes_net if a in axes_norm
-    )  # preserve order of axes_net
-    axes_norm_num = tuple(axes_net.index(a) for a in axes_norm)
-
-    # normalize input image
-    test_input_norm = normalize(
-        test_input, pmin=min_percentile, pmax=max_percentile, axis=axes_norm_num
-    )
-
-    net_axes_in = axes_net.lower()
-    net_axes_out = axes_check_and_normalize(model._axes_out).lower()
-    ndim_tensor = len(net_axes_out) + 1
-
-    input_min_shape = list(axes_net_div_by)
-    input_min_shape[axes_net.index("C")] = model.config.n_channel_in
-    input_step = list(axes_net_div_by)
-    input_step[axes_net.index("C")] = 0
-
-    # add the batch axis to shape and step
-    input_min_shape = [1] + input_min_shape
-    input_step = [0] + input_step
-
-    # the axes strings in bioimageio convention
-    input_axes = "b" + net_axes_in.lower()
-    output_axes = "b" + net_axes_out.lower()
-
-    if mode == "keras_hdf5":
-        output_names = ("prob", "dist") + (
-            ("class_prob",) if model._is_multiclass() else ()
-        )
-        output_n_channels = (
-            1,
-            model.config.n_rays,
-        ) + ((1,) if model._is_multiclass() else ())
-        # the output shape is computed from the input shape using
-        # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
-        output_scale = [1] + list(1 / g for g in model.config.grid) + [0]
-        output_offset = [0] * (ndim_tensor)
-
-    elif mode == "keras_v3":
-        # import keras
-        if not hasattr(keras, "__version__") or Version(keras.__version__) < Version(
-            "3.0.0"
-        ):
-            raise NotImplementedError("Keras v3 export requires Keras 3.0.0 or higher")
-
-        input_names = ["input"]
-        output_names = ["output"]
-        output_n_channels = (1 + model.config.n_rays,)
-
-        output_scale = [1] * (ndim_tensor)
-        output_scale[output_axes.index("c")] = 0
-
-        output_offset = [0.0] * (ndim_tensor)
-        output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
-
-    elif mode == "tensorflow_saved_model_bundle":
-        if model._is_multiclass():
-            raise NotImplementedError(
-                "Tensorflow SavedModel not supported for multiclass models yet"
-            )
-        # regarding input/output names: https://github.com/CSBDeep/CSBDeep/blob/b0d2f5f344ebe65a9b4c3007f4567fe74268c813/csbdeep/utils/tf.py#L193-L194
-        input_names = ["input"]
-        output_names = ["output"]
-        output_n_channels = (1 + model.config.n_rays,)
-        # the output shape is computed from the input shape using
-        # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
-        # same shape as input except for the channel dimension
-        output_scale = [1] * (ndim_tensor)
-        output_scale[output_axes.index("c")] = 0
-        # no offset, except for the input axes, where it is output channel / 2
-        output_offset = [0.0] * (ndim_tensor)
-        output_offset[output_axes.index("c")] = output_n_channels[0] / 2.0
-
-    assert all(s in (0, 1) for s in output_scale), (
-        "halo computation assumption violated"
-    )
-    halo = model._axes_tile_overlap(output_axes.replace("b", "s"))
-    halo = [
-        int(np.ceil(v / 8) * 8) for v in halo
-    ]  # optional: round up to be divisible by 8
-
-    # the output shape needs to be valid after cropping the halo, so we add the halo to the input min shape
-    input_min_shape = [ms + 2 * ha for ms, ha in zip(input_min_shape, halo)]
-
-    # make sure the input min shape is still divisible by the min axis divisor
-    input_min_shape = input_min_shape[:1] + [
-        ms + (-ms % div_by) for ms, div_by in zip(input_min_shape[1:], axes_net_div_by)
-    ]
-    assert all(
-        ms % div_by == 0 for ms, div_by in zip(input_min_shape[1:], axes_net_div_by)
-    )
-
-    metadata, *_ = _import()
-    package_data = metadata("stardist")
-    is_2D = model.config.n_dim == 2
-
-    weights_file = outdir / "stardist_weights.h5"
-    model.keras_model.save_weights(str(weights_file))
-
-    config = dict(
-        stardist=dict(
-            python_version=package_data["Version"],
-            thresholds=dict(model.thresholds._asdict()),
-            weights=weights_file.name,
-            config=vars(model.config),
-        )
-    )
-
-    if is_2D:
-        macro_file = outdir / "stardist_postprocessing.ijm"
-        with open(str(macro_file), "w", encoding="utf-8") as f:
-            f.write(
-                DEEPIMAGEJ_MACRO.format(
-                    probThresh=model.thresholds.prob, nmsThresh=model.thresholds.nms
-                )
-            )
-        config["stardist"].update(postprocessing_macro=macro_file.name)
-
-    n_inputs = len(input_names)
-    assert n_inputs == 1
-    input_config = dict(
-        input_names=input_names,
-        input_min_shape=[input_min_shape],
-        input_step=[input_step],
-        input_axes=[input_axes],
-        input_data_range=[["-inf", "inf"]],
-        preprocessing=[
-            [
-                dict(
-                    name="scale_range",
-                    kwargs=dict(
-                        mode="per_sample",
-                        axes=axes_norm.lower(),
-                        min_percentile=min_percentile,
-                        max_percentile=max_percentile,
-                    ),
-                )
-            ]
-        ],
-    )
-
-    n_outputs = len(output_names)
-    output_config = dict(
-        output_names=output_names,
-        output_data_range=[["-inf", "inf"]] * n_outputs,
-        output_axes=[output_axes] * n_outputs,
-        output_reference=[input_names[0]] * n_outputs,
-        output_scale=[output_scale] * n_outputs,
-        output_offset=[output_offset] * n_outputs,
-        halo=[halo] * n_outputs,
-    )
-
-    in_path = outdir / "test_input.npy"
-    np.save(in_path, test_input[np.newaxis])
-
-    if mode == "tensorflow_saved_model_bundle":
-        test_outputs = _predict_tf(assets_uri, test_input_norm[np.newaxis])
-    else:
-        test_outputs = model.predict(test_input_norm)
-        if mode == "keras_v3":
-            prob, dist = test_outputs
-            test_outputs = np.concatenate([prob[..., np.newaxis], dist], axis=-1)
-
-    # out_paths = []
-    # for i, out in enumerate(test_outputs):
-    #     p = outdir / f"test_output{i}.npy"
-    #     np.save(p, out)
-    #     out_paths.append(p)
-    assert n_outputs == 1
-    out_paths = [outdir / "test_output.npy"]
-    np.save(out_paths[0], test_outputs)
-
-    from tensorflow import __version__ as tf_version
-
-    data = dict(
-        weight_uri=assets_uri,
-        test_inputs=[in_path],
-        test_outputs=out_paths,
-        config=config,
-        tensorflow_version=tf_version,
-    )
-    data.update(input_config)
-    data.update(output_config)
-    _files = [str(weights_file)]
-    if is_2D:
-        _files.append(str(macro_file))
-    data.update(attachments=dict(files=_files))
-
-    return data
-
-
-def _build_model(name: str, outpath: Path, datapath: Path, **kwargs):
-    """Build a bioimage.io model using the ModelDescr specification.
-
-    Parameters
-    ----------
-    name: str
-        Name of the model
-    output_path: Path
-        Path where to save the model package
-    root: Path
-        Path to the model assets
-    kwargs: dict
-        Model metadata from _get_weights_and_model_metadata
-    """
-
-    from bioimageio.spec.model.v0_5 import (
-        AxisId,
-        BatchAxis,
-        ChannelAxis,
-        FileDescr,
-        Identifier,
-        InputTensorDescr,
-        IntervalOrRatioDataDescr,
-        ModelDescr,
-        OutputTensorDescr,
-        ParameterizedSize,
-        SizeReference,
-        SpaceInputAxis,
-        SpaceOutputAxisWithHalo,
-        TensorflowSavedModelBundleWeightsDescr,
-        TensorId,
-        Version,
-        WeightsDescr,
-    )
-
-    # Extract config information
-    stardist_config = kwargs.get("config", {}).get("stardist", {}).get("config", {})
-    n_rays = stardist_config.get("n_rays", {})
-    halo = kwargs.get("halo", {})[0]  # list
-    grid = stardist_config.get("grid", {})  # . tuple
-    n_dim = stardist_config.get("n_dim", {})  # 2D or 3D
-
-    upsample_grid = kwargs.get("upsample_grid", True)
-
-    min_size_y = kwargs.get("input_min_shape", {})[0][1]
-    min_size_x = kwargs.get("input_min_shape", {})[0][2]
-    step_y = kwargs.get("input_step", {})[0][1]
-    step_x = kwargs.get("input_step", {})[0][2]
-
-    n_channels_in = stardist_config.get("n_channel_in", {})
-    channel_names_in = (
-        [f"input_{i:02d}" for i in range(n_channels_in)]
-        if n_channels_in > 1
-        else ["input"]
-    )
-    # n_channels_out = stardist_config.get('n_channel_out', {})
-    channel_names_out = ["prob"] + [f"dist_{i:02d}" for i in range(n_rays)]
-
-    # check if StarDist2D or StarDist3D model
-    is_2d = n_dim == 2
-
-    # Build input tensor description
-    axes = stardist_config.get("axes", {})
-    spatial_axes = [axis.lower() for axis in axes if axis in "ZYX"]
-    grid_indices = list(range(len(spatial_axes)))
-    min_in_shape = kwargs.get("input_min_shape", {})[0]  # list
-    steps = kwargs.get("input_step", {})[0]  # list
-
-    spatial_input_axes = []
-    for i, axis_name in enumerate(spatial_axes):
-        spatial_input_axes.append(
-            SpaceInputAxis(
-                id=AxisId(axis_name),
-                size=ParameterizedSize(min=min_in_shape[i + 1], step=steps[i + 1]),
-                scale=grid[grid_indices[i]] if not upsample_grid else 1,
-            )
-        )
-
-    model_inputs = [
-        InputTensorDescr(
-            id=TensorId("raw"),
-            axes=[
-                BatchAxis(),
-                *spatial_input_axes,
-                ChannelAxis(
-                    channel_names=[Identifier(name) for name in channel_names_in]
-                ),
-            ],
-            data=IntervalOrRatioDataDescr(type="float32"),
-            test_tensor=FileDescr(source=(datapath / "test_input.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_input_0.tif"))
-            if (datapath / "sample_input_0.tif").exists()
-            else None,
-        )
-    ]
-
-    # Build output tensor description
-    spatial_output_axes = []
-    for i, axis_name in enumerate(spatial_axes):
-        spatial_output_axes.append(
-            SpaceOutputAxisWithHalo(
-                id=AxisId(axis_name),
-                halo=halo[i + 1]
-                if not upsample_grid
-                else halo[i + 1] / grid[grid_indices[i]],
-                size=SizeReference(
-                    tensor_id=TensorId("raw"), axis_id=AxisId(axis_name)
-                ),
-                scale=grid[grid_indices[i]] if not upsample_grid else 1,
-            )
-        )
-
-    model_outputs = [
-        OutputTensorDescr(
-            id=TensorId("predictions"),
-            axes=[
-                BatchAxis(),
-                *spatial_output_axes,
-                ChannelAxis(
-                    channel_names=[Identifier(name) for name in channel_names_out]
-                ),
-            ],
-            test_tensor=FileDescr(source=(datapath / "test_output.npy")),
-            sample_tensor=FileDescr(source=(datapath / "sample_output_0.tif"))
-            if (datapath / "sample_output_0.tif").exists()
-            else None,
-        )
-    ]
-
-    # Weights
-    # if kwargs.get('mode') == "keras_v3":
-    #     weights = WeightsDescr(
-    #         keras_hdf5=dict(
-    #             source=kwargs.get('weight_uri'),
-    #             tensorflow_version=kwargs.get('tensorflow_version')
-    #         )
-    #     )
-    # else:
-    tensorflow_saved_model_bundle_weights = TensorflowSavedModelBundleWeightsDescr(
-        source=str(kwargs.get("weight_uri")),
-        tensorflow_version=Version(kwargs.get("tensorflow_version")),
-    )
-
-    weights = WeightsDescr(
-        tensorflow_saved_model_bundle=tensorflow_saved_model_bundle_weights
-    )
-
-    # Attachments
-    attachments = []
-    if kwargs.get("attachments").get("files"):
-        for file_path in kwargs["attachments"]["files"]:
-            attachments.append(FileDescr(source=str(file_path)))
-
-    # Create model description
-    model = ModelDescr(
-        name=name,
-        description=kwargs.get("description", "StarDist model"),
-        documentation=kwargs.get("documentation", None),
-        authors=kwargs.get("authors", []),
-        cite=kwargs.get("cite", []),
-        license=kwargs.get("license", []),
-        git_repo=kwargs.get("git_repo", "https://github.com/stardist/stardist"),
-        tags=kwargs.get("tags", ["instance-segmentation", "stardist"]),
-        config=kwargs.get("config", {}),
-        inputs=model_inputs,
-        outputs=model_outputs,
-        weights=weights,
-        attachments=attachments if attachments else None,
-    )
-
-    return model
-
-
 def export_bioimageio(
-    model,
-    outpath,
-    datapath,
-    test_input,
-    test_input_axes=None,
-    test_input_norm_axes="ZYX",
-    name=None,
-    mode="keras",
-    min_percentile=1.0,
-    max_percentile=99.8,
-    overwrite_spec_kwargs=None,
-    upsample_grid=True,
-):
+    model: Union[StarDist2D, StarDist3D],
+    outpath: Union[str, Path],
+    test_input: "NDArray[Any]",
+    test_input_axes: str,
+    jointly_normalize_channels: bool = False,
+    name: Optional[str] = None,
+    mode: 'Literal["keras_v3", "tensorflow_saved_model_bundle"]' = "keras_v3",
+    min_percentile: float = 1.0,
+    max_percentile: float = 99.8,
+    *,
+    upsample_grid: bool = False,
+    authors: Sequence["_AuthorDict | Author"] = (),
+    model_description: str = "A custom StarDist model",
+    additional_tags: Sequence[str] = (),
+    input_channel_names: Sequence[str] = ("intensity",),
+    input_pixel_size: "Tuple[float, SpaceUnit] | Tuple[Literal[1], None]" = (
+        1,
+        None,
+    ),
+) -> Path:  # TODO: update parameters in docstring
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
     Parameters
@@ -703,87 +118,592 @@ def export_bioimageio(
         where to save the model
     test_input: np.ndarray
         input image for generating test data
-    test_input_axes: str or None
-        the axes of the test input, for example 'YX' for a 2d image or 'ZYX' for a 3d volume
-        using None assumes that axes of test_input are the same as those of model
-    test_input_norm_axes: str
-        the axes of the test input which will be jointly normalized, for example 'ZYX' for all spatial dimensions ('Z' ignored for 2D input)
-        use 'ZYXC' to also jointly normalize channels (e.g. for RGB input images)
+    test_input_axes: str
+        axes string for `test_input`, e.g. "zyx" or "cyx"
+    jointly_normalize_channels:
+        if True, jointly normalize channels (e.g. for RGB input images) (default: False)
     name: str
         the name of this model (default: None)
-        if None, uses the (folder) name of the model (i.e. `model.name`)
+        If None, uses the (folder) name of the model (i.e. `model.name`).
     mode: str
         the export type for this model (default: "keras_v3", legacy: "tensorflow_saved_model_bundle")
     min_percentile: float
         min percentile to be used for image normalization (default: 1.0)
     max_percentile: float
         max percentile to be used for image normalization (default: 99.8)
-    overwrite_spec_kwargs: dict or None
-        spec keywords that should be overloaded (default: None)
+    upsample_grid: bool
+        If True, upsamples the network output to the input shape.
+        Note: this is currently mandatory for further use in Fiji.
+    authors: Sequence[Union[_AuthorDict, "Author"]]
+        List of authors to be included in the model description (default: empty tuple).
+        Each author is desribed by a bioimageio.spec.model.v0_5.Author instance or a dict with a "name" key
+        and optional keys "github_user", "affiliation", "email", and "orcid".
+    model_description: str
+        A short description of the model (default: "A custom StarDist model")
+    additional_tags: Sequence[str]
+        Additional tags to be included in the model description (default: empty tuple).
+    input_channel_names: Sequence[str]
+        Names of the input channels. (default: ("intensity",))
+        Note: Default is only valid for single channel input.
+    input_pixel_size: Tuple[float, SpaceUnit] | Tuple[Literal[1], None]
+        Physical size of the input pixels (default: (1, None))
+        If model.config.anisotropy is not None, `input_pixel_size` refers to the any axis with anisotropy 1.
+        Other axes are scaled accordingly.
     """
-    from bioimageio.spec import save_bioimageio_package
+    try:
+        from bioimageio.spec import save_bioimageio_package
+    except Exception as e:
+        raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
 
-    isinstance(model, (StarDist2D, StarDist3D)) or _raise(
-        ValueError("not a valid model")
-    )
-    0 <= min_percentile < max_percentile <= 100 or _raise(
-        ValueError("invalid percentile values")
-    )
+    assert isinstance(model, (StarDist2D, StarDist3D))
+
+    if not (0 <= min_percentile < max_percentile <= 100):
+        raise ValueError("invalid percentile values")
 
     if name is None:
-        name = model.name
-    name = str(name)
+        name = str(model.name)
 
     outpath = Path(outpath)
     if outpath.suffix == "":
-        outdir = outpath
-        zip_path = outdir / f"{name}.zip"
+        zip_path = outpath / f"{name}.zip"
     elif outpath.suffix == ".zip":
-        outdir = outpath.parent
         zip_path = outpath
     else:
         raise ValueError(f"outpath has to be a folder or zip file, got {outpath}")
-    outdir.mkdir(exist_ok=True, parents=True)
 
-    with tempfile.TemporaryDirectory() as _tmp_dir:
-        tmp_dir = Path(_tmp_dir)
-        kwargs = _get_stardist_metadata(tmp_dir, model)
-        model_kwargs = _get_weights_and_model_metadata(
-            tmp_dir,
-            model,
-            test_input,
-            test_input_axes,
-            test_input_norm_axes,
-            mode,
-            min_percentile=min_percentile,
+    del outpath
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        model_descr = _create_model_descr(
+            model_name=name,
+            additional_tags=additional_tags,
+            authors=[
+                Author.model_validate(a) if isinstance(a, dict) else a for a in authors
+            ],
+            description=model_description,
             max_percentile=max_percentile,
+            min_percentile=min_percentile,
+            mode=mode,
+            model=model,
+            test_input=test_input,
+            jointly_normalize_channels=jointly_normalize_channels,
+            test_input_axes=test_input_axes,
+            tmp_dir=Path(tmp_dir),
             upsample_grid=upsample_grid,
+            input_channel_names=input_channel_names,
+            input_space_unit=input_pixel_size[1],
+            input_space_scale=input_pixel_size[0],
         )
-        kwargs.update(model_kwargs)
-        if overwrite_spec_kwargs is not None:
-            kwargs.update(overwrite_spec_kwargs)
+        _ = save_bioimageio_package(
+            model_descr, output_path=zip_path, allow_invalid=True
+        )
 
-        # bioimageio.core < 0.6.0 (legacy models)
-        try:
-            from bioimageio.core import build_model as _build_model_legacy
+    print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
+    return zip_path
 
-            model = _build_model_legacy(
-                name=name,
-                outpath=zip_path,
-                add_deepimagej_config=(model.config.n_dim == 2),
-                root=tmp_dir,
-                mode=mode,
-                **kwargs,
+
+def _prepare_test_input(
+    test_input: "NDArray[Any]",
+    test_input_axes: str,
+    network_axes: str,
+) -> "Tensor":
+    """check and transpose test_input to match network_axes and save it"""
+    try:
+        from bioimageio.core import AxisId, Tensor
+    except Exception as e:
+        raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
+
+    test_input_axes = test_input_axes.lower()
+    network_axes = network_axes.lower()
+
+    if len(test_input_axes) == len(test_input.squeeze().shape):
+        test_input = test_input.squeeze()
+    elif len(test_input_axes) != len(test_input.shape):
+        raise ValueError(
+            f"test_input_axes length {len(test_input_axes)} does not match test_input shape {test_input.shape}"
+        )
+
+    extra_input_axes = {a for a in test_input_axes if a not in network_axes}
+    if extra_input_axes:
+        raise ValueError(
+            f"test_input_axes contains axes not in model.config.axes: {extra_input_axes}"
+        )
+
+    missing_input_axes = [a for a in network_axes if a not in test_input_axes]
+    for a in missing_input_axes:
+        test_input_axes = a + test_input_axes
+        test_input = test_input[np.newaxis]
+
+    test_input = test_input.transpose([test_input_axes.index(a) for a in network_axes])
+    input_axes = [
+        AxisId(a.replace("c", "channel").replace("b", "batch")) for a in network_axes
+    ]
+    if AxisId("batch") not in input_axes:
+        input_axes.insert(0, AxisId("batch"))
+        test_input = test_input[np.newaxis]
+
+    return Tensor(test_input, input_axes)
+
+
+def _create_model_descr(
+    *,
+    model_name: str,
+    additional_tags: Sequence[str],
+    authors: List["Author"],
+    description: str,
+    max_percentile: float,
+    min_percentile: float,
+    mode: 'Literal["keras_v3", "tensorflow_saved_model_bundle"]',
+    model: Union[StarDist2D, StarDist3D],
+    test_input: "NDArray[Any]",
+    test_input_axes: str,
+    input_channel_names: Sequence[str],
+    input_space_unit: Optional["SpaceUnit"],
+    input_space_scale: float,
+    tmp_dir: Path,
+    jointly_normalize_channels: bool,
+    upsample_grid: bool,
+):
+    try:
+        from bioimageio.core import MemberId, Tensor
+        from bioimageio.core.io import save_tensor
+        from bioimageio.spec.model.v0_5 import (
+            AxisId,
+            BatchAxis,
+            ChannelAxis,
+            CiteEntry,
+            Config,
+            Doi,
+            EnsureDtypeDescr,
+            EnsureDtypeKwargs,
+            FileDescr,
+            HttpUrl,
+            Identifier,
+            InputTensorDescr,
+            IntervalOrRatioDataDescr,
+            KerasV3WeightsDescr,
+            LicenseId,
+            ModelDescr,
+            OutputTensorDescr,
+            ParameterizedSize,
+            ScaleRangeDescr,
+            ScaleRangeKwargs,
+            SizeReference,
+            SpaceInputAxis,
+            SpaceOutputAxisWithHalo,
+            StardistPostprocessingDescr,
+            StardistPostprocessingKwargs2D,
+            StardistPostprocessingKwargs3D,
+            TensorflowSavedModelBundleWeightsDescr,
+            TensorId,
+            Version,
+            WeightsDescr,
+        )
+        from importlib_metadata import metadata
+        from tensorflow import __version__ as tf_version
+        from typing_extensions import assert_never
+    except Exception as e:
+        raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
+
+    # use stardist axes convenction for test_input_axes
+    test_input_axes = test_input_axes.upper().replace("B", "S")
+
+    # make sure test input has a singleton sample dimension
+    if "S" in test_input_axes and test_input.shape[test_input_axes.index("S")] != 1:
+        raise ValueError(
+            "test_input may only have a singleton sample (batch) dimension (or none)."
+        )
+    # else:
+    #     test_input_axes = "S" + test_input_axes
+    #     test_input = test_input[np.newaxis]
+
+    # make sure test input has an explicit channel axis
+    if "C" not in test_input_axes and "C" in model.config.axes:
+        test_input_axes = test_input_axes + "C"
+        test_input = test_input[..., np.newaxis]
+
+    assert isinstance(model.config, (Config2D, Config3D)), (
+        "expected model.config to be an instance of Config2D or Config3D"
+    )
+    n_dim = model.config.n_dim
+    assert n_dim in (2, 3), "expected model.config.n_dim to be 2 or 3"
+    backbone = model.config.backbone
+    n_channel_in = model.config.n_channel_in
+    # assert isinstance(n_channel_in, int) and n_channel_in > 0, (
+    #     "expected model.config.n_channel_in to be a positive integer"
+    # )
+    if "C" not in test_input_axes:
+        if n_channel_in != 1:
+            raise ValueError(
+                f"test_input has no channel axis, but model.config.n_channel_in is {n_channel_in}"
             )
-            print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
-        # bioimageio.core >= 0.6.0
-        except ImportError:
-            model = _build_model(
-                name=name, outpath=zip_path, datapath=datapath, mode=mode, **kwargs
-            )
-            print(f"\nbioimage.io model with name '{name}' exported to '{zip_path}'")
+    elif test_input.shape[test_input_axes.index("C")] != n_channel_in:
+        raise ValueError(
+            f"test_input has {test_input.shape[test_input_axes.index('C')]} channels, but model.config.n_channel_in is {n_channel_in}"
+        )
+    if len(input_channel_names) != n_channel_in:
+        raise ValueError(
+            f"input_channel_names has length {len(input_channel_names)}, but model.config.n_channel_in is {n_channel_in}"
+        )
 
-        save_bioimageio_package(model, output_path=outpath)
+    grid = model.config.grid
+    network_axes = model.config.axes
+    assert isinstance(network_axes, str), "expected model.config.axes to be a string"
+
+    stardist_data = metadata("stardist")
+    assert stardist_data is not None, "Could not load stardist package metadata"
+
+    original_weights_file = tmp_dir / "original_stardist_weights.h5"
+    model.keras_model.save_weights(str(original_weights_file))  # pyright: ignore[reportAttributeAccessIssue]
+    network_axes_bioimageio = [
+        AxisId("batch" if a == "b" else "channel" if a == "c" else a)
+        for a in network_axes.lower().replace("s", "b")
+    ]
+    spatial_axes_bioimageio = [
+        a
+        for a in network_axes_bioimageio
+        if a not in (AxisId("batch"), AxisId("channel"))
+    ]
+    assert len(spatial_axes_bioimageio) == n_dim, (
+        f"expected {n_dim} spatial axes, but got {spatial_axes_bioimageio}"
+    )
+    grid_bioimageio = dict(zip(spatial_axes_bioimageio, grid))
+    input_shape_min_wo_overlap = dict(
+        zip(network_axes_bioimageio, map(int, model._axes_div_by(network_axes)))
+    )
+    input_overlap = dict(
+        zip(
+            network_axes_bioimageio,
+            map(int, model._axes_tile_overlap(network_axes)),
+        )
+    )
+    input_shape_min = {
+        a: input_shape_min_wo_overlap[a] + 2 * input_overlap[a]
+        for a in network_axes_bioimageio
+    }
+    # round up to be divisible by div_by
+    input_shape_min = {
+        a: input_shape_min[a] + (-input_shape_min[a] % input_shape_min_wo_overlap[a])
+        for a in network_axes_bioimageio
+    }
+    input_shape_step = input_shape_min_wo_overlap
+
+    # use stardist instance prediction to generate test output independent of bioimageio
+    instances = model.predict_instances(
+        test_input,  # pyright: ignore
+        axes=test_input_axes,
+        normalizer=PercentileNormalizer(
+            pmin=min_percentile,  # pyright: ignore[reportArgumentType]
+            pmax=max_percentile,
+            do_after=False,
+            dtype=np.float32,
+        ),
+        return_predict=False,
+    )[0]
+    assert isinstance(instances, np.ndarray), (
+        "expected model.predict_instances to return a tuple with a numpy array"
+    )
+    # add explicit batch and channel axis
+    assert instances.ndim == n_dim, (
+        f"Expected {n_dim} output dimensions, got {instances.ndim}"
+    )
+    instances = instances[np.newaxis, ..., np.newaxis]
+    test_output_instance_labels_path = tmp_dir / "test_output_instances.npy"
+    sample_output_instance_labels_path = test_output_instance_labels_path.with_suffix(
+        ".tiff"
+    )
+    np.save(test_output_instance_labels_path, instances, allow_pickle=False)
+    save_tensor(
+        sample_output_instance_labels_path,
+        Tensor(instances, dims=["batch", *spatial_axes_bioimageio, "channel"]),
+    )
+    stardist_config = dict(
+        python_version=stardist_data["Version"],
+        thresholds=dict(model.thresholds._asdict()),
+        weights=original_weights_file.name,
+        config=vars(model.config),
+    )
+
+    if n_dim == 2:
+        macro_file = tmp_dir / "stardist_postprocessing.ijm"
+        _ = macro_file.write_text(
+            DEEPIMAGEJ_MACRO.format(
+                probThresh=model.thresholds.prob,
+                nmsThresh=model.thresholds.nms,
+            ),
+            encoding="utf-8",
+        )
+        stardist_config["postprocessing_macro"] = macro_file.name
+
+    config_descr = Config.model_validate({"stardist": stardist_config})
+
+    # patched_model = copy.copy(model)
+    # del model
+    # patched_model.keras_model = patched_keras_model
+
+    input_tensor = _prepare_test_input(test_input, test_input_axes, network_axes)
+    test_input_path = tmp_dir / "test_input.npy"
+    np.save(test_input_path, input_tensor.to_numpy(), allow_pickle=False)
+    sample_input_path = test_input_path.with_suffix(".tiff")
+    save_tensor(sample_input_path, input_tensor)
+
+    preprocessing = [
+        ScaleRangeDescr(
+            kwargs=ScaleRangeKwargs(
+                axes=[
+                    a
+                    for a in input_tensor.dims
+                    if (jointly_normalize_channels or a != AxisId("channel"))
+                    and a != AxisId("batch")
+                ],
+                min_percentile=min_percentile,
+                max_percentile=max_percentile,
+                eps=1e-20,
+            )
+        ),
+        EnsureDtypeDescr(kwargs=EnsureDtypeKwargs(dtype="float32")),
+    ]
+
+    patched_keras_model = _get_patched_keras_model(model, upsample_grid=upsample_grid)
+
+    if mode == "keras_v3":
+        import keras
+
+        if not hasattr(keras, "__version__") or Version(keras.__version__) < Version(
+            "3.0.0"
+        ):
+            raise NotImplementedError("Keras v3 export requires Keras 3.0.0 or higher")
+
+        weights_path = tmp_dir / "model.keras"
+        patched_keras_model.save(weights_path)
+        weights = WeightsDescr(
+            keras_v3=KerasV3WeightsDescr(
+                source=weights_path,
+                backend=("tensorflow", Version(tf_version)),
+                keras_version=Version(keras.__version__),
+            )
+        )
+
+    elif mode == "tensorflow_saved_model_bundle":
+        weights_path = tmp_dir / "TF_SavedModel.zip"
+        export_SavedModel(patched_keras_model, str(weights_path))
+        weights = WeightsDescr(
+            tensorflow_saved_model_bundle=TensorflowSavedModelBundleWeightsDescr(
+                source=weights_path,
+                tensorflow_version=Version(tf_version),
+            )
+        )
+
+    else:
+        assert_never(mode)
+
+    # if mode == "keras_v3":
+    #     output_scale = [1] * (ndim_tensor)
+    #     output_scale[output_axes.index("c")] = 0
+
+    #     output_offset = [0.0] * (ndim_tensor)
+    #     output_offset[output_axes.index("c")] = output_n_channels / 2.0
+
+    # elif mode == "tensorflow_saved_model_bundle":
+    #     # regarding input/output names: https://github.com/CSBDeep/CSBDeep/blob/b0d2f5f344ebe65a9b4c3007f4567fe74268c813/csbdeep/utils/tf.py#L193-L194
+    #     input_names = ["input"]
+    #     output_names = ["output"]
+    #     # the output shape is computed from the input shape using
+    #     # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
+    #     # same shape as input except for the channel dimension
+    #     output_scale = [1] * (ndim_tensor)
+    #     output_scale[output_axes.index("c")] = 0
+    #     # no offset, except for the input axes, where it is output channel / 2
+    #     output_offset = [0.0] * (ndim_tensor)
+    #     output_offset[output_axes.index("c")] = output_n_channels / 2.0
+
+    documentation = tmp_dir / "README.md"
+    _ = documentation.write_text(
+        "# StarDist Model\n"
+        + "This is a model for object detection with star-convex shapes.\n"
+        + "Please see the [StarDist repository](https://github.com/stardist/stardist) for details."
+    )
+
+    # Build input tensor description
+    spatial_input_axes = [
+        SpaceInputAxis(
+            id=a,
+            size=ParameterizedSize(min=input_shape_min[a], step=input_shape_step[a]),
+            unit=input_space_unit,
+            scale=input_space_scale,
+        )
+        for a in spatial_axes_bioimageio
+    ]
+
+    input_descr = InputTensorDescr(
+        id=TensorId("input"),
+        axes=[
+            BatchAxis(),
+            *spatial_input_axes,
+            ChannelAxis(
+                channel_names=[Identifier(name) for name in input_channel_names]
+            ),
+        ],
+        data=IntervalOrRatioDataDescr(type="float32"),
+        test_tensor=FileDescr(source=test_input_path),
+        sample_tensor=FileDescr(source=sample_input_path),
+        preprocessing=preprocessing,
+    )
+
+    # Build output tensor description
+    spatial_output_axes: List[SpaceOutputAxisWithHalo] = []
+    for a, g in grid_bioimageio.items():
+        spatial_output_axes.append(
+            SpaceOutputAxisWithHalo(
+                id=a,
+                halo=input_overlap[a]
+                if upsample_grid
+                else np.ceil(input_overlap[a] / g),
+                size=SizeReference(tensor_id=MemberId("input"), axis_id=a),
+                scale=input_space_scale if upsample_grid else input_space_scale / g,
+                unit=input_space_unit,
+            )
+        )
+
+    grid = model.config.grid
+    postprocessing_grid = (1,) * n_dim if upsample_grid else grid
+    if n_dim == 2:
+        assert len(postprocessing_grid) == 2
+        stardist_postproc_kwargs = StardistPostprocessingKwargs2D(
+            prob_threshold=model.thresholds.prob,
+            nms_threshold=model.thresholds.nms,
+            grid=postprocessing_grid,
+        )
+    else:
+        assert len(postprocessing_grid) == 3
+        stardist_postproc_kwargs = StardistPostprocessingKwargs3D(
+            prob_threshold=model.thresholds.prob,
+            nms_threshold=model.thresholds.nms,
+            grid=postprocessing_grid,
+            n_rays=model.config.n_rays,
+            anisotropy=model.config.anisotropy or (1.0, 1.0, 1.0),
+        )
+    output_descr = OutputTensorDescr(
+        id=TensorId("instance_labels"),
+        axes=[
+            BatchAxis(),
+            *spatial_output_axes,
+            ChannelAxis(
+                description="Background is labeled with 0, instances are labeled with consecutive integers starting from 1.",
+                channel_names=[Identifier("instance_labels")],
+            ),
+        ],
+        data=IntervalOrRatioDataDescr(type="int32"),
+        test_tensor=FileDescr(source=test_output_instance_labels_path),
+        sample_tensor=FileDescr(source=sample_output_instance_labels_path),
+        postprocessing=[StardistPostprocessingDescr(kwargs=stardist_postproc_kwargs)],
+    )
+
+    return ModelDescr(
+        name=model_name,
+        description=description,
+        inputs=[input_descr],
+        outputs=[output_descr],
+        weights=weights,
+        authors=authors,
+        git_repo=HttpUrl(stardist_data["Home-Page"]),
+        license=LicenseId(stardist_data["License"]),
+        cite=[
+            CiteEntry(
+                text="Cell Detection with Star-Convex Polygons",
+                doi=Doi("10.1007/978-3-030-00934-2_30"),
+            ),
+            CiteEntry(
+                text="Star-convex Polyhedra for 3D Object Detection and Segmentation in Microscopy",
+                doi=Doi("10.1109/WACV45572.2020.9093435"),
+            ),
+        ],
+        config=config_descr,
+        tags=sorted(
+            {
+                *additional_tags,
+                "fiji",
+                "instance-segmentation",
+                "stardist",
+                "tensorflow",
+                "keras",
+                backbone,
+                f"{n_dim}d",
+            }
+        ),
+        documentation=documentation,
+        attachments=[FileDescr(source=original_weights_file)],
+    )
+
+
+def _get_patched_keras_model(
+    model: Union[StarDist2D, StarDist3D], upsample_grid: bool
+) -> "keras.models.Model":
+    """Incorporate stardist specific logic into the keras model.
+
+    This includes:
+    - upsampling the outputs if grid > (1,1) and upsample_grid is True,
+      to ensure compatibility with the CSBDeep Fiji plugin
+    - Clip small dist values to prevent problems with Qhull
+      (taken from _predict_generator() base.py).
+    """
+    if IS_TF_1 or IS_KERAS_3_PLUS:
+        from keras.layers import (
+            Concatenate,
+            Conv2DTranspose,
+            Conv3DTranspose,
+            ReLU,
+            UpSampling2D,
+            UpSampling3D,
+        )
+        from keras.models import Model
+    else:
+        from tensorflow.keras.layers import (
+            Concatenate,
+            Conv2DTranspose,
+            Conv3DTranspose,
+            ReLU,
+            UpSampling2D,
+            UpSampling3D,
+        )
+        from tensorflow.keras.models import Model
+
+    if model.config.n_classes is not None:
+        warnings.warn(
+            "multi-class mode not supported yet, removing classification output from exported model"
+        )
+
+    assert isinstance(model.config, (Config2D, Config3D)), (
+        "expected model.config to be an instance of Config2D or Config3D"
+    )
+    grid = model.config.grid
+    prob = model.keras_model.outputs[0]  # pyright: ignore
+    dist = model.keras_model.outputs[1]  # pyright: ignore
+    assert model.config.n_dim in (2, 3)
+
+    if upsample_grid and any(g > 1 for g in grid):
+        # CSBDeep Fiji plugin needs same size input/output
+        # -> we need to upsample the outputs if grid > (1,1)
+        # note: upsampling prob with a transposed convolution creates sparse
+        #       prob output with less candidates than with standard upsampling
+        conv_transpose = Conv2DTranspose if model.config.n_dim == 2 else Conv3DTranspose
+        upsampling = UpSampling2D if model.config.n_dim == 2 else UpSampling3D
+        prob = conv_transpose(
+            1,
+            (1,) * model.config.n_dim,
+            strides=grid,
+            padding="same",
+            kernel_initializer="ones",
+            use_bias=False,
+        )(prob)
+        dist = upsampling(grid)(dist)
+
+    # Clip dist to 1e-3 to avoid problems with Qhull algorithm
+    # (using ReLU to clip for comatibility with Keras 2)
+    dist_clipped = ReLU(threshold=1e-3)(dist)
+
+    patched_outputs = Concatenate()([prob, dist_clipped])
+    return Model(model.keras_model.inputs[0], patched_outputs)  # pyright: ignore
 
 
 def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
@@ -806,23 +726,23 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
 
     """
 
-    from io import BytesIO
-
     try:
         from bioimageio.spec import load_model_description
         from bioimageio.spec.model import v0_4, v0_5
         from bioimageio.spec.utils import extract_file_name, get_reader
+        from typing_extensions import assert_never
     except Exception as e:
         raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
 
     outpath = Path(outpath)
-    not outpath.exists() or _raise(FileExistsError(f"'{outpath}' already exists"))
+    if outpath.exists():
+        raise FileExistsError(f"'{outpath}' already exists")
 
     biomodel = load_model_description(source)
 
     stardist_config = None
     if isinstance(biomodel, v0_4.ModelDescr):
-        if isinstance(biomodel.config, dict) and "stardist" in biomodel.config:
+        if "stardist" in biomodel.config:
             stardist_config = biomodel.config["stardist"]
     elif isinstance(biomodel, v0_5.ModelDescr):
         if hasattr(biomodel.config, "stardist"):
@@ -833,6 +753,7 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     if stardist_config is None:
         raise RuntimeError("bioimage.io model not compatible, no stardist config found")
 
+    assert isinstance(stardist_config, dict), "expected stardist config to be a dict"
     config = stardist_config["config"]
     thresholds = stardist_config["thresholds"]
     weights = stardist_config["weights"]
