@@ -107,6 +107,7 @@ def export_bioimageio(
         1,
         None,
     ),
+    overlap_label: Optional[int] = None,
 ) -> Path:  # TODO: update parameters in docstring
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
@@ -149,6 +150,8 @@ def export_bioimageio(
         Physical size of the input pixels (default: (1, None))
         If model.config.anisotropy is not None, `input_pixel_size` refers to the any axis with anisotropy 1.
         Other axes are scaled accordingly.
+    overlap_label: int | None
+        If not None, label the regions where polygons overlap with that value.
     """
     try:
         from bioimageio.spec import save_bioimageio_package
@@ -193,6 +196,7 @@ def export_bioimageio(
             input_channel_names=input_channel_names,
             input_space_unit=input_pixel_size[1],
             input_space_scale=input_pixel_size[0],
+            overlap_label=overlap_label,
         )
         _ = save_bioimageio_package(
             model_descr, output_path=zip_path, allow_invalid=True
@@ -263,6 +267,7 @@ def _create_model_descr(
     tmp_dir: Path,
     jointly_normalize_channels: bool,
     upsample_grid: bool,
+    overlap_label: Optional[int],
 ):
     try:
         from bioimageio.core import MemberId, Tensor
@@ -327,6 +332,9 @@ def _create_model_descr(
     )
     n_dim = model.config.n_dim
     assert n_dim in (2, 3), "expected model.config.n_dim to be 2 or 3"
+    if n_dim == 2 and overlap_label is not None:
+        raise NotImplementedError("Overlap label for 2D not yet implemented")
+
     backbone = model.config.backbone
     n_channel_in = model.config.n_channel_in
     # assert isinstance(n_channel_in, int) and n_channel_in > 0, (
@@ -567,12 +575,16 @@ def _create_model_descr(
 
     grid = model.config.grid
     postprocessing_grid = (1,) * n_dim if upsample_grid else grid
+    # scale up border region when upsampling prediction grid
+    b = min(grid) * 2 if upsample_grid else 2
     if n_dim == 2:
+        assert overlap_label is None
         assert len(postprocessing_grid) == 2
         stardist_postproc_kwargs = StardistPostprocessingKwargs2D(
             prob_threshold=model.thresholds.prob,
             nms_threshold=model.thresholds.nms,
             grid=postprocessing_grid,
+            b=b,
         )
     else:
         assert len(postprocessing_grid) == 3
@@ -582,6 +594,8 @@ def _create_model_descr(
             grid=postprocessing_grid,
             n_rays=model.config.n_rays,
             anisotropy=model.config.anisotropy or (1.0, 1.0, 1.0),
+            b=b,
+            overlap_label=overlap_label,
         )
     output_descr = OutputTensorDescr(
         id=TensorId("instance_labels"),
@@ -799,13 +813,11 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     #         source_zip.extract(str(weights_source), outpath)
     # else:
     # copy h5 weights for legacy models
-    with (
-        BytesIO(get_reader(weights_source).read()) as f,
-        (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f,
-    ):
-        shutil.copyfileobj(f, out_f)
-        # with download(weights_source).path.open(mode="rb") as f, (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
-        #     shutil.copyfileobj(f, out_f)
+    with BytesIO(get_reader(weights_source).read()) as f:
+        with (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
+            shutil.copyfileobj(f, out_f)
+            # with download(weights_source).path.open(mode="rb") as f, (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
+            #     shutil.copyfileobj(f, out_f)
 
     model_config = Config2D(**config) if config["n_dim"] == 2 else Config3D(**config)
     model_class = StarDist2D if config["n_dim"] == 2 else StarDist3D
