@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
+    Dict,
     List,
     Optional,
     Sequence,
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from bioimageio.core import Tensor
     from bioimageio.spec.model.v0_5 import Author, SpaceUnit
     from numpy.typing import NDArray
-    from typing_extensions import Literal, NotRequired
+    from typing_extensions import Literal, NotRequired, TypeGuard
 
     class _AuthorDict(TypedDict):
         name: str
@@ -154,7 +155,7 @@ def export_bioimageio(
         If not None, label the regions where polygons overlap with that value.
     """
     try:
-        from bioimageio.spec import save_bioimageio_package
+        from bioimageio.spec import InvalidDescr, save_bioimageio_package
     except Exception as e:
         raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
 
@@ -198,6 +199,12 @@ def export_bioimageio(
             input_space_scale=input_pixel_size[0],
             overlap_label=overlap_label,
         )
+        if isinstance(model_descr, InvalidDescr):
+            model_descr.validation_summary.display()
+            raise ValueError(
+                f"Model description is invalid, cannot export model: {model_descr.get_reason()}"
+            )
+
         _ = save_bioimageio_package(
             model_descr, output_path=zip_path, allow_invalid=True
         )
@@ -272,6 +279,7 @@ def _create_model_descr(
     try:
         from bioimageio.core import MemberId, Tensor
         from bioimageio.core.io import save_tensor
+        from bioimageio.spec import InvalidDescr
         from bioimageio.spec.model.v0_5 import (
             AxisId,
             BatchAxis,
@@ -375,7 +383,6 @@ def _create_model_descr(
     assert len(spatial_axes_bioimageio) == n_dim, (
         f"expected {n_dim} spatial axes, but got {spatial_axes_bioimageio}"
     )
-    grid_bioimageio = dict(zip(spatial_axes_bioimageio, grid))
     input_shape_min_wo_overlap = dict(
         zip(network_axes_bioimageio, map(int, model._axes_div_by(network_axes)))
     )
@@ -532,22 +539,21 @@ def _create_model_descr(
         + "Please see the [StarDist repository](https://github.com/stardist/stardist) for details."
     )
 
-    # Build input tensor description
-    spatial_input_axes = [
-        SpaceInputAxis(
-            id=a,
-            size=ParameterizedSize(min=input_shape_min[a], step=input_shape_step[a]),
-            unit=input_space_unit,
-            scale=input_space_scale,
-        )
-        for a in spatial_axes_bioimageio
-    ]
-
     input_descr = InputTensorDescr(
         id=TensorId("input"),
         axes=[
             BatchAxis(),
-            *spatial_input_axes,
+            *(
+                SpaceInputAxis(
+                    id=a,
+                    size=ParameterizedSize(
+                        min=input_shape_min[a], step=input_shape_step[a]
+                    ),
+                    unit=input_space_unit,
+                    scale=input_space_scale,
+                )
+                for a in spatial_axes_bioimageio
+            ),
             ChannelAxis(
                 channel_names=[Identifier(name) for name in input_channel_names]
             ),
@@ -557,21 +563,6 @@ def _create_model_descr(
         sample_tensor=FileDescr(source=sample_input_path),
         preprocessing=preprocessing,
     )
-
-    # Build output tensor description
-    spatial_output_axes: List[SpaceOutputAxisWithHalo] = []
-    for a, g in grid_bioimageio.items():
-        spatial_output_axes.append(
-            SpaceOutputAxisWithHalo(
-                id=a,
-                halo=input_overlap[a]
-                if upsample_grid
-                else np.ceil(input_overlap[a] / g),
-                size=SizeReference(tensor_id=MemberId("input"), axis_id=a),
-                scale=input_space_scale if upsample_grid else input_space_scale / g,
-                unit=input_space_unit,
-            )
-        )
 
     grid = model.config.grid
     postprocessing_grid = (1,) * n_dim if upsample_grid else grid
@@ -601,7 +592,16 @@ def _create_model_descr(
         id=TensorId("instance_labels"),
         axes=[
             BatchAxis(),
-            *spatial_output_axes,
+            *(
+                SpaceOutputAxisWithHalo(
+                    id=a,
+                    halo=input_overlap[a],
+                    size=SizeReference(tensor_id=MemberId("input"), axis_id=a),
+                    scale=input_space_scale,
+                    unit=input_space_unit,
+                )
+                for a in spatial_axes_bioimageio
+            ),
             ChannelAxis(
                 description="Background is labeled with 0, instances are labeled with consecutive integers starting from 1.",
                 channel_names=[Identifier("instance_labels")],
@@ -613,7 +613,7 @@ def _create_model_descr(
         postprocessing=[StardistPostprocessingDescr(kwargs=stardist_postproc_kwargs)],
     )
 
-    return ModelDescr(
+    descr = ModelDescr.load_from_kwargs(
         name=model_name,
         description=description,
         inputs=[input_descr],
@@ -648,6 +648,11 @@ def _create_model_descr(
         documentation=documentation,
         attachments=[FileDescr(source=original_weights_file)],
     )
+    if isinstance(descr, InvalidDescr):
+        descr.validation_summary.display()
+        warnings.warn(f"Invalid model description: {descr.get_reason()}.")
+
+    return descr
 
 
 def _get_patched_keras_model(
@@ -673,12 +678,12 @@ def _get_patched_keras_model(
         from keras.models import Model
     else:
         from tensorflow.keras.layers import (
-            Concatenate,
-            Conv2DTranspose,
-            Conv3DTranspose,
+            Concatenate,  # pyright: ignore[reportAttributeAccessIssue]
+            Conv2DTranspose,  # pyright: ignore[reportAttributeAccessIssue]
+            Conv3DTranspose,  # pyright: ignore[reportAttributeAccessIssue]
             ReLU,
-            UpSampling2D,
-            UpSampling3D,
+            UpSampling2D,  # pyright: ignore[reportAttributeAccessIssue]
+            UpSampling3D,  # pyright: ignore[reportAttributeAccessIssue]
         )
         from tensorflow.keras.models import Model
 
@@ -723,7 +728,7 @@ def _get_patched_keras_model(
 def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     """Import stardist model from bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
-    Load a model in bioimage.io format from the given `source` (e.g. path to zip file, URL)
+    Load a model in bioimage.io format from the given `source` (e.g. path to zip file, URL, or bioimage.io nickname)
     and convert it to a regular stardist model, which will be saved in the folder `outpath`.
 
     Parameters
@@ -769,6 +774,17 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
 
     assert isinstance(stardist_config, dict), "expected stardist config to be a dict"
     config = stardist_config["config"]
+
+    def is_kwargs(v: Any) -> "TypeGuard[Dict[str, Any]]":
+        return isinstance(v, dict) and all(
+            isinstance(k, str)
+            for k in v  # pyright: ignore[reportUnknownVariableType]
+        )
+
+    assert is_kwargs(config), (
+        "expected config.stardist.config to be a dict with string keys"
+    )
+
     thresholds = stardist_config["thresholds"]
     weights = stardist_config["weights"]
 
@@ -786,11 +802,6 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
                 if extract_file_name(f.source) == weights:
                     weights_source = f
                     break
-        # if weights_source is None and hasattr(biomodel, "weights"):
-        #     if (hasattr(biomodel.weights, "keras_hdf5") and biomodel.weights.keras_hdf5 is not None):
-        #         weights_source = biomodel.weights.keras_hdf5.source
-        #     elif hasattr(biomodel.weights, "tensorflow_saved_model_bundle"):
-        #         weights_source = biomodel.weights.tensorflow_saved_model_bundle.source
     else:
         assert_never(biomodel)
 
@@ -801,44 +812,19 @@ def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
     save_json(config, str(outpath / "config.json"))
     save_json(thresholds, str(outpath / "thresholds.json"))
 
-    _has_keras_hdf5 = (
-        isinstance(biomodel, v0_4.ModelDescr or v0_5.ModelDescr)
-        and hasattr(biomodel.weights, "keras_hdf5")
-        and biomodel.weights.keras_hdf5 is not None
-    )
-
-    # if _has_keras_hdf5:
-    #     # extract .keras file for keras_v3 models
-    #     with ZipFile(source) as source_zip:
-    #         source_zip.extract(str(weights_source), outpath)
-    # else:
-    # copy h5 weights for legacy models
     with BytesIO(get_reader(weights_source).read()) as f:
         with (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
             shutil.copyfileobj(f, out_f)
-            # with download(weights_source).path.open(mode="rb") as f, (outpath / "weights_bioimageio.h5").open(mode="wb") as out_f:
-            #     shutil.copyfileobj(f, out_f)
 
-    model_config = Config2D(**config) if config["n_dim"] == 2 else Config3D(**config)
-    model_class = StarDist2D if config["n_dim"] == 2 else StarDist3D
-    model = model_class(
-        name=outpath.name, basedir=str(outpath.parent), config=model_config
-    )
+    if config["n_dim"] == 2:
+        model = StarDist2D(
+            name=outpath.name, basedir=str(outpath.parent), config=Config2D(**config)
+        )
+    else:
+        model = StarDist3D(
+            name=outpath.name, basedir=str(outpath.parent), config=Config3D(**config)
+        )
 
-    # automatically load weights
-    # if _has_keras_hdf5:
-    #     try:
-    #         import keras
-    #     except ImportError:
-    #         raise ImportError("Keras v3 export requires Keras 3.0.0 or higher")
-
-    #     keras_file = outpath / str(weights_source)
-    #     if not keras_file.exists():
-    #         raise FileNotFoundError(f"Keras model file '{weights_source}' not found'")
-
-    #     _keras_model = keras.models.load_model(keras_file)
-    #     model.keras_model.set_weights(_keras_model.get_weights())
-    # else:
     model.load_weights("weights_bioimageio.h5")
 
     return model
