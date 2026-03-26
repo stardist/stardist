@@ -3,16 +3,7 @@ import tempfile
 import warnings
 from io import BytesIO
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from csbdeep.data import PercentileNormalizer
@@ -27,7 +18,7 @@ if TYPE_CHECKING:
 
     import keras.models
     from bioimageio.core import Tensor
-    from bioimageio.spec.model.v0_5 import Author, SpaceUnit
+    from bioimageio.spec.model.v0_5 import Author, AxisId, SpaceUnit
     from numpy.typing import NDArray
     from typing_extensions import Literal, NotRequired, TypeGuard
 
@@ -217,7 +208,9 @@ def _prepare_test_input(
     test_input: "NDArray[Any]",
     test_input_axes: str,
     network_axes: str,
-) -> "Tensor":
+    input_shape_min: Dict["AxisId", int],
+    input_shape_step: Dict["AxisId", int],
+) -> "Tuple[NDArray[Any], str, Tensor]":
     """check and transpose test_input to match network_axes and save it"""
     try:
         from bioimageio.core import AxisId, Tensor
@@ -227,11 +220,11 @@ def _prepare_test_input(
     test_input_axes = test_input_axes.lower()
     network_axes = network_axes.lower()
 
-    if len(test_input_axes) == len(test_input.squeeze().shape):
+    if len(test_input_axes) == test_input.squeeze().ndim:
         test_input = test_input.squeeze()
-    elif len(test_input_axes) != len(test_input.shape):
+    elif len(test_input_axes) != test_input.ndim:
         raise ValueError(
-            f"test_input_axes length {len(test_input_axes)} does not match test_input shape {test_input.shape}"
+            f"test_input_axes length {len(test_input_axes)} does not match test_input.ndim {test_input.ndim}"
         )
 
     extra_input_axes = {a for a in test_input_axes if a not in network_axes}
@@ -241,19 +234,73 @@ def _prepare_test_input(
         )
 
     missing_input_axes = [a for a in network_axes if a not in test_input_axes]
+    test_input_axes_expanded = test_input_axes
+    test_input_expanded = test_input
     for a in missing_input_axes:
-        test_input_axes = a + test_input_axes
-        test_input = test_input[np.newaxis]
+        test_input_axes_expanded = a + test_input_axes_expanded
+        test_input_expanded = test_input_expanded[np.newaxis]
 
-    test_input = test_input.transpose([test_input_axes.index(a) for a in network_axes])
-    input_axes = [
+    # pad/crop test_input if needed
+    input_axes_bioimageio = [
+        AxisId(a.replace("c", "channel").replace("b", "batch"))
+        for a in test_input_axes_expanded
+    ]
+    pad_test_input_with: List[Tuple[int, int]] = []
+    crop_test_input_with: List[slice] = []
+    assert len(input_axes_bioimageio) == test_input_expanded.ndim
+    for a, s in zip(input_axes_bioimageio, test_input_expanded.shape):
+        s_min = input_shape_min[a]
+        if s <= s_min:
+            pad_test_input_with.append(
+                (
+                    0,
+                    s_min - s,
+                )
+            )
+            crop_test_input_with.append(slice(None))
+        else:
+            s_tgt = min(s, 4 * s_min)
+            s_step = input_shape_step[a]
+            s_tgt -= (s_tgt - s_min) % s_step
+            if s <= s_tgt:
+                pad_test_input_with.append((0, s_tgt - s))
+                crop_test_input_with.append(slice(None))
+            else:
+                pad_test_input_with.append((0, 0))
+                crop_test_input_with.append(slice(0, s_tgt))
+
+    if not all(p == (0, 0) for p in pad_test_input_with):
+        warnings.warn(
+            f"padding test_input with {pad_test_input_with} to meet minimum input shape requirements"
+        )
+        test_input_expanded = np.pad(
+            test_input_expanded, pad_test_input_with, mode="reflect"
+        )
+
+    if not all(c == slice(None) for c in crop_test_input_with):
+        warnings.warn(
+            f"cropping test_input with {crop_test_input_with} to meet target input shape requirements and reduce test image size"
+        )
+        test_input_expanded = test_input_expanded[tuple(crop_test_input_with)]
+
+    # transpose to match network axis order
+    test_input_bioimageio = test_input_expanded.transpose(
+        [test_input_axes_expanded.index(a) for a in network_axes]
+    )
+    input_axes_bioimageio = [
         AxisId(a.replace("c", "channel").replace("b", "batch")) for a in network_axes
     ]
-    if AxisId("batch") not in input_axes:
-        input_axes.insert(0, AxisId("batch"))
-        test_input = test_input[np.newaxis]
 
-    return Tensor(test_input, input_axes)
+    if AxisId("batch") not in input_axes_bioimageio:
+        # add explicit batch axis
+        input_axes_bioimageio.insert(0, AxisId("batch"))
+        test_input_bioimageio = test_input_bioimageio[np.newaxis]
+
+    return (
+        test_input_expanded,
+        test_input_axes_expanded,
+        Tensor(test_input_bioimageio, input_axes_bioimageio),
+    )
 
 
 def _create_model_descr(
@@ -313,7 +360,9 @@ def _create_model_descr(
             WeightsDescr,
         )
         from importlib_metadata import metadata
-        from tensorflow import __version__ as tf_version
+        from tensorflow import (
+            __version__ as tf_version,  # pyright: ignore[reportAttributeAccessIssue]
+        )
         from typing_extensions import assert_never
     except Exception as e:
         raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
@@ -403,10 +452,23 @@ def _create_model_descr(
     }
     input_shape_step = input_shape_min_wo_overlap
 
+    input_array, input_array_axes, input_tensor = _prepare_test_input(
+        test_input,
+        test_input_axes,
+        network_axes,
+        input_shape_min=input_shape_min,
+        input_shape_step=input_shape_step,
+    )
+    del test_input
+    del test_input_axes
+
+    # scale up border region when upsampling prediction grid
+    b = tuple((2 * g, 2 * g) for g in grid) if upsample_grid else 2
+
     # use stardist instance prediction to generate test output independent of bioimageio
     instances = model.predict_instances(
-        test_input,  # pyright: ignore
-        axes=test_input_axes,
+        input_array,  # pyright: ignore
+        axes=input_array_axes,
         normalizer=PercentileNormalizer(
             pmin=min_percentile,  # pyright: ignore[reportArgumentType]
             pmax=max_percentile,
@@ -414,6 +476,7 @@ def _create_model_descr(
             dtype=np.float32,
         ),
         return_predict=False,
+        nms_kwargs=dict(b=b),
     )[0]
     assert isinstance(instances, np.ndarray), (
         "expected model.predict_instances to return a tuple with a numpy array"
@@ -456,7 +519,6 @@ def _create_model_descr(
     # del model
     # patched_model.keras_model = patched_keras_model
 
-    input_tensor = _prepare_test_input(test_input, test_input_axes, network_axes)
     test_input_path = tmp_dir / "test_input.npy"
     np.save(test_input_path, input_tensor.to_numpy(), allow_pickle=False)
     sample_input_path = test_input_path.with_suffix(".tiff")
@@ -566,11 +628,10 @@ def _create_model_descr(
 
     grid = model.config.grid
     postprocessing_grid = (1,) * n_dim if upsample_grid else grid
-    # scale up border region when upsampling prediction grid
-    b = min(grid) * 2 if upsample_grid else 2
     if n_dim == 2:
         assert overlap_label is None
         assert len(postprocessing_grid) == 2
+        assert isinstance(b, int) or len(b) == 2
         stardist_postproc_kwargs = StardistPostprocessingKwargs2D(
             prob_threshold=model.thresholds.prob,
             nms_threshold=model.thresholds.nms,
@@ -579,6 +640,7 @@ def _create_model_descr(
         )
     else:
         assert len(postprocessing_grid) == 3
+        assert isinstance(b, int) or len(b) == 3
         stardist_postproc_kwargs = StardistPostprocessingKwargs3D(
             prob_threshold=model.thresholds.prob,
             nms_threshold=model.thresholds.nms,
@@ -666,6 +728,11 @@ def _get_patched_keras_model(
     - Clip small dist values to prevent problems with Qhull
       (taken from _predict_generator() base.py).
     """
+    try:
+        from typing_extensions import assert_never
+    except ImportError as e:
+        raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
+
     if IS_TF_1 or IS_KERAS_3_PLUS:
         from keras.layers import (
             Concatenate,
@@ -705,7 +772,12 @@ def _get_patched_keras_model(
         # -> we need to upsample the outputs if grid > (1,1)
         # note: upsampling prob with a transposed convolution creates sparse
         #       prob output with less candidates than with standard upsampling
-        conv_transpose = Conv2DTranspose if model.config.n_dim == 2 else Conv3DTranspose
+        if model.config.n_dim == 2:
+            conv_transpose = Conv2DTranspose
+        elif model.config.n_dim == 3:
+            conv_transpose = Conv3DTranspose
+        else:
+            assert_never(model.config.n_dim)
         upsampling = UpSampling2D if model.config.n_dim == 2 else UpSampling3D
         prob = conv_transpose(
             1,
