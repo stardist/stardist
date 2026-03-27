@@ -149,7 +149,7 @@ setup(
             "pytest;        python_version< '3.7'",
             "pytest>=7.2.0; python_version>='3.7'",
          ],
-        "bioimageio": ["bioimageio.core>=0.10.0"],
+        "bioimageio": ["bioimageio.core>=0.9.6"],
     },
 
     entry_points = {
