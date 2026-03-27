@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Un
 
 import numpy as np
 from csbdeep.data import PercentileNormalizer
-from csbdeep.utils import save_json
+from csbdeep.utils import axes_check_and_normalize, normalize_mi_ma, save_json
 from csbdeep.utils.tf import IS_KERAS_3_PLUS, IS_TF_1, export_SavedModel
 
 from .models.model2d import Config2D, StarDist2D
@@ -303,6 +303,42 @@ def _prepare_test_input(
     )
 
 
+class _PercentileNormalizerJointlyNormalizeChannels(PercentileNormalizer):
+    """PercentileNormalizer with the option to normalize channels jointly."""
+
+    def __init__(
+        self,
+        pmin: float,
+        pmax: float,
+        jointly_normalize_channels: bool,
+        eps: float,
+        dtype: type = np.float32,
+    ):
+        super().__init__(
+            pmin=pmin,  # pyright: ignore[reportArgumentType]
+            pmax=pmax,
+            do_after=False,
+            dtype=dtype,
+        )
+        self.jointly_normalize_channels = jointly_normalize_channels
+        self.eps = eps
+
+    def before(self, x: "NDArray[Any]", axes: str) -> "NDArray[Any]":
+        self.axes_before = axes_check_and_normalize(axes, x.ndim)
+        axis = tuple(
+            d
+            for d, a in enumerate(self.axes_before)
+            if a != "C" or self.jointly_normalize_channels
+        )
+        self.mi = np.percentile(x, self.pmin, axis=axis, keepdims=True).astype(
+            self.dtype, copy=False
+        )
+        self.ma = np.percentile(x, self.pmax, axis=axis, keepdims=True).astype(
+            self.dtype, copy=False
+        )
+        return normalize_mi_ma(x, self.mi, self.ma, dtype=self.dtype, **self.kwargs)
+
+
 def _create_model_descr(
     *,
     model_name: str,
@@ -466,14 +502,16 @@ def _create_model_descr(
     b = tuple((2 * g, 2 * g) for g in grid) if upsample_grid else 2
 
     # use stardist instance prediction to generate test output independent of bioimageio
+    norm_eps = 1e-20
     instances = model.predict_instances(
         input_array,  # pyright: ignore
         axes=input_array_axes,
-        normalizer=PercentileNormalizer(
-            pmin=min_percentile,  # pyright: ignore[reportArgumentType]
+        normalizer=_PercentileNormalizerJointlyNormalizeChannels(
+            pmin=min_percentile,
             pmax=max_percentile,
-            do_after=False,
             dtype=np.float32,
+            jointly_normalize_channels=jointly_normalize_channels,
+            eps=norm_eps,
         ),
         return_predict=False,
         nms_kwargs=dict(b=b),
@@ -535,7 +573,7 @@ def _create_model_descr(
                 ],
                 min_percentile=min_percentile,
                 max_percentile=max_percentile,
-                eps=1e-20,
+                eps=norm_eps,
             )
         ),
         EnsureDtypeDescr(kwargs=EnsureDtypeKwargs(dtype="float32")),
