@@ -781,7 +781,9 @@ def _get_patched_keras_model(
     return Model(model.keras_model.inputs[0], patched_outputs)  # pyright: ignore
 
 
-def import_bioimageio(source: Union[str, Path], outpath: Union[str, Path]):
+def import_bioimageio(
+    source: Union[str, Path], outpath: Union[str, Path]
+) -> Union[StarDist2D, StarDist3D]:
     """Import stardist model from bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
     Load a model in bioimage.io format from the given `source` (e.g. path to zip file, URL, or bioimage.io nickname)
