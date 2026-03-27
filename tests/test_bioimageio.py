@@ -49,7 +49,7 @@ def _test_pretrained(
     )
     assert export_path.exists()
     # test exported model
-    res = test_model(export_path, working_dir="test_here")
+    res = test_model(export_path)
     assert res.status == "passed", res.display()
     # import exported model
     import_path = tmp_path / f"{model_name}_imported"
