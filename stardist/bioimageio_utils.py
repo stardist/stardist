@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Un
 import numpy as np
 from csbdeep.data import PercentileNormalizer
 from csbdeep.utils import axes_check_and_normalize, normalize_mi_ma, save_json
-from csbdeep.utils.tf import IS_KERAS_3_PLUS, IS_TF_1, export_SavedModel
+from csbdeep.utils.tf import IS_KERAS_3_PLUS
 
 from .models.model2d import Config2D, StarDist2D
 from .models.model3d import Config3D, StarDist3D
@@ -87,7 +87,6 @@ def export_bioimageio(
     *,
     jointly_normalize_channels: bool = False,
     name: Optional[str] = None,
-    mode: 'Literal["keras_v3", "tensorflow_saved_model_bundle"]' = "keras_v3",
     min_percentile: float = 1.0,
     max_percentile: float = 99.8,
     upsample_grid: bool = False,
@@ -118,8 +117,6 @@ def export_bioimageio(
     name: str
         the name of this model (default: None)
         If None, uses the (folder) name of the model (i.e. `model.name`).
-    mode: str
-        the export type for this model (default: "keras_v3", legacy: "tensorflow_saved_model_bundle")
     min_percentile: float
         min percentile to be used for image normalization (default: 1.0)
     max_percentile: float
@@ -145,6 +142,12 @@ def export_bioimageio(
     overlap_label: int | None
         If not None, label the regions where polygons overlap with that value.
     """
+    # bioimageio can work with tensorflow_saved_model_bundle format, but for this export format stardist requires tensorflow 1.
+    # However tensorflow 1 requires python <=3.7, which is incompatible with bioimageio.core's requirement of python >=3.9.
+    # Therefore this exports requires Keras 3.x to use bioimageio's keras_v3 format.
+    if not IS_KERAS_3_PLUS:
+        raise RuntimeError("export_bioimageio requires Keras 3.x to be installed.")
+
     try:
         from bioimageio.spec import InvalidDescr, save_bioimageio_package
     except Exception as e:
@@ -178,7 +181,6 @@ def export_bioimageio(
             description=model_description,
             max_percentile=max_percentile,
             min_percentile=min_percentile,
-            mode=mode,
             model=model,
             test_input=test_input,
             jointly_normalize_channels=jointly_normalize_channels,
@@ -347,7 +349,6 @@ def _create_model_descr(
     description: str,
     max_percentile: float,
     min_percentile: float,
-    mode: 'Literal["keras_v3", "tensorflow_saved_model_bundle"]',
     model: Union[StarDist2D, StarDist3D],
     test_input: "NDArray[Any]",
     test_input_axes: str,
@@ -390,16 +391,17 @@ def _create_model_descr(
             StardistPostprocessingDescr,
             StardistPostprocessingKwargs2D,
             StardistPostprocessingKwargs3D,
-            TensorflowSavedModelBundleWeightsDescr,
             TensorId,
             Version,
             WeightsDescr,
         )
         from importlib_metadata import metadata
+        from keras import (
+            __version__ as keras_version,  # pyright: ignore[reportAttributeAccessIssue]
+        )
         from tensorflow import (
             __version__ as tf_version,  # pyright: ignore[reportAttributeAccessIssue]
         )
-        from typing_extensions import assert_never
     except Exception as e:
         raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
 
@@ -553,10 +555,6 @@ def _create_model_descr(
 
     config_descr = Config.model_validate({"stardist": stardist_config})
 
-    # patched_model = copy.copy(model)
-    # del model
-    # patched_model.keras_model = patched_keras_model
-
     test_input_path = tmp_dir / "test_input.npy"
     np.save(test_input_path, input_tensor.to_numpy(), allow_pickle=False)
     sample_input_path = test_input_path.with_suffix(".tiff")
@@ -581,56 +579,15 @@ def _create_model_descr(
 
     patched_keras_model = _get_patched_keras_model(model, upsample_grid=upsample_grid)
 
-    if mode == "keras_v3":
-        import keras
-
-        if not hasattr(keras, "__version__") or Version(keras.__version__) < Version(
-            "3.0.0"
-        ):
-            raise NotImplementedError("Keras v3 export requires Keras 3.0.0 or higher")
-
-        weights_path = tmp_dir / "model.keras"
-        patched_keras_model.save(weights_path)
-        weights = WeightsDescr(
-            keras_v3=KerasV3WeightsDescr(
-                source=weights_path,
-                backend=("tensorflow", Version(tf_version)),
-                keras_version=Version(keras.__version__),
-            )
+    weights_path = tmp_dir / "model.keras"
+    patched_keras_model.save(weights_path)
+    weights = WeightsDescr(
+        keras_v3=KerasV3WeightsDescr(
+            source=weights_path,
+            backend=("tensorflow", Version(tf_version)),
+            keras_version=Version(keras_version),
         )
-
-    elif mode == "tensorflow_saved_model_bundle":
-        weights_path = tmp_dir / "TF_SavedModel.zip"
-        export_SavedModel(patched_keras_model, str(weights_path))
-        weights = WeightsDescr(
-            tensorflow_saved_model_bundle=TensorflowSavedModelBundleWeightsDescr(
-                source=weights_path,
-                tensorflow_version=Version(tf_version),
-            )
-        )
-
-    else:
-        assert_never(mode)
-
-    # if mode == "keras_v3":
-    #     output_scale = [1] * (ndim_tensor)
-    #     output_scale[output_axes.index("c")] = 0
-
-    #     output_offset = [0.0] * (ndim_tensor)
-    #     output_offset[output_axes.index("c")] = output_n_channels / 2.0
-
-    # elif mode == "tensorflow_saved_model_bundle":
-    #     # regarding input/output names: https://github.com/CSBDeep/CSBDeep/blob/b0d2f5f344ebe65a9b4c3007f4567fe74268c813/csbdeep/utils/tf.py#L193-L194
-    #     input_names = ["input"]
-    #     output_names = ["output"]
-    #     # the output shape is computed from the input shape using
-    #     # output_shape[i] = output_scale[i] * input_shape[i] + 2 * output_offset[i]
-    #     # same shape as input except for the channel dimension
-    #     output_scale = [1] * (ndim_tensor)
-    #     output_scale[output_axes.index("c")] = 0
-    #     # no offset, except for the input axes, where it is output channel / 2
-    #     output_offset = [0.0] * (ndim_tensor)
-    #     output_offset[output_axes.index("c")] = output_n_channels / 2.0
+    )
 
     documentation = tmp_dir / "README.md"
     _ = documentation.write_text(
@@ -771,26 +728,15 @@ def _get_patched_keras_model(
     except ImportError as e:
         raise RuntimeError(_BIOIMAGEIO_LIBRARIES_ARE_MISSING) from e
 
-    if IS_TF_1 or IS_KERAS_3_PLUS:
-        from keras.layers import (
-            Concatenate,
-            Conv2DTranspose,
-            Conv3DTranspose,
-            ReLU,
-            UpSampling2D,
-            UpSampling3D,
-        )
-        from keras.models import Model
-    else:
-        from tensorflow.keras.layers import (
-            Concatenate,  # pyright: ignore[reportAttributeAccessIssue]
-            Conv2DTranspose,  # pyright: ignore[reportAttributeAccessIssue]
-            Conv3DTranspose,  # pyright: ignore[reportAttributeAccessIssue]
-            ReLU,
-            UpSampling2D,  # pyright: ignore[reportAttributeAccessIssue]
-            UpSampling3D,  # pyright: ignore[reportAttributeAccessIssue]
-        )
-        from tensorflow.keras.models import Model
+    from keras.layers import (
+        Concatenate,
+        Conv2DTranspose,
+        Conv3DTranspose,
+        ReLU,
+        UpSampling2D,
+        UpSampling3D,
+    )
+    from keras.models import Model
 
     if model.config.n_classes is not None:
         warnings.warn(
