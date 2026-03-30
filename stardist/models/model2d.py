@@ -217,6 +217,7 @@ class Config2D(BaseConfig):
             self.unet_last_activation  = 'relu'
             self.unet_batch_norm       = False
             self.unet_dropout          = 0.0
+            self.unet_expansion        = 2
             self.unet_prefix           = ''
             self.net_conv_after_unet   = 128
         else:

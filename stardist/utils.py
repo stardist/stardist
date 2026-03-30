@@ -150,6 +150,11 @@ def fill_label_holes(lbl_img, **kwargs):
         grown_mask = lbl_img[grow(sl,interior)]==i
         mask_filled = binary_fill_holes(grown_mask,**kwargs)[shrink_slice]
         lbl_img_filled[sl][mask_filled] = i
+    if lbl_img.min() < 0:
+        # preserve (and fill holes in) negative labels ('find_objects' ignores these)
+        lbl_neg_filled = -fill_label_holes(-np.minimum(lbl_img, 0))
+        mask = lbl_neg_filled < 0
+        lbl_img_filled[mask] = lbl_neg_filled[mask]
     return lbl_img_filled
 
 

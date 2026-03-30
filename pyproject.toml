@@ -1,12 +1,18 @@
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel", "oldest-supported-numpy"]
+requires = [
+    "setuptools>=40.8.0",
+    "wheel",
+    # https://github.com/scipy/oldest-supported-numpy/blob/687ffc2f57e29ec7c74a28c58c247d16d0f6bee1/README.rst
+    # https://numpy.org/doc/stable/dev/depending_on_numpy.html#adding-a-dependency-on-numpy
+    # https://cibuildwheel.pypa.io/en/stable/faq/#building-with-numpy
+    "oldest-supported-numpy; python_version<='3.8'",
+    "numpy>=2.0,<3; python_version>'3.8'",
+]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 addopts = "-v --durations=50"
-testpaths = [
-    "tests",
-]
+testpaths = ["tests"]
 # only works for pytest >= 7.2.0, which isn't available for Python 3.6
 # filterwarnings = [
 #     "ignore::pytest.PytestReturnNotNoneWarning"

@@ -295,7 +295,11 @@ static PyObject* c_non_max_suppression_inds_old(PyObject *self, PyObject *args) 
 #ifdef _WIN32
 #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
 #else
+#ifdef __APPLE__
+#pragma omp parallel for collapse(2) reduction(+:count_suppressed)
+#else
 #pragma omp parallel for collapse(2) schedule(dynamic) reduction(+:count_suppressed)
+#endif
 #endif
       for (int jj=ys; jj<ye; jj++) for (int ii=xs; ii<xe; ii++) {
           // j is the id of the score-sorted polygon at coordinate (ii,jj)
@@ -340,7 +344,11 @@ static PyObject* c_non_max_suppression_inds_old(PyObject *self, PyObject *args) 
 
       // printf("%5d [%03d:%03d,%03d:%03d]\n",i,bbox_x1[i],bbox_x2[i],bbox_y1[i],bbox_y2[i]);
 
+#ifdef __APPLE__
+#pragma omp parallel for reduction(+:count_suppressed)
+#else
 #pragma omp parallel for schedule(dynamic) reduction(+:count_suppressed)
+#endif
       for (int j=i+1; j<n_polys; j++) {
         if (suppressed[j]) continue;
         // skip if bounding boxes are not even intersecting
@@ -389,7 +397,7 @@ static PyObject* c_non_max_suppression_inds_old(PyObject *self, PyObject *args) 
   
 static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
 
-  PyArrayObject *dist=NULL,*points_arr=NULL, *mapping=NULL, *result=NULL;
+  PyArrayObject *dist=NULL, *points_arr=NULL, *result=NULL;
   float threshold;
   int verbose, use_kdtree, use_bbox;
 
@@ -398,9 +406,6 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
     return NULL;
 
   const float * const points = (float*) PyArray_DATA(points_arr);
-  
-  npy_intp *img_dims = PyArray_DIMS(mapping);
-  const int height = img_dims[0], width = img_dims[1];
 
   npy_intp *dims = PyArray_DIMS(dist);
   const int n_polys = dims[0];

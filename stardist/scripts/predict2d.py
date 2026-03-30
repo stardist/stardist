@@ -83,7 +83,7 @@ Prediction script for a 2D stardist model, usage: stardist-predict -i input.tif 
         out = pathlib.Path(args.outdir)
         out.mkdir(parents=True,exist_ok=True)
 
-        imwrite(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels, compress=3)
+        imwrite(out/args.outname.format(img=pathlib.Path(fname).with_suffix('').name), labels, compression='zlib')
         
 
 if __name__ == '__main__':

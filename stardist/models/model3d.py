@@ -251,6 +251,7 @@ class Config3D(BaseConfig):
             self.unet_last_activation    = 'relu'
             self.unet_batch_norm         = False
             self.unet_dropout            = 0.0
+            self.unet_expansion          = 2
             self.unet_prefix             = ''
             self.net_conv_after_unet     = 128
         elif self.backbone == 'resnet':
@@ -601,7 +602,7 @@ class StarDist3D(StarDistBase):
 
         # sparse prediction
         if points is not None:
-            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, **nms_kwargs)
+            points, probi, disti, indsi = non_maximum_suppression_3d_sparse(dist, prob, points, rays, nms_thresh=nms_thresh, use_gravity=False,**nms_kwargs)
             if prob_class is not None:
                 prob_class = prob_class[indsi]
 

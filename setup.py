@@ -108,12 +108,14 @@ setup(
             sources = ['stardist/lib/stardist2d.cpp', 'stardist/lib/utils.cpp'] + clipper_src,
             extra_compile_args = ['-std=c++11'],
             include_dirs = get_numpy_include_dirs() + [clipper_root, nanoflann_root],
+            define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
         ),
         Extension(
             'stardist.lib.stardist3d',
             sources = ['stardist/lib/stardist3d.cpp', 'stardist/lib/stardist3d_impl.cpp', 'stardist/lib/utils.cpp'] + qhull_src,
             extra_compile_args = ['-std=c++11'],
             include_dirs = get_numpy_include_dirs() + [qhull_root, nanoflann_root],
+            define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
         ),
     ],
 
@@ -134,17 +136,23 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
 
     install_requires=[
-        'csbdeep>=0.8.0',
+        'csbdeep>=0.8.2',
+        # https://numpy.org/doc/2.3/dev/depending_on_numpy.html#adding-a-dependency-on-numpy
+        'numpy<3; python_version>="3.9"',
         'scikit-image',
-        'numba',
+        'numba;            platform_system!="Darwin" or  platform_machine=="arm64"',
+        # newer versions of numba and llvmlite don't have prebuilt wheels for macOS x86_64
+        'numba<=0.62.1;    platform_system=="Darwin" and platform_machine!="arm64"',
+        'llvmlite<=0.45.1; platform_system=="Darwin" and platform_machine!="arm64"',
         'imageio',
     ],
 
     extras_require={
-        "tf1":  ["csbdeep[tf1]>=0.8.0"],
+        "tf1":  ["csbdeep[tf1]>=0.8.2"],
         "test": [
             "pytest;        python_version< '3.7'",
             "pytest>=7.2.0; python_version>='3.7'",

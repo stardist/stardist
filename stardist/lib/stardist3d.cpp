@@ -18,15 +18,16 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   float threshold = 0;
   int use_bbox;
   int use_kdtree;
+  int use_gravity;
   int verbose;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiif",
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiiif",
                         &PyArray_Type, &arr_dist,
                         &PyArray_Type, &arr_points,
                         &PyArray_Type, &arr_verts,
                         &PyArray_Type, &arr_faces,
                         &PyArray_Type, &arr_scores,
-                        &use_bbox, &use_kdtree,
+                        &use_bbox, &use_kdtree,&use_gravity,
                         &verbose,
                         &threshold))
     return NULL;
@@ -54,7 +55,7 @@ static PyObject* c_non_max_suppression_inds(PyObject *self, PyObject *args) {
   _COMMON_non_maximum_suppression_sparse(scores,dist, points,
                                          n_polys, n_rays, n_faces, 
                                          verts, faces,
-                                         threshold, use_bbox, use_kdtree, verbose, 
+                                         threshold, use_bbox, use_kdtree, use_gravity, verbose, 
                                          result);
   
 

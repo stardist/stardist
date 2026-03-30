@@ -48,7 +48,7 @@ If you want to know more about the concepts and practical applications of StarDi
 
 ## Installation
 
-This package is compatible with Python 3.6 - 3.12.
+This package is compatible with Python 3.6 - 3.13.
 
 If you only want to use a StarDist plugin for a GUI-based software, please read [this](#plugins-for-other-software).
 
@@ -259,13 +259,13 @@ If you encounter an `ImportError: dlopen(...): symbol not found in flat namespac
 brew install libomp
 
 libomp_root=$(brew --prefix libomp)
-
-export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
 export CFLAGS="$CFLAGS -I$libomp_root/include"
 export CXXFLAGS="$CXXFLAGS -I$libomp_root/include"
 export LDFLAGS="$LDFLAGS -Wl,-rpath,$libomp_root/lib -L$libomp_root/lib -lomp"
-pip install stardist --no-binary :all:
+
+pip install --no-binary stardist stardist
 ```
+
 ##### Apple Silicon
 
 As of StarDist 0.8.2, we provide `arm64` wheels that should work with [macOS on Apple Silicon](https://support.apple.com/en-us/HT211814) (M1 chip or newer). 
@@ -293,7 +293,7 @@ We made a plugin for the Python-based multi-dimensional image viewer [napari](ht
 
 ### QuPath
 
-Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/latest/docs/deep/stardist.html) for documentation and installation instructions.
+Inspired by the Fiji plugin, [Pete Bankhead](https://github.com/petebankhead) made a custom implementation of StarDist 2D for [QuPath](https://qupath.github.io) to use pretrained models. Please see [this page](https://qupath.readthedocs.io/en/stable/docs/deep/stardist.html) for documentation and installation instructions.
 
 ### Icy
 

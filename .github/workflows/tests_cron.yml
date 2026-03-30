@@ -15,8 +15,8 @@ jobs:
       fail-fast: false
       matrix:
         # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-        os: [ubuntu-20.04, windows-latest, macos-latest] # macos-latest is arm64-based
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        os: [ubuntu-22.04, windows-latest, macos-latest] # macos-latest is arm64-based
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         tensorflow: [1, 2]
         include:
           # always set 'package-extras' conditional on tensorflow version
@@ -32,31 +32,31 @@ jobs:
           - python-version: '3.9'
             deps-extra: 'edt "numpy>=1.20"'
           # add extra run to test latest tensorflow with legacy keras
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
             tensorflow: 2
             package-extras: 'test'
             deps-extra: 'tf_keras'
             exec-extra: 'echo "TF_USE_LEGACY_KERAS=1" >> $GITHUB_ENV'
-          # cases for using x86_64-based runner (macos-13)
-          - os: macos-13
+          # cases for using x86_64-based runner (macos-15-intel)
+          - os: macos-15-intel
             python-version: '3.6'  # no arm64 wheels
             tensorflow: 1
             package-extras: 'test,tf1'
-          - os: macos-13
+          - os: macos-15-intel
             python-version: '3.6'  # no arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          - os: macos-13
+          - os: macos-15-intel
             python-version: '3.7'  # no arm64 wheels
             tensorflow: 1
             package-extras: 'test,tf1'
-          - os: macos-13
+          - os: macos-15-intel
             python-version: '3.7'  # no arm64 wheels
             tensorflow: 2
             package-extras: 'test'
-          - os: macos-13
-            python-version: '>=3.12 <3.13'  # intentionally be different than '3.12' to cause an additional combination
+          - os: macos-15-intel
+            python-version: '3.12' # test x86_64 on latest supported python version that has tf wheels
             tensorflow: 2
             package-extras: 'test'
         exclude:
@@ -71,16 +71,23 @@ jobs:
             tensorflow: 1
           - python-version: '3.12'
             tensorflow: 1
+          - python-version: '3.13'
+            tensorflow: 1
           - os: windows-latest
             tensorflow: 1
           - os: macos-latest
             python-version: '3.6'
           - os: macos-latest
             python-version: '3.7'
+          - os: ubuntu-22.04
+            python-version: '3.6'  # https://github.com/actions/setup-python/issues/1048
 
     steps:
-      - name: Install Python
-        uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -89,9 +96,6 @@ jobs:
 
       - name: Install TensorFlow
         run: pip install "tensorflow==${{ matrix.tensorflow }}.*"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Install extra dependencies (if any)
         if: ${{ matrix.deps-extra }}
@@ -109,9 +113,13 @@ jobs:
           TMPDIR: "/tmp"  # - /tmp should already exist on runner image
           TMP: "/tmp"     # - set all temp-related env variables (had issues with when omitting some)
 
-      # - name: Install package from source (just to test wheel building) - macOS
-      #   if: startsWith(matrix.os, 'macos')
-      #   run: ...
+      - name: Install package from source (just to test wheel building) - macOS
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          export CC=gcc-13
+          export CXX=g++-13
+          pip install --no-binary stardist "stardist[${{ matrix.package-extras }}]"
 
       - name: Install package from wheel
         shell: bash

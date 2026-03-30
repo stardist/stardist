@@ -1032,7 +1032,7 @@ class StarDistBase(BaseModel):
             _opt_prob_thresh, _opt_measure = optimize_threshold(Y_val, Yhat_val, model=self, nms_thresh=_opt_nms_thresh, iou_threshs=iou_threshs, **optimize_kwargs)
             if _opt_measure > opt_measure:
                 opt_prob_thresh, opt_measure, opt_nms_thresh = _opt_prob_thresh, _opt_measure, _opt_nms_thresh
-        opt_threshs = dict(prob=opt_prob_thresh, nms=opt_nms_thresh)
+        opt_threshs = dict(prob=float(opt_prob_thresh), nms=float(opt_nms_thresh))
 
         self.thresholds = opt_threshs
         print(end='', file=sys.stderr, flush=True)
