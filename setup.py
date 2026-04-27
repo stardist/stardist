@@ -4,6 +4,7 @@ from setuptools.command.build_ext import build_ext
 from numpy import get_include
 from os import path
 from glob import glob
+import platform
 
 
 def get_numpy_include_dirs():
@@ -14,9 +15,10 @@ class build_ext_openmp(build_ext):
     # https://www.openmp.org/resources/openmp-compilers-tools/
     # python setup.py build_ext --help-compiler
     openmp_compile_args = {
-        'msvc':  [['/openmp']],
-        'intel': [['-qopenmp']],
-        '*':     [['-fopenmp'], ['-Xpreprocessor','-fopenmp']],
+        'msvc':             [['/openmp']],
+        'intel':            [['-qopenmp']],
+        'clang-darwin':     [[], ['-Xpreprocessor','-lomp']],
+        '*':                [['-fopenmp'], ['-Xpreprocessor','-fopenmp']],
     }
     openmp_link_args = openmp_compile_args # ?
 
@@ -24,6 +26,8 @@ class build_ext_openmp(build_ext):
         compiler = self.compiler.compiler_type.lower()
         if compiler.startswith('intel'):
             compiler = 'intel'
+        if compiler.startswith('unix') and platform.system().lower().startswith('darwin'):
+            compiler = 'clang-darwin'
         if compiler not in self.openmp_compile_args:
             compiler = '*'
 
