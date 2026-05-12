@@ -632,6 +632,7 @@ def _create_model_descr(
             nms_threshold=model.thresholds.nms,
             grid=postprocessing_grid,
             b=b,
+            n_rays=model.config.n_rays,
         )
     else:
         assert len(postprocessing_grid) == 3
