@@ -395,7 +395,12 @@ def _create_model_descr(
             Version,
             WeightsDescr,
         )
-        from importlib_metadata import metadata
+
+        try:
+            from importlib.metadata import metadata
+        except ImportError:
+            from importlib_metadata import metadata
+
         from keras import (
             __version__ as keras_version,  # pyright: ignore[reportAttributeAccessIssue]
         )
