@@ -158,7 +158,7 @@ setup(
             "pytest>=7.2.0; python_version>='3.7'",
             "tensorboard;   python_version>='3.10'",  # for error tracing within keras ("summary.scalar")
          ],
-        "bioimageio": ["bioimageio.core>=0.10.1"],
+        "bioimageio": ["bioimageio.core>=0.10.4"],
     },
 
     entry_points = {

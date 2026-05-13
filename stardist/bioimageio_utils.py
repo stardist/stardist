@@ -99,7 +99,7 @@ def export_bioimageio(
         None,
     ),
     overlap_label: Optional[int] = None,
-) -> Path:  # TODO: update parameters in docstring
+) -> Path:
     """Export stardist model into bioimage.io format, https://github.com/bioimage-io/spec-bioimage-io.
 
     Parameters
