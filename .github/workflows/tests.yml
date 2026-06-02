@@ -27,10 +27,10 @@ jobs:
             package-extras: 'test,tf1'
           - tensorflow: 2
             package-extras: 'test'
-          # test bioimage.io export with python 3.7 and tensorflow 1
-          - python-version: '3.7'
-            tensorflow: 1
-            package-extras: 'test,tf1,bioimageio'
+          # test bioimage.io utils
+          - python-version: '3.9'
+            tensorflow: 2
+            package-extras: 'test,bioimageio'
           # install edt with numpy>=1.20 when testing with python 3.9
           - python-version: '3.9'
             deps-extra: 'edt "numpy>=1.20"'
